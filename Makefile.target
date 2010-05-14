@@ -58,6 +58,9 @@ libobj-$(TARGET_ARM) += neon_helper.o iwmmxt_helper.o
 
 libobj-y += disas.o
 
+# coremu related object, we may need to split this later.
+libobj-y += cm-loop.o cm-intr.o cm-timer.o cm-i386-intr.o
+
 $(libobj-y): $(GENERATED_HEADERS)
 
 # libqemu
@@ -301,7 +304,7 @@ endif # CONFIG_SOFTMMU
 obj-$(CONFIG_GDBSTUB_XML) += gdbstub-xml.o
 
 # modifiy this to include coremu library.
-COREMU_LIB = /home/alex/programming/coremu/obj/libcoremu.a
+COREMU_LIB = /home/tiger/project/coremu/coremu-open-source/coremu/obj/libcoremu.a
 
 $(QEMU_PROG): $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y) $(COREMU_LIB)
 	$(call LINK,$(obj-y) $(obj-$(TARGET_BASE_ARCH)-y) -ltopology $(COREMU_LIB))
