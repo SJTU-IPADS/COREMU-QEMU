@@ -1,6 +1,6 @@
 /*
  * COREMU Parallel Emulator Framework
- * The interface for hardware interrupt sending and handling
+ * The common interface for hardware interrupt sending and handling
  * 
  * Copyright (C) 2010 PPI, Fudan Univ. 
  *  <http://ppi.fudan.edu.cn/system_research_group>
@@ -24,8 +24,15 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cm-intr.h"
 
- 
+/* The common interface to handle the interrupt, this function should to 
+   be registered to coremu */
+void cm_common_intr_handler(void *opaque)
+{
+    CMIntr *intr = (CMIntr *)opaque;
+    intr->handler(intr->opaque);
+}
 
 
 

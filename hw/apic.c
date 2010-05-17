@@ -1000,3 +1000,29 @@ int apic_init(CPUState *env)
     local_apics[s->idx] = s;
     return 0;
 }
+
+/*
+ * COREMU Parallel Emulator Framework
+ * The wrapper for COREMU IO emulate mechanism 
+ * 
+ * Copyright (C) 2010 PPI, Fudan Univ. 
+ *  <http://ppi.fudan.edu.cn/system_research_group>
+ */ 
+
+/* The declaration for wrapper interface */
+void cm_apic_set_irq(struct APICState *s, int vector_num, int trigger_mode)
+{
+    apic_set_irq(s, vector_num, trigger_mode);
+}
+
+void cm_apic_startup(struct APICState *s, int vector_num)
+{
+    apic_startup(s, vector_num);
+}
+
+void cm_apic_setup_arbid(struct APICState *s)
+{
+    s->arb_id = s->id;
+}
+
+
