@@ -24,9 +24,43 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include "cpu.h"
 
+#include "coremu-malloc.h"
+#include "cm-intr.h"
 #include "cm-i386-intr.h"
+
+/* The initial function for interrupts */
+CMIntr *cm_pic_intr_init(CMPicIntrInfo *pic_intr)
+{
+    CMIntr *intr = coremu_mallocz(sizeof(CMIntr));
+    intr->source = PIC_INTR;
+    intr->opaque = pic_intr;
+    intr->handler = cm_pic_intr_handler;
+
+    return intr;
+}
+
+CMIntr *cm_apicbus_intr_init(CMAPICBusIntrInfo *apicbus_intr)
+{
+    CMIntr *intr = coremu_mallocz(sizeof(CMIntr));
+    intr->source = APICBUS_INTR;
+    intr->opaque = apicbus_intr;
+    intr->handler = cm_apicbus_intr_handler;
+
+    return intr;
+}
+
+CMIntr *cm_ipi_intr_init(CMIPIIntrInfo *ipi_intr)
+{
+    CMIntr *intr = coremu_mallocz(sizeof(CMIntr));
+    intr->source = IPI_INTR;
+    intr->opaque = ipi_intr;
+    intr->handler = cm_ipi_intr_handler;
+
+    return intr;
+}
 
 /* Handle the interrupt from the i8259 chip */
 void cm_pic_intr_handler(void *opaque)
@@ -45,6 +79,7 @@ void cm_pic_intr_handler(void *opaque)
         else
             cpu_reset_interrupt(self, CPU_INTERRUPT_HARD);
     }
+    coremu_free(pic_intr);
 }
 
 
@@ -62,9 +97,10 @@ void cm_apicbus_intr_handler(void *opaque)
         cm_apic_set_irq(self->apic_state, 
                             apicbus_intr->vector_num, apicbus_intr->trigger_mode);
    } else {
-   /* for NMI, SMI and INIT the vector information is ignored*/
+   /* For NMI, SMI and INIT the vector information is ignored*/
         cpu_interrupt(self, apicbus_intr->mask);
    }
+   coremu_free(apicbus_intr);
 }
 
 
@@ -82,5 +118,6 @@ void cm_ipi_intr_handler(void *opaque)
     /* the INIT level de-assert */
         cm_apic_setup_arbid(self->apic_state);
     }
-    
+    coremu_free(ipi_intr);
 }
+

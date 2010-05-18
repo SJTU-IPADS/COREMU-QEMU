@@ -1008,7 +1008,6 @@ int apic_init(CPUState *env)
  * Copyright (C) 2010 PPI, Fudan Univ. 
  *  <http://ppi.fudan.edu.cn/system_research_group>
  */ 
-
 /* The declaration for wrapper interface */
 void cm_apic_set_irq(struct APICState *s, int vector_num, int trigger_mode)
 {

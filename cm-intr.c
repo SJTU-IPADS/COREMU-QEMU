@@ -23,7 +23,12 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+#include <stdlib.h>
+#include <stdio.h>
+#include "cpu.h"
+#include "cpu-all.h"
 
+#include "coremu-malloc.h"
 #include "cm-intr.h"
 
 /* The common interface to handle the interrupt, this function should to 
@@ -32,9 +37,15 @@ void cm_common_intr_handler(void *opaque)
 {
     CMIntr *intr = (CMIntr *)opaque;
     intr->handler(intr->opaque);
+    coremu_free(intr);
 }
 
-
-
+/* To notify there is an event coming, what qemu need to do is 
+   just exit current cpu loop */
+void cm_notify_event(void)
+{
+    if(cpu_single_env)
+        cpu_exit(cpu_single_env);
+}
  
 

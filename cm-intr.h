@@ -38,6 +38,6 @@ typedef struct CMIntr {
     CMIntr_handler handler;
 } CMIntr;
 
-
-
+void cm_common_intr_handler(void *opaque);
+void cm_notify_event(void);
 #endif

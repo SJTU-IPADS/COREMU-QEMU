@@ -1217,3 +1217,22 @@ static void pc_machine_init(void)
 }
 
 machine_init(pc_machine_init);
+
+/*
+ * COREMU Parallel Emulator Framework
+ * The wrapper for COREMU IO emulate mechanism 
+ * 
+ * Copyright (C) 2010 PPI, Fudan Univ. 
+ *  <http://ppi.fudan.edu.cn/system_research_group>
+ */ 
+/* The pic irq request */
+void cm_pic_irq_request(void * opaque, int irq, int level)
+{
+    if(coremu_init_done_p()) {
+        /* Send the signal to core thread */
+        
+    } else {
+        /* Initialization hasn't finished */
+        pic_irq_request(opaque, irq, level);
+    }
+}

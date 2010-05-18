@@ -66,3 +66,15 @@ void cm_apic_set_irq(struct APICState *s, int vector_num, int trigger_mode);
 void cm_apic_startup(struct APICState *s, int vector_num);
 void cm_apic_setup_arbid(struct APICState * s);
 
+/* The declaration for pic wrapper function */
+void cm_pic_irq_request(void * opaque, int irq, int level);
+
+/* The common declaration */
+CMIntr *cm_pic_intr_init(CMPicIntrInfo *pic_intr);
+CMIntr *cm_apicbus_intr_init(CMAPICBusIntrInfo *apicbus_intr);
+CMIntr *cm_ipi_intr_init(CMIPIIntrInfo *ipi_intr);
+void cm_pic_intr_handler(void *opaque);
+void cm_apicbus_intr_handler(void *opaque);
+void cm_ipi_intr_handler(void *opaque);
+
+
