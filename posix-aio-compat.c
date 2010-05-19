@@ -29,6 +29,8 @@
 
 #include "block/raw-posix-aio.h"
 
+#include "coremu-config.h"
+#include "coremu.h"
 
 struct qemu_paiocb {
     BlockDriverAIOCB common;
@@ -304,8 +306,9 @@ static void *aio_thread(void *unused)
 {
     pid_t pid;
 
+#ifndef CONFIG_COREMU
     pid = getpid();
-
+#endif
     while (1) {
         struct qemu_paiocb *aiocb;
         ssize_t ret = 0;
@@ -353,8 +356,11 @@ static void *aio_thread(void *unused)
         aiocb->ret = ret;
         idle_threads++;
         mutex_unlock(&lock);
-
+#ifdef CONFIG_COREMU
         if (kill(pid, aiocb->ev_signo)) die("kill failed");
+#else
+        coremu_signal_hw_thr(aiocb->ev_signo);
+#endif
     }
 
     idle_threads--;
@@ -507,8 +513,9 @@ static void aio_signal_handler(int signum)
         if (ret < 0 && errno != EAGAIN)
             die("write()");
     }
-
+#ifndef CONFIG_COREMU
     qemu_service_io();
+#endif
 }
 
 static void paio_remove(struct qemu_paiocb *acb)
@@ -570,7 +577,11 @@ BlockDriverAIOCB *paio_submit(BlockDriverState *bs, int fd,
         return NULL;
     acb->aio_type = type;
     acb->aio_fildes = fd;
+#ifdef CONFIG_COREMU
+    acb->ev_signo = COREMU_AIO_SIG;
+#else
     acb->ev_signo = SIGUSR2;
+#endif    
     acb->async_context_id = get_async_context_id();
 
     if (qiov) {
@@ -598,7 +609,11 @@ BlockDriverAIOCB *paio_ioctl(BlockDriverState *bs, int fd,
         return NULL;
     acb->aio_type = QEMU_AIO_IOCTL;
     acb->aio_fildes = fd;
+#ifdef CONFIG_COREMU
+    acb->ev_signo = COREMU_AIO_SIG;
+#else
     acb->ev_signo = SIGUSR2;
+#endif
     acb->aio_offset = 0;
     acb->aio_ioctl_buf = buf;
     acb->aio_ioctl_cmd = req;
@@ -625,7 +640,11 @@ int paio_init(void)
     sigfillset(&act.sa_mask);
     act.sa_flags = 0; /* do not restart syscalls to interrupt select() */
     act.sa_handler = aio_signal_handler;
+#ifdef CONFIG_COREMU
+    sigaction(COREMU_AIO_SIG, &act, NULL);
+#else
     sigaction(SIGUSR2, &act, NULL);
+#endif
 
     s->first_aio = NULL;
     if (qemu_pipe(fds) == -1) {

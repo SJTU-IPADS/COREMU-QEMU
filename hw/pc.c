@@ -800,6 +800,9 @@ static CPUState *pc_new_cpu(const char *cpu_model)
     } else {
         qemu_register_reset((QEMUResetHandler*)cpu_reset, env);
     }
+#ifdef CONFIG_COREMU
+    coremu_core_init(env->cpuid_apic_id, env);
+#endif
     return env;
 }
 
