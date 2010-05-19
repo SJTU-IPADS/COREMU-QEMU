@@ -812,3 +812,8 @@ void list_cpus(FILE *f, int (*cpu_fprintf)(FILE *f, const char *fmt, ...),
     cpu_list(f, cpu_fprintf); /* deprecated */
 #endif
 }
+
+int cm_cpu_can_run(CPUState * env)
+{
+    return cpu_can_run(env);
+}

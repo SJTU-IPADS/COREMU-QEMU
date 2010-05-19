@@ -25,7 +25,12 @@
  */
 
  /* Interrupt types for i386 architecture */
- enum cm_i386_intr_type {
+#ifndef CM_I386_INTR_H
+#define CM_I386_INTR_H
+
+#include "cm-intr.h"
+ 
+enum cm_i386_intr_type {
     PIC_INTR,                 /* Interrupt from i8259 pic */
     APICBUS_INTR,               /* Interrupt from APIC BUS 
                                    can be issued by other core or ioapic */
@@ -73,8 +78,11 @@ void cm_pic_irq_request(void * opaque, int irq, int level);
 CMIntr *cm_pic_intr_init(CMPicIntrInfo *pic_intr);
 CMIntr *cm_apicbus_intr_init(CMAPICBusIntrInfo *apicbus_intr);
 CMIntr *cm_ipi_intr_init(CMIPIIntrInfo *ipi_intr);
+void cm_send_pic_intr(int target, int level);
+void cm_send_apicbus_intr(int target, int mask, 
+                            int vector_num, int trigger_mode);
+void cm_send_ipi_intr(int target, int vector_num, int deliver_mode);
 void cm_pic_intr_handler(void *opaque);
 void cm_apicbus_intr_handler(void *opaque);
 void cm_ipi_intr_handler(void *opaque);
-
-
+#endif

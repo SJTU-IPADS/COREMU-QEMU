@@ -22,6 +22,8 @@
 #include "tcg.h"
 #include "kvm.h"
 
+#include "coremu-config.h"
+
 #if !defined(CONFIG_SOFTMMU)
 #undef EAX
 #undef ECX
@@ -223,9 +225,10 @@ int cpu_exec(CPUState *env1)
 
     if (cpu_halted(env1) == EXCP_HALTED)
         return EXCP_HALTED;
-
+    
+#ifndef CONFIG_COREMU
     cpu_single_env = env1;
-
+#endif
     /* the access to env below is actually saving the global register's
        value, so that files not including target-xyz/exec.h are free to
        use it.  */
@@ -665,8 +668,10 @@ int cpu_exec(CPUState *env1)
     asm("");
     env = (void *) saved_env_reg;
 
+#ifndef CONFIG_COREMU
     /* fail safe : never use cpu_single_env outside cpu_exec() */
     cpu_single_env = NULL;
+#endif
     return ret;
 }
 

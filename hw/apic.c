@@ -26,6 +26,10 @@
 #include "kvm.h"
 
 //#define DEBUG_APIC
+/* For Coremu */
+#include "coremu-config.h"
+#include "coremu.h"
+#include "cm-i386-intr.h"
 
 /* APIC Local Vector Table */
 #define APIC_LVT_TIMER   0
@@ -244,7 +248,11 @@ static void apic_bus_deliver(const uint32_t *deliver_bitmask,
                 if (d >= 0) {
                     apic_iter = local_apics[d];
                     if (apic_iter) {
+#ifdef CONFIG_COREMU
+                        cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_HARD, vector_num, trigger_mode);
+#else
                         apic_set_irq(apic_iter, vector_num, trigger_mode);
+#endif
                     }
                 }
             }
@@ -254,19 +262,37 @@ static void apic_bus_deliver(const uint32_t *deliver_bitmask,
             break;
 
         case APIC_DM_SMI:
+#ifdef CONFIG_COREMU
+            /* Vector number is -1 which indecates ignore */
+            foreach_apic(apic_iter, deliver_bitmask,
+                cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_SMI, -1, -1) );
+#else
             foreach_apic(apic_iter, deliver_bitmask,
                 cpu_interrupt(apic_iter->cpu_env, CPU_INTERRUPT_SMI) );
+#endif
             return;
 
         case APIC_DM_NMI:
+#ifdef CONFIG_COREMU
+            /* Vector number is -1 which indecates ignore */
+            foreach_apic(apic_iter, deliver_bitmask,
+                cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_NMI, -1, -1) );
+#else            
             foreach_apic(apic_iter, deliver_bitmask,
                 cpu_interrupt(apic_iter->cpu_env, CPU_INTERRUPT_NMI) );
+#endif
             return;
 
         case APIC_DM_INIT:
             /* normal INIT IPI sent to processors */
+#ifdef CONFIG_COREMU
+            /* Vector number is -1 which indecates ignore */
+            foreach_apic(apic_iter, deliver_bitmask,
+                cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_INIT, -1, -1) );
+#else           
             foreach_apic(apic_iter, deliver_bitmask,
                          cpu_interrupt(apic_iter->cpu_env, CPU_INTERRUPT_INIT) );
+#endif
             return;
 
         case APIC_DM_EXTINT:
@@ -277,8 +303,14 @@ static void apic_bus_deliver(const uint32_t *deliver_bitmask,
             return;
     }
 
+#ifdef CONFIG_COREMU
+    /* Vector number is -1 which indecates ignore */
+    foreach_apic(apic_iter, deliver_bitmask,
+        cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_HARD, vector_num, trigger_mode) );
+#else  
     foreach_apic(apic_iter, deliver_bitmask,
                  apic_set_irq(apic_iter, vector_num, trigger_mode) );
+#endif
 }
 
 void apic_deliver_irq(uint8_t dest, uint8_t dest_mode,
@@ -553,16 +585,26 @@ static void apic_deliver(APICState *s, uint8_t dest, uint8_t dest_mode,
                 int trig_mode = (s->icr[0] >> 15) & 1;
                 int level = (s->icr[0] >> 14) & 1;
                 if (level == 0 && trig_mode == 1) {
+#ifdef CONFIG_COREMU
+                    foreach_apic(apic_iter, deliver_bitmask,
+                                 cm_send_ipi_intr(apic_iter->id, vector_num, 0));
+#else
                     foreach_apic(apic_iter, deliver_bitmask,
                                  apic_iter->arb_id = apic_iter->id );
+#endif
                     return;
                 }
             }
             break;
 
         case APIC_DM_SIPI:
+#ifdef CONFIG_COREMU
+            foreach_apic(apic_iter, deliver_bitmask,
+                         cm_send_ipi_intr(apic_iter->id, vector_num, 1));
+#else            
             foreach_apic(apic_iter, deliver_bitmask,
                          apic_startup(apic_iter, vector_num) );
+#endif
             return;
     }
 
@@ -1023,5 +1065,3 @@ void cm_apic_setup_arbid(struct APICState *s)
 {
     s->arb_id = s->id;
 }
-
-

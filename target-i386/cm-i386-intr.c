@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include "cpu.h"
 
+#include "coremu-intr.h"
 #include "coremu-malloc.h"
 #include "cm-intr.h"
 #include "cm-i386-intr.h"
@@ -61,6 +62,54 @@ CMIntr *cm_ipi_intr_init(CMIPIIntrInfo *ipi_intr)
 
     return intr;
 }
+
+void cm_send_pic_intr(int target, int level) 
+{
+    CMIntr *intr;
+    CMPicIntrInfo *picintr;
+    
+    /* malloc pic interrupt */
+    picintr = coremu_mallocz(sizeof(CMPicIntrInfo));
+    picintr->level = level;
+    intr = cm_pic_intr_init(picintr);
+
+    /* send the intr to the target core thread */
+    coremu_send_intr(intr, target);
+}
+
+void cm_send_apicbus_intr(int target, int mask, 
+                                int vector_num, int trigger_mode)
+{
+    CMIntr *intr;
+    CMAPICBusIntrInfo *apicintr;
+    
+    /* malloc apic bus interrupt */
+    apicintr = coremu_mallocz(sizeof(CMAPICBusIntrInfo));
+    apicintr->vector_num = vector_num;
+    apicintr->trigger_mode = trigger_mode;
+    apicintr->mask = mask;
+    intr = cm_apicbus_intr_init(apicintr);
+    
+    /* send the intr to core thr */
+    coremu_send_intr(intr, target);
+}
+
+
+void cm_send_ipi_intr(int target, int vector_num, int deliver_mode)
+{
+    CMIntr *intr;
+    CMIPIIntrInfo *ipiintr;
+    
+    /* malloc ipi bus interrupt */
+    ipiintr = coremu_mallocz(sizeof(CMIPIIntrInfo));
+    ipiintr->vector_num = vector_num;
+    ipiintr->deliver_mode = deliver_mode;
+    intr = cm_ipi_intr_init(ipiintr);
+    
+    /* send the intr to core thr */
+    coremu_send_intr(intr, target);
+}
+
 
 /* Handle the interrupt from the i8259 chip */
 void cm_pic_intr_handler(void *opaque)

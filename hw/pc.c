@@ -50,6 +50,9 @@
 
 /* output Bochs bios info messages */
 //#define DEBUG_BIOS
+#include "coremu-config.h"
+#include "coremu.h"
+#include "cm-i386-intr.h"
 
 #define BIOS_FILENAME "bios.bin"
 
@@ -141,7 +144,9 @@ int cpu_get_pic_interrupt(CPUState *env)
     if (intno >= 0) {
         /* set irq request if a PIC irq is still pending */
         /* XXX: improve that */
+#ifndef CONFIG_COREMU        
         pic_update_irq(isa_pic);
+#endif
         return intno;
     }
     /* read the irq from the PIC */
@@ -916,8 +921,11 @@ static void pc_init1(ram_addr_t ram_size,
     for (i = 0; i < nb_option_roms; i++) {
         rom_add_option(option_rom[i]);
     }
-
+#ifdef CONFIG_COREMU
+    cpu_irq = qemu_allocate_irqs(cm_pic_irq_request, NULL, 1);
+#else
     cpu_irq = qemu_allocate_irqs(pic_irq_request, NULL, 1);
+#endif
     i8259 = i8259_init(cpu_irq[0]);
     isa_irq_state = qemu_mallocz(sizeof(*isa_irq_state));
     isa_irq_state->i8259 = i8259;
@@ -1228,11 +1236,27 @@ machine_init(pc_machine_init);
 /* The pic irq request */
 void cm_pic_irq_request(void * opaque, int irq, int level)
 {
+    CPUState *env = NULL;
+    CMIntr *intr = NULL;
+    CMPicIntrInfo *picintr = NULL;
+    
     if(coremu_init_done_p()) {
         /* Send the signal to core thread */
-        
+        env = first_cpu;
+        if(env->apic_state) {
+            while (env) {
+                if (apic_accept_pic_intr(env)) {
+                    cm_send_pic_intr(env->cpuid_apic_id, level);
+                }
+                env = env->next_cpu;
+            }
+        } else {
+        /* Uniprocessor system without lapic */
+            cm_send_pic_intr(env->cpuid_apic_id, level);
+        }
     } else {
         /* Initialization hasn't finished */
         pic_irq_request(opaque, irq, level);
     }
 }
+

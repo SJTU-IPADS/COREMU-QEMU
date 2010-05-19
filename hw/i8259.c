@@ -32,6 +32,7 @@
 
 //#define DEBUG_IRQ_LATENCY
 //#define DEBUG_IRQ_COUNT
+#include "coremu-config.h"
 
 typedef struct PicState {
     uint8_t last_irr; /* edge detection */
@@ -245,7 +246,9 @@ int pic_read_irq(PicState2 *s)
         irq = 7;
         intno = s->pics[0].irq_base + irq;
     }
+#ifndef CONFIG_COREMU        
     pic_update_irq(s);
+#endif
 
 #ifdef DEBUG_IRQ_LATENCY
     printf("IRQ%d latency=%0.3fus\n",

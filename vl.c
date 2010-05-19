@@ -165,6 +165,14 @@ int main(int argc, char **argv)
 
 //#define DEBUG_NET
 //#define DEBUG_SLIRP
+#include "coremu-config.h"
+#include "coremu.h"
+#include "coremu-intr.h"
+#include "coremu-debug.h"
+#include "cm-loop.h"
+#include "cm-intr.h"
+
+//#include "cm-i386-intr.h"
 
 #define DEFAULT_RAM_SIZE 128
 
@@ -1959,17 +1967,35 @@ qemu_irq qemu_system_powerdown;
 static void main_loop(void)
 {
     int r;
+#ifdef CONFIG_COREMU
+    /* 1. Not finish: need some initialization */
 
+    /* 2. register hook functions */
+    /* register the interrupt handler */
+    coremu_register_event_handler(cm_common_intr_handler);
+    /* register the event notifier */
+    coremu_register_event_notifier(cm_notify_event);
+    
+    /* 3. Create cpu thread body*/
+    coremu_run_all_cores(cm_cpu_loop);
+#else
     qemu_main_loop_start();
+#endif
 
     for (;;) {
         do {
+#ifdef CONFIG_COREMU
+            bool nonblocking = true;
+#else
             bool nonblocking = false;
+#endif
 #ifdef CONFIG_PROFILER
             int64_t ti;
 #endif
+#ifndef CONFIG_COREMU
 #ifndef CONFIG_IOTHREAD
             nonblocking = tcg_cpu_exec();
+#endif
 #endif
 #ifdef CONFIG_PROFILER
             ti = profile_getclock();
@@ -3455,6 +3481,14 @@ int main(int argc, char **argv, char **envp)
                 machine->max_cpus);
         exit(1);
     }
+    
+#ifdef CONFIG_COREMU
+    cm_print("\n%s\n%s\n%s",
+             "------------------------------------",
+             "|     [COREMU Parallel Emulator]   |",
+             "------------------------------------");
+    coremu_init(smp_cpus);
+#endif
 
     qemu_opts_foreach(&qemu_device_opts, default_driver_check, NULL, 0);
     qemu_opts_foreach(&qemu_global_opts, default_driver_check, NULL, 0);
@@ -3916,4 +3950,9 @@ int main(int argc, char **argv, char **envp)
     net_cleanup();
 
     return 0;
+}
+
+int cm_vm_can_run(void)
+{
+    return vm_can_run();
 }
