@@ -48,8 +48,7 @@ static bool cm_tcg_cpu_exec(void)
             qemu_run_all_timers();
         
         coremu_receive_intr();
-        //if (cm_cpu_can_run(env))
-        if(!env->stop && !env->stopped && !vm_running)
+        if (cm_cpu_can_run(env))
             ret = cpu_exec(env);
         else if (env->stop)
             break;
