@@ -71,6 +71,9 @@ void *cm_cpu_loop(void *args)
 {
     /* do some initialization */
     /* Need to initial per cpu timer */
+    cpu_single_env = (CPUState *)args;
+    assert(cpu_single_env);
+
     int res;
     res = init_timer_alarm();
     if (res < 0) {
@@ -79,9 +82,7 @@ void *cm_cpu_loop(void *args)
     }
 
     /* not complete */
-    cpu_single_env = (CPUState *)args;
-    assert(cpu_single_env);
-
+   
     int ret;
 
     for (;;) {

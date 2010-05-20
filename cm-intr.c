@@ -35,6 +35,7 @@
    be registered to coremu */
 void cm_common_intr_handler(void *opaque)
 {
+    coremu_assert_core_thr();
     CMIntr *intr = (CMIntr *)opaque;
     intr->handler(intr->opaque);
     coremu_free(intr);

@@ -71,6 +71,9 @@
 //#define DEBUG_IOPORT
 //#define DEBUG_SUBPAGE
 
+#include "coremu-config.h"
+#include "coremu.h"
+
 #if !defined(CONFIG_USER_ONLY)
 /* TB consistency checks only implemented for usermode emulation.  */
 #undef DEBUG_TB_CHECK
@@ -130,7 +133,7 @@ ram_addr_t last_ram_offset;
 CPUState *first_cpu;
 /* current CPU in the current thread. It is only valid inside
    cpu_exec() */
-CPUState *cpu_single_env;
+COREMU_THREAD CPUState *cpu_single_env;
 /* 0 = Do not count executed instructions.
    1 = Precise instruction counting.
    2 = Adaptive rate instruction counting.  */

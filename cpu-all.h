@@ -22,6 +22,8 @@
 #include "qemu-common.h"
 #include "cpu-common.h"
 
+#include "coremu-config.h"
+
 /* some important defines:
  *
  * WORDS_ALIGNED : if defined, the host cpu can only make word aligned
@@ -772,7 +774,7 @@ void cpu_dump_statistics (CPUState *env, FILE *f,
 void QEMU_NORETURN cpu_abort(CPUState *env, const char *fmt, ...)
     __attribute__ ((__format__ (__printf__, 2, 3)));
 extern CPUState *first_cpu;
-extern CPUState *cpu_single_env;
+extern COREMU_THREAD CPUState *cpu_single_env;
 
 #define CPU_INTERRUPT_HARD   0x02 /* hardware interrupt pending */
 #define CPU_INTERRUPT_EXITTB 0x04 /* exit the current TB (use for x86 a20 case) */
