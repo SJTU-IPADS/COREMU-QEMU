@@ -32,6 +32,9 @@
 #include "kvm.h"
 
 #include "cpus.h"
+#include "coremu-config.h"
+#include "coremu.h"
+#include "coremu-hw.h"
 
 #ifdef SIGRTMIN
 #define SIG_IPI (SIGRTMIN+4)
@@ -268,8 +271,12 @@ void qemu_cpu_kick(void *env)
 void qemu_notify_event(void)
 {
     CPUState *env = cpu_single_env;
-
-    qemu_event_increment ();
+#ifdef CONFIG_COREMU
+    if (coremu_hw_thr_p())
+        qemu_event_increment();
+#else
+    qemu_event_increment();
+#endif
     if (env) {
         cpu_exit(env);
     }

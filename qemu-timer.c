@@ -58,6 +58,8 @@
 #include "coremu-config.h"
 #include "coremu.h"
 #include "coremu-timer.h"
+#include "coremu-debug.h"
+   
 
 /* Conversion factor from emulated instructions to virtual clock ticks.  */
 int icount_time_shift;

@@ -305,9 +305,9 @@ static ssize_t handle_aiocb_rw(struct qemu_paiocb *aiocb)
 
 static void *aio_thread(void *unused)
 {
-    pid_t pid;
 
 #ifndef CONFIG_COREMU
+    pid_t pid;
     pid = getpid();
 #endif
     while (1) {
