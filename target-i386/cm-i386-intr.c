@@ -94,7 +94,6 @@ void cm_send_apicbus_intr(int target, int mask,
     coremu_send_intr(intr, target);
 }
 
-
 void cm_send_ipi_intr(int target, int vector_num, int deliver_mode)
 {
     CMIntr *intr;
@@ -109,7 +108,6 @@ void cm_send_ipi_intr(int target, int vector_num, int deliver_mode)
     /* send the intr to core thr */
     coremu_send_intr(intr, target);
 }
-
 
 /* Handle the interrupt from the i8259 chip */
 void cm_pic_intr_handler(void *opaque)
@@ -131,7 +129,6 @@ void cm_pic_intr_handler(void *opaque)
     coremu_free(pic_intr);
 }
 
-
 /* Handle the interrupt from the apic bus.
    Because hardware connect to ioapic and inter-processor interrupt
    are all delivered through apic bus, so this kind of interrupt can
@@ -146,12 +143,11 @@ void cm_apicbus_intr_handler(void *opaque)
         cm_apic_set_irq(self->apic_state,
                             apicbus_intr->vector_num, apicbus_intr->trigger_mode);
    } else {
-   /* For NMI, SMI and INIT the vector information is ignored*/
+       /* For NMI, SMI and INIT the vector information is ignored*/
         cpu_interrupt(self, apicbus_intr->mask);
    }
    coremu_free(apicbus_intr);
 }
-
 
 /* Handle the inter-processor interrupt (Only for INIT De-assert or SIPI) */
 void cm_ipi_intr_handler(void *opaque)
@@ -161,10 +157,10 @@ void cm_ipi_intr_handler(void *opaque)
     CPUState *self = cpu_single_env;
 
     if (ipi_intr->deliver_mode) {
-    /* SIPI */
+        /* SIPI */
         cm_apic_startup(self->apic_state, ipi_intr->vector_num);
     } else {
-    /* the INIT level de-assert */
+        /* the INIT level de-assert */
         cm_apic_setup_arbid(self->apic_state);
     }
     coremu_free(ipi_intr);

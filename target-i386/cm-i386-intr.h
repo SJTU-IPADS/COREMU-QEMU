@@ -6,9 +6,9 @@
  *  <http://ppi.fudan.edu.cn/system_research_group>
  *
  * Authors:
- *  Zhaoguo Wang	<zgwang@fudan.edu.cn>
- *  Yufei Chen 		<chenyufei@fudan.edu.cn>
- *  Ran Liu 		<naruilone@gmail.com>
+ *  Zhaoguo Wang    <zgwang@fudan.edu.cn>
+ *  Yufei Chen      <chenyufei@fudan.edu.cn>
+ *  Ran Liu         <naruilone@gmail.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,7 +29,7 @@
 #define CM_I386_INTR_H
 
 #include "cm-intr.h"
- 
+
 enum cm_i386_intr_type {
     PIC_INTR,                 /* Interrupt from i8259 pic */
     APICBUS_INTR,               /* Interrupt from APIC BUS 

@@ -358,7 +358,7 @@ static void *aio_thread(void *unused)
         idle_threads++;
         mutex_unlock(&lock);
 #ifdef CONFIG_COREMU
-        coremu_signal_hw_thr(aiocb->ev_signo);  
+        coremu_signal_hw_thr(aiocb->ev_signo);
 #else
         if (kill(pid, aiocb->ev_signo)) die("kill failed");
 #endif
