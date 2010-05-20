@@ -1984,11 +1984,7 @@ static void main_loop(void)
 
     for (;;) {
         do {
-#ifdef CONFIG_COREMU
-            bool nonblocking = true;
-#else
             bool nonblocking = false;
-#endif
 #ifdef CONFIG_PROFILER
             int64_t ti;
 #endif

@@ -44,10 +44,10 @@ static bool cm_tcg_cpu_exec(void)
 
     for (;;) {
 
-        
         if (qemu_alarm_pending())
             qemu_run_all_timers();
         
+        coremu_receive_intr();
         //if (cm_cpu_can_run(env))
         if(!env->stop && !env->stopped && !vm_running)
             ret = cpu_exec(env);
@@ -72,7 +72,12 @@ void *cm_cpu_loop(void *args)
 {
     /* do some initialization */
     /* Need to initial per cpu timer */
-    cm_assert(!init_timer_alarm(), "initial local timer failed");
+    int res;
+    res = init_timer_alarm();
+    if (res < 0) {
+        printf("initialize local alarm failed\n");
+        cm_assert(0, "local alarm initialize error");
+    }
 
     /* not complete */
     cpu_single_env = (CPUState *)args;

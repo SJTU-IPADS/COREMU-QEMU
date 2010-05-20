@@ -267,6 +267,9 @@ int cpu_exec(CPUState *env1)
     /* prepare setjmp context for exception handling */
     for(;;) {
         if (setjmp(env->jmp_env) == 0) {
+#ifdef CONFIG_COREMU
+                coremu_receive_intr();
+#endif
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)
 #undef env
                     env = cpu_single_env;
@@ -604,7 +607,15 @@ int cpu_exec(CPUState *env1)
                     env = cpu_single_env;
 #define env cpu_single_env
 #endif
+
+#ifdef CONFIG_COREMU
+                    coremu_receive_intr();
+#endif
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
+
+#ifdef CONFIG_COREMU
+                    coremu_receive_intr();
+#endif
                     env->current_tb = NULL;
                     if ((next_tb & 3) == 2) {
                         /* Instruction counter expired.  */
