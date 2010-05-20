@@ -1,14 +1,14 @@
 /*
  * COREMU Parallel Emulator Framework
  * The common interface for hardware interrupt sending and handling
- * 
- * Copyright (C) 2010 PPI, Fudan Univ. 
+ *
+ * Copyright (C) 2010 PPI, Fudan Univ.
  *  <http://ppi.fudan.edu.cn/system_research_group>
  *
  * Authors:
- *  Zhaoguo Wang	<zgwang@fudan.edu.cn>
- *  Yufei Chen 		<chenyufei@fudan.edu.cn>
- *  Ran Liu 		<naruilone@gmail.com>
+ *  Zhaoguo Wang    <zgwang@fudan.edu.cn>
+ *  Yufei Chen      <chenyufei@fudan.edu.cn>
+ *  Ran Liu         <naruilone@gmail.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,7 +31,7 @@
 #include "coremu-malloc.h"
 #include "cm-intr.h"
 
-/* The common interface to handle the interrupt, this function should to 
+/* The common interface to handle the interrupt, this function should to
    be registered to coremu */
 void cm_common_intr_handler(void *opaque)
 {
@@ -40,12 +40,12 @@ void cm_common_intr_handler(void *opaque)
     coremu_free(intr);
 }
 
-/* To notify there is an event coming, what qemu need to do is 
+/* To notify there is an event coming, what qemu need to do is
    just exit current cpu loop */
 void cm_notify_event(void)
 {
-    if(cpu_single_env)
+    if (cpu_single_env)
         cpu_exit(cpu_single_env);
 }
- 
+
 

@@ -1,8 +1,8 @@
 /*
  * COREMU Parallel Emulator Framework
  * The definition of core thread function
- * 
- * Copyright (C) 2010 PPI, Fudan Univ. 
+ *
+ * Copyright (C) 2010 PPI, Fudan Univ.
  *  <http://ppi.fudan.edu.cn/system_research_group>
  *
  * Authors:

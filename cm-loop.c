@@ -1,8 +1,8 @@
 /*
  * COREMU Parallel Emulator Framework
  * The definition of core thread function
- * 
- * Copyright (C) 2010 PPI, Fudan Univ. 
+ *
+ * Copyright (C) 2010 PPI, Fudan Univ.
  *  <http://ppi.fudan.edu.cn/system_research_group>
  *
  * Authors:
@@ -41,7 +41,7 @@ static bool cm_tcg_cpu_exec(void)
     struct timespec halt_interval;
     halt_interval.tv_sec = 0;
     halt_interval.tv_nsec = 10000;
-    
+
     for (;;) {
 
         /*
@@ -67,22 +67,22 @@ static bool cm_tcg_cpu_exec(void)
     return 1;
 }
 
- 
+
 void *cm_cpu_loop(void *args)
 {
     /* do some initialization */
     /* not complete */
     cpu_single_env = (CPUState *)args;
     assert(cpu_single_env);
-    
+
     int ret;
-    
+
     for (;;) {
         do {
             ret = cm_tcg_cpu_exec();
             cm_assert(ret, "CPU Stop mechanism hasn't been implemented!\n");
         } while (cm_vm_can_run());
-        
+
         cm_assert(0, "not finish here\n");
     }
     pause_all_vcpus();

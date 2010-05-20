@@ -1,8 +1,8 @@
 /*
  * COREMU Parallel Emulator Framework
- * The definition of interrupt related interface for i386 
- * 
- * Copyright (C) 2010 PPI, Fudan Univ. 
+ * The definition of interrupt related interface for i386
+ *
+ * Copyright (C) 2010 PPI, Fudan Univ.
  *  <http://ppi.fudan.edu.cn/system_research_group>
  *
  * Authors:
@@ -63,11 +63,11 @@ CMIntr *cm_ipi_intr_init(CMIPIIntrInfo *ipi_intr)
     return intr;
 }
 
-void cm_send_pic_intr(int target, int level) 
+void cm_send_pic_intr(int target, int level)
 {
     CMIntr *intr;
     CMPicIntrInfo *picintr;
-    
+
     /* malloc pic interrupt */
     picintr = coremu_mallocz(sizeof(CMPicIntrInfo));
     picintr->level = level;
@@ -77,19 +77,19 @@ void cm_send_pic_intr(int target, int level)
     coremu_send_intr(intr, target);
 }
 
-void cm_send_apicbus_intr(int target, int mask, 
+void cm_send_apicbus_intr(int target, int mask,
                                 int vector_num, int trigger_mode)
 {
     CMIntr *intr;
     CMAPICBusIntrInfo *apicintr;
-    
+
     /* malloc apic bus interrupt */
     apicintr = coremu_mallocz(sizeof(CMAPICBusIntrInfo));
     apicintr->vector_num = vector_num;
     apicintr->trigger_mode = trigger_mode;
     apicintr->mask = mask;
     intr = cm_apicbus_intr_init(apicintr);
-    
+
     /* send the intr to core thr */
     coremu_send_intr(intr, target);
 }
@@ -99,13 +99,13 @@ void cm_send_ipi_intr(int target, int vector_num, int deliver_mode)
 {
     CMIntr *intr;
     CMIPIIntrInfo *ipiintr;
-    
+
     /* malloc ipi bus interrupt */
     ipiintr = coremu_mallocz(sizeof(CMIPIIntrInfo));
     ipiintr->vector_num = vector_num;
     ipiintr->deliver_mode = deliver_mode;
     intr = cm_ipi_intr_init(ipiintr);
-    
+
     /* send the intr to core thr */
     coremu_send_intr(intr, target);
 }
@@ -115,10 +115,10 @@ void cm_send_ipi_intr(int target, int vector_num, int deliver_mode)
 void cm_pic_intr_handler(void *opaque)
 {
     CMPicIntrInfo *pic_intr = (CMPicIntrInfo *)opaque;
-    
+
     CPUState *self = cpu_single_env;
     int level = pic_intr->level;
-    
+
     if (self->apic_state) {
         if (apic_accept_pic_intr(self))
             apic_deliver_pic_intr(self, pic_intr->level);
@@ -133,7 +133,7 @@ void cm_pic_intr_handler(void *opaque)
 
 
 /* Handle the interrupt from the apic bus.
-   Because hardware connect to ioapic and inter-processor interrupt 
+   Because hardware connect to ioapic and inter-processor interrupt
    are all delivered through apic bus, so this kind of interrupt can
    be hw interrupt or IPI */
 void cm_apicbus_intr_handler(void *opaque)
@@ -141,9 +141,9 @@ void cm_apicbus_intr_handler(void *opaque)
    CMAPICBusIntrInfo *apicbus_intr = (CMAPICBusIntrInfo *)opaque;
 
    CPUState *self = cpu_single_env;
-   
-   if(apicbus_intr->vector_num >= 0) {
-        cm_apic_set_irq(self->apic_state, 
+
+   if (apicbus_intr->vector_num >= 0) {
+        cm_apic_set_irq(self->apic_state,
                             apicbus_intr->vector_num, apicbus_intr->trigger_mode);
    } else {
    /* For NMI, SMI and INIT the vector information is ignored*/
@@ -160,7 +160,7 @@ void cm_ipi_intr_handler(void *opaque)
 
     CPUState *self = cpu_single_env;
 
-    if(ipi_intr->deliver_mode) {
+    if (ipi_intr->deliver_mode) {
     /* SIPI */
         cm_apic_startup(self->apic_state, ipi_intr->vector_num);
     } else {

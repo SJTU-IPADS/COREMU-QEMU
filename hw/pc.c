@@ -1231,22 +1231,22 @@ machine_init(pc_machine_init);
 
 /*
  * COREMU Parallel Emulator Framework
- * The wrapper for COREMU IO emulate mechanism 
- * 
- * Copyright (C) 2010 PPI, Fudan Univ. 
+ * The wrapper for COREMU IO emulate mechanism
+ *
+ * Copyright (C) 2010 PPI, Fudan Univ.
  *  <http://ppi.fudan.edu.cn/system_research_group>
- */ 
+ */
 /* The pic irq request */
 void cm_pic_irq_request(void * opaque, int irq, int level)
 {
     CPUState *env = NULL;
     CMIntr *intr = NULL;
     CMPicIntrInfo *picintr = NULL;
-    
-    if(coremu_init_done_p()) {
+
+    if (coremu_init_done_p()) {
         /* Send the signal to core thread */
         env = first_cpu;
-        if(env->apic_state) {
+        if (env->apic_state) {
             while (env) {
                 if (apic_accept_pic_intr(env)) {
                     cm_send_pic_intr(env->cpuid_apic_id, level);
@@ -1254,7 +1254,7 @@ void cm_pic_irq_request(void * opaque, int irq, int level)
                 env = env->next_cpu;
             }
         } else {
-        /* Uniprocessor system without lapic */
+            /* Uniprocessor system without lapic */
             cm_send_pic_intr(env->cpuid_apic_id, level);
         }
     } else {

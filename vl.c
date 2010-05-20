@@ -1975,7 +1975,7 @@ static void main_loop(void)
     coremu_register_event_handler(cm_common_intr_handler);
     /* register the event notifier */
     coremu_register_event_notifier(cm_notify_event);
-    
+
     /* 3. Create cpu thread body*/
     coremu_run_all_cores(cm_cpu_loop);
 #else
@@ -3481,7 +3481,7 @@ int main(int argc, char **argv, char **envp)
                 machine->max_cpus);
         exit(1);
     }
-    
+
 #ifdef CONFIG_COREMU
     cm_print("\n%s\n%s\n%s",
              "------------------------------------",

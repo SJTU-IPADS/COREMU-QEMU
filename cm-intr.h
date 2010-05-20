@@ -1,8 +1,8 @@
 /*
  * COREMU Parallel Emulator Framework
  * Defines qemu related structure and interface for hardware interrupt
- * 
- * Copyright (C) 2010 PPI, Fudan Univ. 
+ *
+ * Copyright (C) 2010 PPI, Fudan Univ.
  *  <http://ppi.fudan.edu.cn/system_research_group>
  *
  * Authors:
@@ -29,8 +29,8 @@
 /* This is the call back function used to handle different type interrupts */
 typedef void (*CMIntr_handler)(void *opaque);
 
-/* This structure is used to wrap the interrupt request between different core 
-   thread and hardware thread. Opaque's type is depend on different sources and 
+/* This structure is used to wrap the interrupt request between different core
+   thread and hardware thread. Opaque's type is depend on different sources and
    target architectures. */
 typedef struct CMIntr {
     int source;
