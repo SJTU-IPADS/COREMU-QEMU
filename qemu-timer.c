@@ -55,6 +55,10 @@
 
 #include "qemu-timer.h"
 
+#include "coremu-config.h"
+#include "coremu.h"
+#include "coremu-timer.h"
+
 /* Conversion factor from emulated instructions to virtual clock ticks.  */
 int icount_time_shift;
 /* Arbitrarily pick 1MIPS as the minimum allowable speed.  */
@@ -251,7 +255,7 @@ struct qemu_alarm_timer {
     char pending;
 };
 
-static struct qemu_alarm_timer *alarm_timer;
+static COREMU_THREAD struct qemu_alarm_timer *alarm_timer;
 
 int qemu_alarm_pending(void)
 {
@@ -361,7 +365,7 @@ int64_t qemu_icount_round(int64_t count)
     return (count + (1 << icount_time_shift) - 1) >> icount_time_shift;
 }
 
-static struct qemu_alarm_timer alarm_timers[] = {
+static COREMU_THREAD struct qemu_alarm_timer alarm_timers[] = {
 #ifndef _WIN32
 #ifdef __linux__
     {"dynticks", dynticks_start_timer,
@@ -451,7 +455,7 @@ QEMUClock *rt_clock;
 QEMUClock *vm_clock;
 QEMUClock *host_clock;
 
-static QEMUTimer *active_timers[QEMU_NUM_CLOCKS];
+static COREMU_THREAD QEMUTimer *active_timers[QEMU_NUM_CLOCKS];
 
 static QEMUClock *qemu_new_clock(int type)
 {
@@ -926,6 +930,15 @@ static int dynticks_start_timer(struct qemu_alarm_timer *t)
     act.sa_flags = 0;
     act.sa_handler = host_alarm_handler;
 
+#ifdef CONFIG_COREMU
+    sigaction(COREMU_TIMER_SIGNAL, &act, NULL);
+    if (coremu_timer_create(COREMU_TIMER_SIGNAL, &host_timer)) {
+        perror("timer_create");
+        cm_assert(0, "timer create failed");
+        return -1;
+    }
+    
+#else
     sigaction(SIGALRM, &act, NULL);
 
     /* 
@@ -945,7 +958,7 @@ static int dynticks_start_timer(struct qemu_alarm_timer *t)
 
         return -1;
     }
-
+#endif
     t->priv = (void *)(long)host_timer;
 
     return 0;

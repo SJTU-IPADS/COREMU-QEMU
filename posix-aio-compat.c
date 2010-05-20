@@ -31,6 +31,7 @@
 
 #include "coremu-config.h"
 #include "coremu.h"
+#include "coremu-hw.h"
 
 struct qemu_paiocb {
     BlockDriverAIOCB common;
@@ -357,9 +358,9 @@ static void *aio_thread(void *unused)
         idle_threads++;
         mutex_unlock(&lock);
 #ifdef CONFIG_COREMU
-        if (kill(pid, aiocb->ev_signo)) die("kill failed");
+        coremu_signal_hw_thr(aiocb->ev_signo);  
 #else
-        coremu_signal_hw_thr(aiocb->ev_signo);
+        if (kill(pid, aiocb->ev_signo)) die("kill failed");
 #endif
     }
 

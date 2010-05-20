@@ -44,10 +44,10 @@ static bool cm_tcg_cpu_exec(void)
     
     for (;;) {
 
-        /*
-        if (local_alarm_pending())
-            update_local_alarm();
-        */
+        
+        if (qemu_alarm_pending())
+            qemu_run_all_timers();
+        
         //if (cm_cpu_can_run(env))
         if(!env->stop && !env->stopped && !vm_running)
             ret = cpu_exec(env);
@@ -71,6 +71,9 @@ static bool cm_tcg_cpu_exec(void)
 void *cm_cpu_loop(void *args)
 {
     /* do some initialization */
+    /* Need to initial per cpu timer */
+    cm_assert(!init_timer_alarm(), "initial local timer failed");
+
     /* not complete */
     cpu_single_env = (CPUState *)args;
     assert(cpu_single_env);
