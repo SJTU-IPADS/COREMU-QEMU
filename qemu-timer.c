@@ -55,11 +55,12 @@
 
 #include "qemu-timer.h"
 
+
 #include "coremu-config.h"
 #include "coremu.h"
 #include "coremu-timer.h"
+#include "cm-timer.h"
 #include "coremu-debug.h"
-   
 
 /* Conversion factor from emulated instructions to virtual clock ticks.  */
 int icount_time_shift;
@@ -257,7 +258,7 @@ struct qemu_alarm_timer {
     char pending;
 };
 
-static COREMU_THREAD struct qemu_alarm_timer *alarm_timer;
+static struct qemu_alarm_timer *alarm_timer;
 
 int qemu_alarm_pending(void)
 {
@@ -457,7 +458,7 @@ QEMUClock *rt_clock;
 QEMUClock *vm_clock;
 QEMUClock *host_clock;
 
-static COREMU_THREAD QEMUTimer *active_timers[QEMU_NUM_CLOCKS];
+static QEMUTimer *active_timers[QEMU_NUM_CLOCKS];
 
 static QEMUClock *qemu_new_clock(int type)
 {
@@ -724,6 +725,10 @@ static void CALLBACK host_alarm_handler(UINT uTimerID, UINT uMsg,
 static void host_alarm_handler(int host_signum)
 #endif
 {
+    if(!coremu_hw_thr_p())
+        printf("host alarm handler core thr\n");
+   
+    
     struct qemu_alarm_timer *t = alarm_timer;
     if (!t)
 	return;
@@ -1203,3 +1208,89 @@ int qemu_calculate_timeout(void)
 #endif
 }
 
+#ifdef CONFIG_COREMU
+COREMU_THREAD QEMUTimer *cm_active_timers;
+COREMU_THREAD struct qemu_alarm_timer *cm_alarm_timer;
+
+int cm_init_timer_alarm(void)
+{
+    struct qemu_alarm_timer *t = NULL;
+    int i, err = -1;
+
+    for (i = 0; alarm_timers[i].name; i++) {
+        t = &alarm_timers[i];
+
+        err = t->start(t);
+        if (!err)
+            break;
+    }
+
+    if (err) {
+        err = -ENOENT;
+        goto fail;
+    }
+
+    /* first event is at time 0 */
+    t->pending = 1;
+    cm_alarm_timer = t;
+
+    return 0;
+
+fail:
+    return err;
+}
+
+/* Mode the local virtual timer for core.
+   Because for x86_64, there is only one timer for every core
+   so there is no need to do the link list.
+*/
+void cm_qemu_mod_timer(QEMUTimer *ts, int64_t expire_time)
+{
+    QEMUTimer **pt, *t;
+
+    if (cm_active_timers != NULL)
+        cm_assert(cm_active_timers == ts, "active timer should only be apic timer\n");
+
+    if (cm_active_timers == NULL)
+        cm_active_timers = ts;
+    
+    cm_active_timers->expire_time = expire_time;
+
+    /* Rearm */
+    if (!cm_alarm_timer->pending) {
+        qemu_rearm_alarm_timer(cm_alarm_timer);
+    }
+}
+
+void cm_qemu_del_timer(QEMUTimer *ts)
+{
+    if (cm_active_timers != NULL)
+        cm_assert(cm_active_timers == ts, "active timer should only be apic timer\n");
+
+    cm_active_timers = NULL;
+}
+
+int cm_qemu_alarm_pending(void)
+{
+    return cm_alarm_timer->pending;
+}
+
+void cm_qemu_run_all_timers(void)
+{
+    cm_alarm_timer->pending = 0;
+
+    /* rearm timer, if not periodic */
+    if (cm_alarm_timer->expired) {
+        cm_alarm_timer->expired = 0;
+        qemu_rearm_alarm_timer(cm_alarm_timer);
+    }
+
+    /* vm time timers */
+    cm_active_timers->cb(cm_active_timers->opaque);
+
+    assert(!cm_active_timers->next);
+
+    cm_active_timers = NULL;
+}
+
+#endif

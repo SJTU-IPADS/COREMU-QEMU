@@ -280,9 +280,11 @@ void qemu_notify_event(void)
     if (env) {
         cpu_exit(env);
     }
+#ifndef CONFIG_COREMU
     if (next_cpu && env != next_cpu) {
         cpu_exit(next_cpu);
     }
+#endif
 }
 
 void qemu_mutex_lock_iothread(void) {}

@@ -75,7 +75,7 @@ void *cm_cpu_loop(void *args)
     assert(cpu_single_env);
 
     int res;
-    res = init_timer_alarm();
+    res = cm_init_timer_alarm();
     if (res < 0) {
         printf("initialize local alarm failed\n");
         cm_assert(0, "local alarm initialize error");

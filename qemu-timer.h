@@ -2,7 +2,6 @@
 #define QEMU_TIMER_H
 
 #include "qemu-common.h"
-
 /* timers */
 
 typedef struct QEMUClock QEMUClock;

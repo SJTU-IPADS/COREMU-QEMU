@@ -30,6 +30,7 @@
 #include "coremu-config.h"
 #include "coremu.h"
 #include "cm-i386-intr.h"
+#include "cm-timer.h"
 
 /* APIC Local Vector Table */
 #define APIC_LVT_TIMER   0
@@ -688,11 +689,19 @@ static void apic_timer_update(APICState *s, int64_t current_time)
             d = (uint64_t)s->initial_count + 1;
         }
         next_time = s->initial_count_load_time + (d << s->count_shift);
+#ifdef CONFIG_COREMU
+        cm_qemu_mod_timer(s->timer, next_time);
+#else
         qemu_mod_timer(s->timer, next_time);
+#endif
         s->next_time = next_time;
     } else {
     no_timer:
+#ifdef CONFIG_COREMU
+        cm_qemu_del_timer(s->timer);
+#else        
         qemu_del_timer(s->timer);
+#endif
     }
 }
 
