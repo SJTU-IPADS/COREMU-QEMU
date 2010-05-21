@@ -725,8 +725,8 @@ static void CALLBACK host_alarm_handler(UINT uTimerID, UINT uMsg,
 static void host_alarm_handler(int host_signum)
 #endif
 {
-    if(!coremu_hw_thr_p())
-        printf("host alarm handler core thr\n");
+    //printf("host_alarm_handler\n");
+    coremu_assert_hw_thr("Host_alarm_handler should be called by hw thr\n");
    
     
     struct qemu_alarm_timer *t = alarm_timer;
@@ -932,14 +932,22 @@ static int dynticks_start_timer(struct qemu_alarm_timer *t)
     struct sigevent ev;
     timer_t host_timer;
     struct sigaction act;
+    int signo;
 
     sigfillset(&act.sa_mask);
     act.sa_flags = 0;
-    act.sa_handler = host_alarm_handler;
+    if (coremu_hw_thr_p()) {
+        act.sa_handler = host_alarm_handler;
+        signo = COREMU_TIMER_ALARM;
+    } else {
+        act.sa_handler = cm_local_host_alarm_handler;
+        //act.sa_handler = host_alarm_handler;
+        signo = COREMU_TIMER_SIGNAL;
+    }
 
 #ifdef CONFIG_COREMU
-    sigaction(COREMU_TIMER_SIGNAL, &act, NULL);
-    if (coremu_timer_create(COREMU_TIMER_SIGNAL, &host_timer)) {
+    sigaction(signo, &act, NULL);
+    if (coremu_timer_create(signo, &host_timer)) {
         perror("timer_create");
         cm_assert(0, "timer create failed");
         return -1;
@@ -1209,16 +1217,28 @@ int qemu_calculate_timeout(void)
 }
 
 #ifdef CONFIG_COREMU
-COREMU_THREAD QEMUTimer *cm_active_timers;
-COREMU_THREAD struct qemu_alarm_timer *cm_alarm_timer;
+static int64_t cm_local_next_deadline(void);
+static uint64_t cm_local_next_deadline_dyntick(void);
+static void cm_local_dynticks_rearm_timer(struct qemu_alarm_timer * t);
+static void cm_qemu_run_local_timers(QEMUClock *clock);
 
-int cm_init_timer_alarm(void)
+COREMU_THREAD QEMUTimer *cm_local_active_timers;
+COREMU_THREAD struct qemu_alarm_timer *cm_local_alarm_timer;
+static COREMU_THREAD struct qemu_alarm_timer cm_local_alarm_timers[] = {
+    {"dynticks", dynticks_start_timer,
+     dynticks_stop_timer,cm_local_dynticks_rearm_timer, NULL},
+    {NULL, }
+};
+
+int cm_init_local_timer_alarm(void)
 {
+    /* core thr block the Timer Alarm signal */
+    
     struct qemu_alarm_timer *t = NULL;
     int i, err = -1;
 
-    for (i = 0; alarm_timers[i].name; i++) {
-        t = &alarm_timers[i];
+    for (i = 0; cm_local_alarm_timers[i].name; i++) {
+        t = &cm_local_alarm_timers[i];
 
         err = t->start(t);
         if (!err)
@@ -1232,7 +1252,7 @@ int cm_init_timer_alarm(void)
 
     /* first event is at time 0 */
     t->pending = 1;
-    cm_alarm_timer = t;
+    cm_local_alarm_timer = t;
 
     return 0;
 
@@ -1244,53 +1264,181 @@ fail:
    Because for x86_64, there is only one timer for every core
    so there is no need to do the link list.
 */
-void cm_qemu_mod_timer(QEMUTimer *ts, int64_t expire_time)
+void cm_mod_local_timer(QEMUTimer *ts, int64_t expire_time)
 {
     QEMUTimer **pt, *t;
 
-    if (cm_active_timers != NULL)
-        cm_assert(cm_active_timers == ts, "active timer should only be apic timer\n");
+    qemu_del_timer(ts);
 
-    if (cm_active_timers == NULL)
-        cm_active_timers = ts;
-    
-    cm_active_timers->expire_time = expire_time;
+    /* add the timer in the sorted list */
+    /* NOTE: this code must be signal safe because
+       qemu_timer_expired() can be called from a signal. */
+    pt = &cm_local_active_timers;
+    for(;;) {
+        t = *pt;
+        if (!t)
+            break;
+        if (t->expire_time > expire_time)
+            break;
+        pt = &t->next;
+    }
+    ts->expire_time = expire_time;
+    ts->next = *pt;
+    *pt = ts;
 
-    /* Rearm */
-    if (!cm_alarm_timer->pending) {
-        qemu_rearm_alarm_timer(cm_alarm_timer);
+    /* Rearm if necessary  */
+    if (pt == &cm_local_active_timers) {
+        if (!cm_local_alarm_timer->pending) {
+            qemu_rearm_alarm_timer(cm_local_alarm_timer);
+        }
     }
 }
 
-void cm_qemu_del_timer(QEMUTimer *ts)
+void cm_del_local_timer(QEMUTimer *ts)
 {
-    if (cm_active_timers != NULL)
-        cm_assert(cm_active_timers == ts, "active timer should only be apic timer\n");
+    QEMUTimer **pt, *t;
 
-    cm_active_timers = NULL;
+    /* NOTE: this code must be signal safe because
+       qemu_timer_expired() can be called from a signal. */
+    pt = &cm_local_active_timers;
+    for(;;) {
+        t = *pt;
+        if (!t)
+            break;
+        if (t == ts) {
+            *pt = t->next;
+            break;
+        }
+        pt = &t->next;
+    }
 }
 
-int cm_qemu_alarm_pending(void)
+int cm_local_alarm_pending(void)
 {
-    return cm_alarm_timer->pending;
+    return cm_local_alarm_timer->pending;
 }
 
-void cm_qemu_run_all_timers(void)
+void cm_run_all_local_timers(void)
 {
-    cm_alarm_timer->pending = 0;
+    cm_local_alarm_timer->pending = 0;
 
     /* rearm timer, if not periodic */
-    if (cm_alarm_timer->expired) {
-        cm_alarm_timer->expired = 0;
-        qemu_rearm_alarm_timer(cm_alarm_timer);
+    if (cm_local_alarm_timer->expired) {
+        cm_local_alarm_timer->expired = 0;
+        qemu_rearm_alarm_timer(cm_local_alarm_timer);
     }
 
-    /* vm time timers */
-    cm_active_timers->cb(cm_active_timers->opaque);
+    if (vm_running) {
+        cm_qemu_run_local_timers(vm_clock);
+    }
+}
 
-    assert(!cm_active_timers->next);
+void cm_local_host_alarm_handler(int host_signum)
+{
+   static int64_t count = 0;
+   printf("cm_local_host_alarm_handler %ld\n", count++);
+   coremu_assert_core_thr();
+    
+    struct qemu_alarm_timer *t = cm_local_alarm_timer;
+    if (!t)
+	return;
 
-    cm_active_timers = NULL;
+    if (alarm_has_dynticks(t) ||
+            qemu_timer_expired(cm_local_active_timers,
+                               qemu_get_clock(vm_clock))) {
+
+        t->expired = alarm_has_dynticks(t);
+        t->pending = 1;
+        cm_notify_event();
+
+    }
+}
+
+static void cm_qemu_run_local_timers(QEMUClock *clock)
+{
+    QEMUTimer **ptimer_head, *ts;
+    int64_t current_time;
+   
+    if (!clock->enabled)
+        return;
+
+    current_time = qemu_get_clock(clock);
+    ptimer_head = &cm_local_active_timers;
+    for(;;) {
+        ts = *ptimer_head;
+        if (!ts || ts->expire_time > current_time)
+            break;
+        /* remove timer from the list before calling the callback */
+        *ptimer_head = ts->next;
+        ts->next = NULL;
+
+        /* run the callback (the timer list can be modified) */
+        ts->cb(ts->opaque);
+    }
+}
+
+
+static void cm_local_dynticks_rearm_timer(struct qemu_alarm_timer *t)
+{
+    timer_t host_timer = (timer_t)(long)t->priv;
+    struct itimerspec timeout;
+    int64_t nearest_delta_us = INT64_MAX;
+    int64_t current_us;
+
+    assert(alarm_has_dynticks(t));
+    if (!cm_local_active_timers)
+        return;
+
+    nearest_delta_us = cm_local_next_deadline_dyntick();
+
+    /* check whether a timer is already running */
+    if (timer_gettime(host_timer, &timeout)) {
+        perror("gettime");
+        fprintf(stderr, "Internal timer error: aborting\n");
+        exit(1);
+    }
+    current_us = timeout.it_value.tv_sec * 1000000 + timeout.it_value.tv_nsec/1000;
+    if (current_us && current_us <= nearest_delta_us)
+        return;
+
+    timeout.it_interval.tv_sec = 0;
+    timeout.it_interval.tv_nsec = 0; /* 0 for one-shot timer */
+    timeout.it_value.tv_sec =  nearest_delta_us / 1000000;
+    timeout.it_value.tv_nsec = (nearest_delta_us % 1000000) * 1000;
+    if (timer_settime(host_timer, 0 /* RELATIVE */, &timeout, NULL)) {
+        perror("settime");
+        fprintf(stderr, "Internal timer error: aborting\n");
+        exit(1);
+    }
+}
+
+
+static uint64_t cm_local_next_deadline_dyntick(void)
+{
+    int64_t delta;
+
+    delta = (cm_local_next_deadline() + 999) / 1000;
+
+    if (delta < MIN_TIMER_REARM_US)
+        delta = MIN_TIMER_REARM_US;
+
+    return delta;
+}
+
+static int64_t cm_local_next_deadline(void)
+{
+    /* To avoid problems with overflow limit this to 2^32.  */
+    int64_t delta = INT32_MAX;
+
+    if (cm_local_active_timers) {
+        delta = cm_local_active_timers->expire_time -
+                     qemu_get_clock(vm_clock);
+    }
+
+    if (delta < 0)
+        delta = 0;
+
+    return delta;
 }
 
 #endif

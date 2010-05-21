@@ -690,7 +690,7 @@ static void apic_timer_update(APICState *s, int64_t current_time)
         }
         next_time = s->initial_count_load_time + (d << s->count_shift);
 #ifdef CONFIG_COREMU
-        cm_qemu_mod_timer(s->timer, next_time);
+        cm_mod_local_timer(s->timer, next_time);
 #else
         qemu_mod_timer(s->timer, next_time);
 #endif
@@ -698,7 +698,7 @@ static void apic_timer_update(APICState *s, int64_t current_time)
     } else {
     no_timer:
 #ifdef CONFIG_COREMU
-        cm_qemu_del_timer(s->timer);
+        cm_del_local_timer(s->timer);
 #else        
         qemu_del_timer(s->timer);
 #endif

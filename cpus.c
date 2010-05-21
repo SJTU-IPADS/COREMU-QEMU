@@ -271,20 +271,15 @@ void qemu_cpu_kick(void *env)
 void qemu_notify_event(void)
 {
     CPUState *env = cpu_single_env;
-#ifdef CONFIG_COREMU
-    if (coremu_hw_thr_p())
-        qemu_event_increment();
-#else
+
     qemu_event_increment();
-#endif
+
     if (env) {
         cpu_exit(env);
     }
-#ifndef CONFIG_COREMU
     if (next_cpu && env != next_cpu) {
         cpu_exit(next_cpu);
     }
-#endif
 }
 
 void qemu_mutex_lock_iothread(void) {}
