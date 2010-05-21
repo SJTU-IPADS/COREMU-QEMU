@@ -82,7 +82,6 @@ void *cm_cpu_loop(void *args)
     }
 
     /* not complete */
-   
     int ret;
 
     for (;;) {

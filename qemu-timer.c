@@ -128,7 +128,7 @@ static void init_get_clock(void)
 static int64_t get_clock(void)
 {
 #if defined(__linux__) || (defined(__FreeBSD__) && __FreeBSD_version >= 500000) \
-	|| defined(__DragonFly__) || defined(__FreeBSD_kernel__)
+    || defined(__DragonFly__) || defined(__FreeBSD_kernel__)
     if (use_rt_clock) {
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -368,7 +368,7 @@ int64_t qemu_icount_round(int64_t count)
     return (count + (1 << icount_time_shift) - 1) >> icount_time_shift;
 }
 
-static COREMU_THREAD struct qemu_alarm_timer alarm_timers[] = {
+static struct qemu_alarm_timer alarm_timers[] = {
 #ifndef _WIN32
 #ifdef __linux__
     {"dynticks", dynticks_start_timer,
@@ -430,7 +430,7 @@ void configure_alarms(char const *opt)
             /* Ignore */
             goto next;
 
-	/* Swap */
+    /* Swap */
         tmp = alarm_timers[i];
         alarm_timers[i] = alarm_timers[cur];
         alarm_timers[cur] = tmp;
@@ -727,11 +727,10 @@ static void host_alarm_handler(int host_signum)
 {
     //printf("host_alarm_handler\n");
     coremu_assert_hw_thr("Host_alarm_handler should be called by hw thr\n");
-   
-    
+
     struct qemu_alarm_timer *t = alarm_timer;
     if (!t)
-	return;
+        return;
 
 #if 0
 #define DISP_FREQ 1000
@@ -952,7 +951,6 @@ static int dynticks_start_timer(struct qemu_alarm_timer *t)
         cm_assert(0, "timer create failed");
         return -1;
     }
-    
 #else
     sigaction(SIGALRM, &act, NULL);
 
@@ -1188,7 +1186,7 @@ int qemu_calculate_timeout(void)
         int64_t add;
         int64_t delta;
         /* Advance virtual time to the next event.  */
-	delta = qemu_icount_delta();
+        delta = qemu_icount_delta();
         if (delta > 0) {
             /* If virtual time is ahead of real time then just
                wait for IO.  */
@@ -1226,14 +1224,15 @@ COREMU_THREAD QEMUTimer *cm_local_active_timers;
 COREMU_THREAD struct qemu_alarm_timer *cm_local_alarm_timer;
 static COREMU_THREAD struct qemu_alarm_timer cm_local_alarm_timers[] = {
     {"dynticks", dynticks_start_timer,
-     dynticks_stop_timer,cm_local_dynticks_rearm_timer, NULL},
+     dynticks_stop_timer, cm_local_dynticks_rearm_timer, NULL},
     {NULL, }
 };
 
+/* Called by each core thread to create a local timer. */
 int cm_init_local_timer_alarm(void)
 {
+    coremu_assert_core_thr();
     /* core thr block the Timer Alarm signal */
-    
     struct qemu_alarm_timer *t = NULL;
     int i, err = -1;
 
@@ -1335,17 +1334,17 @@ void cm_run_all_local_timers(void)
 
 void cm_local_host_alarm_handler(int host_signum)
 {
-   static int64_t count = 0;
-   printf("cm_local_host_alarm_handler %ld\n", count++);
-   coremu_assert_core_thr();
-    
+    static int64_t count = 0;
+    printf("cm_local_host_alarm_handler %ld\n", count++);
+    coremu_assert_core_thr();
+
     struct qemu_alarm_timer *t = cm_local_alarm_timer;
     if (!t)
-	return;
+        return;
 
     if (alarm_has_dynticks(t) ||
             qemu_timer_expired(cm_local_active_timers,
-                               qemu_get_clock(vm_clock))) {
+                qemu_get_clock(vm_clock))) {
 
         t->expired = alarm_has_dynticks(t);
         t->pending = 1;
@@ -1358,7 +1357,7 @@ static void cm_qemu_run_local_timers(QEMUClock *clock)
 {
     QEMUTimer **ptimer_head, *ts;
     int64_t current_time;
-   
+
     if (!clock->enabled)
         return;
 
