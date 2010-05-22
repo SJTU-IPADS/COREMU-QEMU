@@ -1976,7 +1976,15 @@ static void main_loop(void)
     /* register the event notifier */
     coremu_register_event_notifier(cm_notify_event);
 
-    /* 3. Create cpu thread body*/
+    /* 3. register core alarm handler. */
+    struct sigaction act;
+    sigfillset(&act.sa_mask);
+    act.sa_flags = 0;
+    extern void cm_local_host_alarm_handler(int host_signum);
+    act.sa_handler = cm_local_host_alarm_handler;
+    sigaction(COREMU_CORE_ALARM, &act, NULL);
+
+    /* 4. Create cpu thread body*/
     coremu_run_all_cores(cm_cpu_loop);
 #else
     qemu_main_loop_start();

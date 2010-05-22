@@ -43,10 +43,9 @@ static bool cm_tcg_cpu_exec(void)
     halt_interval.tv_nsec = 10000;
 
     for (;;) {
-
         if (cm_local_alarm_pending())
             cm_run_all_local_timers();
-      
+
         coremu_receive_intr();
         if (cm_cpu_can_run(env))
             ret = cpu_exec(env);

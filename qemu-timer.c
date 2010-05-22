@@ -55,12 +55,13 @@
 
 #include "qemu-timer.h"
 
-
 #include "coremu-config.h"
 #include "coremu.h"
 #include "coremu-timer.h"
-#include "cm-timer.h"
 #include "coremu-debug.h"
+#include "coremu-hw.h"
+#include "cm-intr.h"
+#include "cm-timer.h"
 
 /* Conversion factor from emulated instructions to virtual clock ticks.  */
 int icount_time_shift;
@@ -931,21 +932,23 @@ static int dynticks_start_timer(struct qemu_alarm_timer *t)
     struct sigevent ev;
     timer_t host_timer;
     struct sigaction act;
-    int signo;
 
     sigfillset(&act.sa_mask);
     act.sa_flags = 0;
-    if (coremu_hw_thr_p()) {
-        act.sa_handler = host_alarm_handler;
-        signo = COREMU_TIMER_ALARM;
-    } else {
-        act.sa_handler = cm_local_host_alarm_handler;
-        //act.sa_handler = host_alarm_handler;
-        signo = COREMU_TIMER_SIGNAL;
-    }
+    act.sa_handler = host_alarm_handler;
 
 #ifdef CONFIG_COREMU
-    sigaction(signo, &act, NULL);
+    int signo;
+    (void) ev;
+
+    if (coremu_hw_thr_p()) {
+        signo = COREMU_HARDWARE_ALARM;
+        sigaction(COREMU_HARDWARE_ALARM, &act, NULL);
+    } else {
+        /* Core signal handler is registerd before running all core. */
+        signo = COREMU_CORE_ALARM;
+    }
+
     if (coremu_timer_create(signo, &host_timer)) {
         perror("timer_create");
         cm_assert(0, "timer create failed");
@@ -954,7 +957,7 @@ static int dynticks_start_timer(struct qemu_alarm_timer *t)
 #else
     sigaction(SIGALRM, &act, NULL);
 
-    /* 
+    /*
      * Initialize ev struct to 0 to avoid valgrind complaining
      * about uninitialized data in timer_create call
      */
@@ -1267,7 +1270,7 @@ void cm_mod_local_timer(QEMUTimer *ts, int64_t expire_time)
 {
     QEMUTimer **pt, *t;
 
-    qemu_del_timer(ts);
+    cm_del_local_timer(ts);
 
     /* add the timer in the sorted list */
     /* NOTE: this code must be signal safe because
@@ -1335,7 +1338,6 @@ void cm_run_all_local_timers(void)
 void cm_local_host_alarm_handler(int host_signum)
 {
     static int64_t count = 0;
-    printf("cm_local_host_alarm_handler %ld\n", count++);
     coremu_assert_core_thr();
 
     struct qemu_alarm_timer *t = cm_local_alarm_timer;
@@ -1345,11 +1347,9 @@ void cm_local_host_alarm_handler(int host_signum)
     if (alarm_has_dynticks(t) ||
             qemu_timer_expired(cm_local_active_timers,
                 qemu_get_clock(vm_clock))) {
-
         t->expired = alarm_has_dynticks(t);
         t->pending = 1;
         cm_notify_event();
-
     }
 }
 

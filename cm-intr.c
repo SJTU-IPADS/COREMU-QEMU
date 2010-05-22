@@ -28,7 +28,10 @@
 #include "cpu.h"
 #include "cpu-all.h"
 
+#define VERBOSE_COREMU
+#include "coremu-config.h"
 #include "coremu-malloc.h"
+#include "coremu-debug.h"
 #include "cm-intr.h"
 
 /* The common interface to handle the interrupt, this function should to
