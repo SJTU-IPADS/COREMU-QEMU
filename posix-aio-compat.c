@@ -30,7 +30,6 @@
 #include "block/raw-posix-aio.h"
 
 #include "coremu-config.h"
-#include "coremu.h"
 #include "coremu-hw.h"
 
 struct qemu_paiocb {

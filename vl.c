@@ -166,7 +166,8 @@ int main(int argc, char **argv)
 //#define DEBUG_NET
 //#define DEBUG_SLIRP
 #include "coremu-config.h"
-#include "coremu.h"
+#include "coremu-init.h"
+#include "coremu-core.h"
 #include "coremu-intr.h"
 #include "coremu-debug.h"
 #include "cm-loop.h"
@@ -3956,7 +3957,9 @@ int main(int argc, char **argv, char **envp)
     return 0;
 }
 
+#ifdef CONFIG_COREMU
 int cm_vm_can_run(void)
 {
     return vm_can_run();
 }
+#endif

@@ -51,7 +51,8 @@
 /* output Bochs bios info messages */
 //#define DEBUG_BIOS
 #include "coremu-config.h"
-#include "coremu.h"
+#include "coremu-init.h"
+#include "coremu-core.h"
 #include "cm-i386-intr.h"
 
 #define BIOS_FILENAME "bios.bin"
@@ -1236,12 +1237,11 @@ machine_init(pc_machine_init);
  * Copyright (C) 2010 PPI, Fudan Univ.
  *  <http://ppi.fudan.edu.cn/system_research_group>
  */
+#ifdef CONFIG_COREMU
 /* The pic irq request */
 void cm_pic_irq_request(void * opaque, int irq, int level)
 {
     CPUState *env = NULL;
-    CMIntr *intr = NULL;
-    CMPicIntrInfo *picintr = NULL;
 
     if (coremu_init_done_p()) {
         /* Send the signal to core thread */
@@ -1262,4 +1262,4 @@ void cm_pic_irq_request(void * opaque, int irq, int level)
         pic_irq_request(opaque, irq, level);
     }
 }
-
+#endif

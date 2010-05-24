@@ -23,6 +23,7 @@
 #include "kvm.h"
 
 #include "coremu-config.h"
+#include "coremu-intr.h"
 
 #if !defined(CONFIG_SOFTMMU)
 #undef EAX

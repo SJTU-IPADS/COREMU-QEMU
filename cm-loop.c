@@ -27,10 +27,11 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include "cpu.h"
-#include "cpu-all.h"
+#include "cpus.h"
 
 #include "cm-loop.h"
-#include "sysemu.h"
+#include "cm-timer.h"
+#include "coremu-intr.h"
 #include "coremu-debug.h"
 
 static bool cm_tcg_cpu_exec(void);
@@ -64,7 +65,6 @@ static bool cm_tcg_cpu_exec(void)
     //return tcg_has_work();
     return 1;
 }
-
 
 void *cm_cpu_loop(void *args)
 {

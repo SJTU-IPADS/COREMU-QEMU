@@ -26,12 +26,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "cpu.h"
-#include "cpu-all.h"
 
-#define VERBOSE_COREMU
-#include "coremu-config.h"
+#include "coremu-intr.h"
+#include "coremu-core.h"
 #include "coremu-malloc.h"
-#include "coremu-debug.h"
 #include "cm-intr.h"
 
 /* The common interface to handle the interrupt, this function should to
@@ -51,5 +49,3 @@ void cm_notify_event(void)
     if (cpu_single_env)
         cpu_exit(cpu_single_env);
 }
-
-

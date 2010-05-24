@@ -26,10 +26,12 @@
 #ifndef CM_LOOP_H
 #define CM_LOOP_H
 
+/*#include "cpu.h"*/
+
 void *cm_cpu_loop(void *args);
 
 /* The wrapper for static function of qemu */
-//int cm_cpu_can_run(CPUState * env);
+/*int cm_cpu_can_run(struct CPUState * env);*/
 int cm_vm_can_run(void);
 
 #endif

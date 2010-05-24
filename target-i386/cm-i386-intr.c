@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "cpu.h"
+#include "../hw/apic.h"
 
 #include "coremu-intr.h"
 #include "coremu-malloc.h"

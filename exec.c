@@ -72,7 +72,6 @@
 //#define DEBUG_SUBPAGE
 
 #include "coremu-config.h"
-#include "coremu.h"
 
 #if !defined(CONFIG_USER_ONLY)
 /* TB consistency checks only implemented for usermode emulation.  */

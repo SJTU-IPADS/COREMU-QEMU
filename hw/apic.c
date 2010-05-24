@@ -26,9 +26,7 @@
 #include "kvm.h"
 
 //#define DEBUG_APIC
-/* For Coremu */
 #include "coremu-config.h"
-#include "coremu.h"
 #include "cm-i386-intr.h"
 #include "cm-timer.h"
 
