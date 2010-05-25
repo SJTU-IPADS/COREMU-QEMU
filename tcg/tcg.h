@@ -318,11 +318,11 @@ struct TCGContext {
 #endif
 };
 
-extern TCGContext tcg_ctx;
-extern uint16_t *gen_opc_ptr;
-extern TCGArg *gen_opparam_ptr;
-extern uint16_t gen_opc_buf[];
-extern TCGArg gen_opparam_buf[];
+extern COREMU_THREAD TCGContext tcg_ctx;
+extern COREMU_THREAD uint16_t *gen_opc_ptr;
+extern COREMU_THREAD TCGArg *gen_opparam_ptr;
+extern COREMU_THREAD uint16_t gen_opc_buf[];
+extern COREMU_THREAD TCGArg gen_opparam_buf[];
 
 /* pool based memory allocation */
 

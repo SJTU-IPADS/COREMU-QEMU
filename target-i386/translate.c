@@ -59,25 +59,25 @@
 //#define MACRO_TEST   1
 
 /* global register indexes */
-static TCGv_ptr cpu_env;
-static TCGv cpu_A0, cpu_cc_src, cpu_cc_dst, cpu_cc_tmp;
-static TCGv_i32 cpu_cc_op;
-static TCGv cpu_regs[CPU_NB_REGS];
+static COREMU_THREAD TCGv_ptr cpu_env;
+static COREMU_THREAD TCGv cpu_A0, cpu_cc_src, cpu_cc_dst, cpu_cc_tmp;
+static COREMU_THREAD TCGv_i32 cpu_cc_op;
+static COREMU_THREAD TCGv cpu_regs[CPU_NB_REGS];
 /* local temps */
-static TCGv cpu_T[2], cpu_T3;
+static COREMU_THREAD TCGv cpu_T[2], cpu_T3;
 /* local register indexes (only used inside old micro ops) */
-static TCGv cpu_tmp0, cpu_tmp4;
-static TCGv_ptr cpu_ptr0, cpu_ptr1;
-static TCGv_i32 cpu_tmp2_i32, cpu_tmp3_i32;
-static TCGv_i64 cpu_tmp1_i64;
-static TCGv cpu_tmp5;
+static COREMU_THREAD TCGv cpu_tmp0, cpu_tmp4;
+static COREMU_THREAD TCGv_ptr cpu_ptr0, cpu_ptr1;
+static COREMU_THREAD TCGv_i32 cpu_tmp2_i32, cpu_tmp3_i32;
+static COREMU_THREAD TCGv_i64 cpu_tmp1_i64;
+static COREMU_THREAD TCGv cpu_tmp5;
 
-static uint8_t gen_opc_cc_op[OPC_BUF_SIZE];
+static COREMU_THREAD uint8_t gen_opc_cc_op[OPC_BUF_SIZE];
 
 #include "gen-icount.h"
 
 #ifdef TARGET_X86_64
-static int x86_64_hregs;
+static COREMU_THREAD int x86_64_hregs;
 #endif
 
 typedef struct DisasContext {

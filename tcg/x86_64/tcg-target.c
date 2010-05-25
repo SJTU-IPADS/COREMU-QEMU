@@ -75,7 +75,7 @@ static const int tcg_target_call_oarg_regs[2] = {
     TCG_REG_RDX 
 };
 
-static uint8_t *tb_ret_addr;
+static COREMU_THREAD uint8_t *tb_ret_addr;
 
 static void patch_reloc(uint8_t *code_ptr, int type, 
                         tcg_target_long value, tcg_target_long addend)

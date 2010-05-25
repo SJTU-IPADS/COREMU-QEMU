@@ -80,12 +80,12 @@
 
 #define SMC_BITMAP_USE_THRESHOLD 10
 
-static TranslationBlock *tbs;
-int code_gen_max_blocks;
-TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
-static int nb_tbs;
+static COREMU_THREAD TranslationBlock *tbs;
+int COREMU_THREAD code_gen_max_blocks;
+COREMU_THREAD TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
+static COREMU_THREAD int nb_tbs;
 /* any access to the tbs or the page table must use this lock */
-spinlock_t tb_lock = SPIN_LOCK_UNLOCKED;
+COREMU_THREAD spinlock_t tb_lock = SPIN_LOCK_UNLOCKED;
 
 #if defined(__arm__) || defined(__sparc_v9__)
 /* The prologue must be reachable with a direct jump. ARM and Sparc64
@@ -104,11 +104,11 @@ spinlock_t tb_lock = SPIN_LOCK_UNLOCKED;
 #endif
 
 uint8_t code_gen_prologue[1024] code_gen_section;
-static uint8_t *code_gen_buffer;
-static unsigned long code_gen_buffer_size;
+static COREMU_THREAD uint8_t *code_gen_buffer;
+static COREMU_THREAD unsigned long code_gen_buffer_size;
 /* threshold to flush the translated code buffer */
-static unsigned long code_gen_buffer_max_size;
-uint8_t *code_gen_ptr;
+static COREMU_THREAD unsigned long code_gen_buffer_max_size; /* XXX Thread local or not? */
+COREMU_THREAD uint8_t *code_gen_ptr;
 
 #if !defined(CONFIG_USER_ONLY)
 int phys_ram_fd;
@@ -239,7 +239,7 @@ static int log_append = 0;
 static int tlb_flush_count;
 #endif
 static int tb_flush_count;
-static int tb_phys_invalidate_count;
+static COREMU_THREAD int tb_phys_invalidate_count;
 
 #ifdef _WIN32
 static void map_exec(void *addr, long size)
@@ -1614,7 +1614,7 @@ static void cpu_unlink_tb(CPUState *env)
        emulation this often isn't actually as bad as it sounds.  Often
        signals are used primarily to interrupt blocking syscalls.  */
     TranslationBlock *tb;
-    static spinlock_t interrupt_lock = SPIN_LOCK_UNLOCKED;
+    static COREMU_THREAD spinlock_t interrupt_lock = SPIN_LOCK_UNLOCKED;
 
     spin_lock(&interrupt_lock);
     tb = env->current_tb;

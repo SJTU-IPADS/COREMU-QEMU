@@ -22,6 +22,8 @@
 
 #include "qemu-common.h"
 
+#include "coremu-config.h"
+
 /* allow to see translation results - the slowdown should be negligible, so we leave it */
 #define DEBUG_DISAS
 
@@ -69,9 +71,9 @@ typedef struct TranslationBlock TranslationBlock;
 
 #define OPPARAM_BUF_SIZE (OPC_BUF_SIZE * MAX_OPC_PARAM)
 
-extern target_ulong gen_opc_pc[OPC_BUF_SIZE];
-extern uint8_t gen_opc_instr_start[OPC_BUF_SIZE];
-extern uint16_t gen_opc_icount[OPC_BUF_SIZE];
+extern COREMU_THREAD target_ulong gen_opc_pc[OPC_BUF_SIZE];
+extern COREMU_THREAD uint8_t gen_opc_instr_start[OPC_BUF_SIZE];
+extern COREMU_THREAD uint16_t gen_opc_icount[OPC_BUF_SIZE];
 
 #include "qemu-log.h"
 
@@ -191,9 +193,9 @@ void tb_link_page(TranslationBlock *tb,
                   tb_page_addr_t phys_pc, tb_page_addr_t phys_page2);
 void tb_phys_invalidate(TranslationBlock *tb, tb_page_addr_t page_addr);
 
-extern TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
-extern uint8_t *code_gen_ptr;
-extern int code_gen_max_blocks;
+extern COREMU_THREAD TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
+extern COREMU_THREAD uint8_t *code_gen_ptr;
+extern COREMU_THREAD int code_gen_max_blocks;
 
 #if defined(USE_DIRECT_JUMP)
 
@@ -273,9 +275,9 @@ TranslationBlock *tb_find_pc(unsigned long pc_ptr);
 
 #include "qemu-lock.h"
 
-extern spinlock_t tb_lock;
+COREMU_THREAD extern spinlock_t tb_lock;
 
-extern int tb_invalidated_flag;
+extern COREMU_THREAD int tb_invalidated_flag;
 
 #if !defined(CONFIG_USER_ONLY)
 

@@ -32,14 +32,14 @@
 #include "qemu-timer.h"
 
 /* code generation context */
-TCGContext tcg_ctx;
+COREMU_THREAD TCGContext tcg_ctx;
 
-uint16_t gen_opc_buf[OPC_BUF_SIZE];
-TCGArg gen_opparam_buf[OPPARAM_BUF_SIZE];
+uint16_t COREMU_THREAD gen_opc_buf[OPC_BUF_SIZE];
+COREMU_THREAD TCGArg gen_opparam_buf[OPPARAM_BUF_SIZE];
 
-target_ulong gen_opc_pc[OPC_BUF_SIZE];
-uint16_t gen_opc_icount[OPC_BUF_SIZE];
-uint8_t gen_opc_instr_start[OPC_BUF_SIZE];
+COREMU_THREAD target_ulong gen_opc_pc[OPC_BUF_SIZE];
+COREMU_THREAD uint16_t gen_opc_icount[OPC_BUF_SIZE];
+COREMU_THREAD uint8_t gen_opc_instr_start[OPC_BUF_SIZE];
 
 /* XXX: suppress that */
 unsigned long code_gen_max_block_size(void)

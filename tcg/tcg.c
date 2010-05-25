@@ -66,7 +66,7 @@
 static void patch_reloc(uint8_t *code_ptr, int type, 
                         tcg_target_long value, tcg_target_long addend);
 
-static TCGOpDef tcg_op_defs[] = {
+static COREMU_THREAD TCGOpDef tcg_op_defs[] = {
 #define DEF(s, n, copy_size) { #s, 0, 0, n, n, 0, copy_size },
 #define DEF2(s, oargs, iargs, cargs, flags) { #s, oargs, iargs, cargs, iargs + oargs + cargs, flags, 0 },
 #include "tcg-opc.h"
@@ -74,12 +74,12 @@ static TCGOpDef tcg_op_defs[] = {
 #undef DEF2
 };
 
-static TCGRegSet tcg_target_available_regs[2];
-static TCGRegSet tcg_target_call_clobber_regs;
+static COREMU_THREAD TCGRegSet tcg_target_available_regs[2];
+static COREMU_THREAD TCGRegSet tcg_target_call_clobber_regs;
 
 /* XXX: move that inside the context */
-uint16_t *gen_opc_ptr;
-TCGArg *gen_opparam_ptr;
+COREMU_THREAD uint16_t *gen_opc_ptr;
+COREMU_THREAD TCGArg *gen_opparam_ptr;
 
 static inline void tcg_out8(TCGContext *s, uint8_t v)
 {
