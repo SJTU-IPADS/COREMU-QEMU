@@ -246,7 +246,11 @@ int pic_read_irq(PicState2 *s)
         irq = 7;
         intno = s->pics[0].irq_base + irq;
     }
-#ifndef CONFIG_COREMU        
+#ifndef CONFIG_COREMU
+    /* COREMU XXX: in parallel emulation, we always use real-time signals to
+     * inform the emulator about interrupts, there is no need for such update by
+     * emulator itself.
+     * ??? more check on this ??? */
     pic_update_irq(s);
 #endif
 

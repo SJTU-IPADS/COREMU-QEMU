@@ -145,7 +145,7 @@ int cpu_get_pic_interrupt(CPUState *env)
     if (intno >= 0) {
         /* set irq request if a PIC irq is still pending */
         /* XXX: improve that */
-#ifndef CONFIG_COREMU        
+#ifndef CONFIG_COREMU
         pic_update_irq(isa_pic);
 #endif
         return intno;

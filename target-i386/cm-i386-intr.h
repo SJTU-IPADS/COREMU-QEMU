@@ -31,39 +31,42 @@
 #include "cm-intr.h"
 
 enum cm_i386_intr_type {
-    PIC_INTR,                 /* Interrupt from i8259 pic */
-    APICBUS_INTR,               /* Interrupt from APIC BUS 
+    PIC_INTR,                   /* Interrupt from i8259 pic */
+    APICBUS_INTR,               /* Interrupt from APIC BUS
                                    can be issued by other core or ioapic */
-    IPI_INTR,                   /* Interrupt from other core 
+    IPI_INTR,                   /* Interrupt from other core
                                    Only for de-assert INIT and SIPI */
     DIRECT_INTR,                /* Direct interrupt (SMI) */
     SHUTDOWN_REQ,               /* Shut down request */
- };
+};
 
 
 /* Interrupt infomation for i8259 pic */
-typedef struct CMPicIntrInfo {
+typedef struct CMPICIntr {
+    CMIntr *base;
     int level;                  /* the level of interrupt */
-} CMPicIntrInfo;
+} CMPICIntr;
 
 
 /* Interrupt information for IOAPIC */
-typedef struct CMAPICBusIntrInfo {
+typedef struct CMAPICBusIntr {
+    CMIntr *base;
     int mask;                   /* Qemu will use this to check which
                                    kind of interrupt is issued */
     int vector_num;             /* The interrupt vector number
                                    If the vector number is -1, it indicates
                                    the vector information is ignored (SMI, NMI, INIT) */
     int trigger_mode;           /* The trigger mode of interrupt */
-} CMAPICBusIntrInfo;
+} CMAPICBusIntr;
 
 
-typedef struct CMIPIIntrInfo {
+typedef struct CMIPIIntr {
+    CMIntr *base;
     int vector_num;             /* The interrupt vector number */
     int deliver_mode;           /* The deliver mode of interrupt 
                                    0: INIT Level De-assert 
                                    1: Start up IPI */
-} CMIPIIntrInfo;
+} CMIPIIntr;
 
 
 /* The declaration for apic wrapper function */
@@ -75,13 +78,11 @@ void cm_apic_setup_arbid(struct APICState * s);
 void cm_pic_irq_request(void * opaque, int irq, int level);
 
 /* The common declaration */
-CMIntr *cm_pic_intr_init(CMPicIntrInfo *pic_intr);
-CMIntr *cm_apicbus_intr_init(CMAPICBusIntrInfo *apicbus_intr);
-CMIntr *cm_ipi_intr_init(CMIPIIntrInfo *ipi_intr);
 void cm_send_pic_intr(int target, int level);
 void cm_send_apicbus_intr(int target, int mask, 
                             int vector_num, int trigger_mode);
 void cm_send_ipi_intr(int target, int vector_num, int deliver_mode);
+
 void cm_pic_intr_handler(void *opaque);
 void cm_apicbus_intr_handler(void *opaque);
 void cm_ipi_intr_handler(void *opaque);

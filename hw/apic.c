@@ -264,7 +264,7 @@ static void apic_bus_deliver(const uint32_t *deliver_bitmask,
 #ifdef CONFIG_COREMU
             /* Vector number is -1 which indecates ignore */
             foreach_apic(apic_iter, deliver_bitmask,
-                cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_SMI, -1, -1) );
+                    cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_SMI, -1, -1) );
 #else
             foreach_apic(apic_iter, deliver_bitmask,
                 cpu_interrupt(apic_iter->cpu_env, CPU_INTERRUPT_SMI) );
@@ -275,8 +275,8 @@ static void apic_bus_deliver(const uint32_t *deliver_bitmask,
 #ifdef CONFIG_COREMU
             /* Vector number is -1 which indecates ignore */
             foreach_apic(apic_iter, deliver_bitmask,
-                cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_NMI, -1, -1) );
-#else            
+                    cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_NMI, -1, -1) );
+#else
             foreach_apic(apic_iter, deliver_bitmask,
                 cpu_interrupt(apic_iter->cpu_env, CPU_INTERRUPT_NMI) );
 #endif
@@ -287,8 +287,8 @@ static void apic_bus_deliver(const uint32_t *deliver_bitmask,
 #ifdef CONFIG_COREMU
             /* Vector number is -1 which indecates ignore */
             foreach_apic(apic_iter, deliver_bitmask,
-                cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_INIT, -1, -1) );
-#else           
+                    cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_INIT, -1, -1) );
+#else
             foreach_apic(apic_iter, deliver_bitmask,
                          cpu_interrupt(apic_iter->cpu_env, CPU_INTERRUPT_INIT) );
 #endif
@@ -305,8 +305,8 @@ static void apic_bus_deliver(const uint32_t *deliver_bitmask,
 #ifdef CONFIG_COREMU
     /* Vector number is -1 which indecates ignore */
     foreach_apic(apic_iter, deliver_bitmask,
-        cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_HARD, vector_num, trigger_mode) );
-#else  
+            cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_HARD, vector_num, trigger_mode) );
+#else
     foreach_apic(apic_iter, deliver_bitmask,
                  apic_set_irq(apic_iter, vector_num, trigger_mode) );
 #endif
@@ -600,7 +600,7 @@ static void apic_deliver(APICState *s, uint8_t dest, uint8_t dest_mode,
 #ifdef CONFIG_COREMU
             foreach_apic(apic_iter, deliver_bitmask,
                          cm_send_ipi_intr(apic_iter->id, vector_num, 1));
-#else            
+#else
             foreach_apic(apic_iter, deliver_bitmask,
                          apic_startup(apic_iter, vector_num) );
 #endif
@@ -697,7 +697,7 @@ static void apic_timer_update(APICState *s, int64_t current_time)
     no_timer:
 #ifdef CONFIG_COREMU
         cm_del_local_timer(s->timer);
-#else        
+#else
         qemu_del_timer(s->timer);
 #endif
     }
@@ -1052,11 +1052,11 @@ int apic_init(CPUState *env)
 
 /*
  * COREMU Parallel Emulator Framework
- * The wrapper for COREMU IO emulate mechanism 
- * 
- * Copyright (C) 2010 PPI, Fudan Univ. 
+ * The wrapper for COREMU IO emulate mechanism.
+ *
+ * Copyright (C) 2010 PPI, Fudan Univ.
  *  <http://ppi.fudan.edu.cn/system_research_group>
- */ 
+ */
 /* The declaration for wrapper interface */
 void cm_apic_set_irq(struct APICState *s, int vector_num, int trigger_mode)
 {

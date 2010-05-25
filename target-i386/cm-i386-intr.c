@@ -34,86 +34,61 @@
 #include "cm-i386-intr.h"
 
 /* The initial function for interrupts */
-CMIntr *cm_pic_intr_init(CMPicIntrInfo *pic_intr)
-{
-    CMIntr *intr = coremu_mallocz(sizeof(CMIntr));
-    intr->source = PIC_INTR;
-    intr->opaque = pic_intr;
-    intr->handler = cm_pic_intr_handler;
 
-    return intr;
+static CMIntr *cm_pic_intr_init(int level)
+{
+    CMPICIntr *intr = coremu_mallocz(sizeof(*intr));
+    ((CMIntr *)intr)->handler = cm_pic_intr_handler;
+
+    intr->level = level;
+
+    return (CMIntr *)intr;
 }
 
-CMIntr *cm_apicbus_intr_init(CMAPICBusIntrInfo *apicbus_intr)
+static CMIntr *cm_apicbus_intr_init(int mask, int vector_num, int trigger_mode)
 {
-    CMIntr *intr = coremu_mallocz(sizeof(CMIntr));
-    intr->source = APICBUS_INTR;
-    intr->opaque = apicbus_intr;
-    intr->handler = cm_apicbus_intr_handler;
+    CMAPICBusIntr *intr = coremu_mallocz(sizeof(*intr));
+    ((CMIntr *)intr)->handler = cm_apicbus_intr_handler;
 
-    return intr;
+    intr->mask = mask;
+    intr->vector_num = vector_num;
+    intr->trigger_mode = trigger_mode;
+
+    return (CMIntr *)intr;
 }
 
-CMIntr *cm_ipi_intr_init(CMIPIIntrInfo *ipi_intr)
+static CMIntr *cm_ipi_intr_init(int vector_num, int deliver_mode)
 {
-    CMIntr *intr = coremu_mallocz(sizeof(CMIntr));
-    intr->source = IPI_INTR;
-    intr->opaque = ipi_intr;
-    intr->handler = cm_ipi_intr_handler;
+    CMIPIIntr *intr = coremu_mallocz(sizeof(*intr));
+    ((CMIntr *)intr)->handler = cm_ipi_intr_handler;
 
-    return intr;
+    intr->vector_num = vector_num;
+    intr->deliver_mode = deliver_mode;
+
+    return (CMIntr *)intr;
 }
 
 void cm_send_pic_intr(int target, int level)
 {
-    CMIntr *intr;
-    CMPicIntrInfo *picintr;
-
-    /* malloc pic interrupt */
-    picintr = coremu_mallocz(sizeof(CMPicIntrInfo));
-    picintr->level = level;
-    intr = cm_pic_intr_init(picintr);
-
-    /* send the intr to the target core thread */
-    coremu_send_intr(intr, target);
+    coremu_send_intr(cm_pic_intr_init(level), target);
 }
 
 void cm_send_apicbus_intr(int target, int mask,
                                 int vector_num, int trigger_mode)
 {
-    CMIntr *intr;
-    CMAPICBusIntrInfo *apicintr;
-
-    /* malloc apic bus interrupt */
-    apicintr = coremu_mallocz(sizeof(CMAPICBusIntrInfo));
-    apicintr->vector_num = vector_num;
-    apicintr->trigger_mode = trigger_mode;
-    apicintr->mask = mask;
-    intr = cm_apicbus_intr_init(apicintr);
-
-    /* send the intr to core thr */
-    coremu_send_intr(intr, target);
+    coremu_send_intr(cm_apicbus_intr_init(mask, vector_num, trigger_mode),
+            target);
 }
 
 void cm_send_ipi_intr(int target, int vector_num, int deliver_mode)
 {
-    CMIntr *intr;
-    CMIPIIntrInfo *ipiintr;
-
-    /* malloc ipi bus interrupt */
-    ipiintr = coremu_mallocz(sizeof(CMIPIIntrInfo));
-    ipiintr->vector_num = vector_num;
-    ipiintr->deliver_mode = deliver_mode;
-    intr = cm_ipi_intr_init(ipiintr);
-
-    /* send the intr to core thr */
-    coremu_send_intr(intr, target);
+    coremu_send_intr(cm_ipi_intr_init(vector_num, deliver_mode), target);
 }
 
 /* Handle the interrupt from the i8259 chip */
 void cm_pic_intr_handler(void *opaque)
 {
-    CMPicIntrInfo *pic_intr = (CMPicIntrInfo *)opaque;
+    CMPICIntr *pic_intr = (CMPICIntr *)opaque;
 
     CPUState *self = cpu_single_env;
     int level = pic_intr->level;
@@ -127,7 +102,6 @@ void cm_pic_intr_handler(void *opaque)
         else
             cpu_reset_interrupt(self, CPU_INTERRUPT_HARD);
     }
-    coremu_free(pic_intr);
 }
 
 /* Handle the interrupt from the apic bus.
@@ -136,24 +110,23 @@ void cm_pic_intr_handler(void *opaque)
    be hw interrupt or IPI */
 void cm_apicbus_intr_handler(void *opaque)
 {
-   CMAPICBusIntrInfo *apicbus_intr = (CMAPICBusIntrInfo *)opaque;
+   CMAPICBusIntr *apicbus_intr = (CMAPICBusIntr *)opaque;
 
    CPUState *self = cpu_single_env;
 
    if (apicbus_intr->vector_num >= 0) {
-        cm_apic_set_irq(self->apic_state,
-                            apicbus_intr->vector_num, apicbus_intr->trigger_mode);
+        cm_apic_set_irq(self->apic_state, apicbus_intr->vector_num,
+                apicbus_intr->trigger_mode);
    } else {
        /* For NMI, SMI and INIT the vector information is ignored*/
         cpu_interrupt(self, apicbus_intr->mask);
    }
-   coremu_free(apicbus_intr);
 }
 
 /* Handle the inter-processor interrupt (Only for INIT De-assert or SIPI) */
 void cm_ipi_intr_handler(void *opaque)
 {
-    CMIPIIntrInfo *ipi_intr = (CMIPIIntrInfo *)opaque;
+    CMIPIIntr *ipi_intr = (CMIPIIntr *)opaque;
 
     CPUState *self = cpu_single_env;
 
@@ -164,6 +137,5 @@ void cm_ipi_intr_handler(void *opaque)
         /* the INIT level de-assert */
         cm_apic_setup_arbid(self->apic_state);
     }
-    coremu_free(ipi_intr);
 }
 

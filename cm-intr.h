@@ -29,15 +29,12 @@
 /* This is the call back function used to handle different type interrupts */
 typedef void (*CMIntr_handler)(void *opaque);
 
-/* This structure is used to wrap the interrupt request between different core
-   thread and hardware thread. Opaque's type is depend on different sources and
-   target architectures. */
+/* Base type for all types of interrupt. Subtype of CMIntr should have an
+ * object of this struct as its first member. */
 typedef struct CMIntr {
-    int source;
-    void *opaque;
     CMIntr_handler handler;
 } CMIntr;
 
-void cm_common_intr_handler(void *opaque);
+void cm_common_intr_handler(CMIntr *opaque);
 void cm_notify_event(void);
 #endif

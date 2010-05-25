@@ -582,9 +582,9 @@ static void ide_read_dma_cb(void *opaque, int ret)
     /* end of transfer ? */
     if (s->nsector == 0) {
         s->status = READY_STAT | SEEK_STAT;
-        
-/* For coremu  dma state need to be changed before irq is sent */        
-#ifdef CONFIG_COREMU  
+
+/* For coremu dma state need to be changed before irq is sent */
+#ifdef CONFIG_COREMU
         bm->status &= ~BM_STATUS_DMAING;
         bm->status |= BM_STATUS_INT;
         bm->dma_cb = NULL;
@@ -741,8 +741,8 @@ static void ide_write_dma_cb(void *opaque, int ret)
     if (s->nsector == 0) {
         s->status = READY_STAT | SEEK_STAT;
 
-/* For coremu  dma state need to be changed before irq is sent */        
-#ifdef CONFIG_COREMU  
+/* For coremu dma state need to be changed before irq is sent */
+#ifdef CONFIG_COREMU
         bm->status &= ~BM_STATUS_DMAING;
         bm->status |= BM_STATUS_INT;
         bm->dma_cb = NULL;

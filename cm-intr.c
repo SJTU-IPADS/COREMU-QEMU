@@ -34,11 +34,10 @@
 
 /* The common interface to handle the interrupt, this function should to
    be registered to coremu */
-void cm_common_intr_handler(void *opaque)
+void cm_common_intr_handler(CMIntr *intr)
 {
     coremu_assert_core_thr();
-    CMIntr *intr = (CMIntr *)opaque;
-    intr->handler(intr->opaque);
+    intr->handler(intr);
     coremu_free(intr);
 }
 
