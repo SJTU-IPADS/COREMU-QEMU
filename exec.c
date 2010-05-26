@@ -2849,11 +2849,15 @@ void *qemu_get_ram_ptr(ram_addr_t addr)
         abort();
     }
     /* Move this entry to to start of the list.  */
+#ifndef CONFIG_COREMU
+    /* Different core can access this function at the same time.
+     * For coremu, disable this optimization to avoid data race.*/
     if (prev) {
         prev->next = block->next;
         block->next = *prevp;
         *prevp = block;
     }
+#endif
     return block->host + (addr - block->offset);
 }
 
