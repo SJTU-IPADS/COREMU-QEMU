@@ -29,6 +29,7 @@
 #include <sys/types.h>
 #include <sys/mman.h>
 
+#define VERBOSE_COREMU
 #include "sysemu.h"
 #include "coremu-sched.h"
 #include "coremu-debug.h"
@@ -90,16 +91,21 @@ static void cm_code_gen_alloc(void)
  * thread. */
 void cm_cpu_exec_init(void)
 {
-    /* code prologue init also need to be done here. */
     page_init();
     io_mem_init();
+
+    /* Allocate code cache. */
     cm_code_gen_alloc_all();
+
+    /* Code prologue initialization. */
+    cm_code_prologue_init();
     map_exec(code_gen_prologue, sizeof(code_gen_prologue));
 }
 
 void cm_cpu_exec_init_core(void)
 {
     cpu_gen_init();
+    /* Get code cache. */
     cm_code_gen_alloc();
     code_gen_ptr = code_gen_buffer;
 
@@ -108,16 +114,13 @@ void cm_cpu_exec_init_core(void)
     /* Setup the scheduling for core thread */
     coremu_init_sched_core();
 
-    /* Set up ticks mechanism for every core.
-     * Do we need to call this? It's already called in vm_start */
+    /* Set up ticks mechanism for every core. */
     cpu_enable_ticks();
 
     /* Create per core timer. */
     if (cm_init_local_timer_alarm() < 0) {
         cm_assert(0, "local alarm initialize failed");
     }
-
-    /* TODO not finished */
 
     /* Wait other core to finish initialization. */
     coremu_wait_init();
