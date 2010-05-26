@@ -172,6 +172,7 @@ int main(int argc, char **argv)
 #include "coremu-debug.h"
 #include "cm-loop.h"
 #include "cm-intr.h"
+#include "cm-init.h"
 
 //#include "cm-i386-intr.h"
 
@@ -1973,7 +1974,7 @@ static void main_loop(void)
 
     /* 2. register hook functions */
     /* register the interrupt handler */
-    coremu_register_event_handler(cm_common_intr_handler);
+    coremu_register_event_handler((void (*)(void*))cm_common_intr_handler);
     /* register the event notifier */
     coremu_register_event_notifier(cm_notify_event);
 
@@ -3671,7 +3672,11 @@ int main(int argc, char **argv, char **envp)
         ram_size = DEFAULT_RAM_SIZE * 1024 * 1024;
 
     /* init the dynamic translator */
+#ifdef CONFIG_COREMU
+    cm_cpu_exec_init();
+#else
     cpu_exec_init_all(tb_size * 1024 * 1024);
+#endif
 
     bdrv_init_with_whitelist();
 

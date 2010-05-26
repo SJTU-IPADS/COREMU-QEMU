@@ -47,7 +47,7 @@
 #define env cpu_single_env
 #endif
 
-COREMU_THREADint tb_invalidated_flag;
+COREMU_THREAD int tb_invalidated_flag;
 
 //#define CONFIG_DEBUG_EXEC
 //#define DEBUG_SIGNAL

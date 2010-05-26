@@ -72,6 +72,8 @@
 //#define DEBUG_SUBPAGE
 
 #include "coremu-config.h"
+#include "coremu-debug.h"
+
 
 #if !defined(CONFIG_USER_ONLY)
 /* TB consistency checks only implemented for usermode emulation.  */
@@ -81,7 +83,7 @@
 #define SMC_BITMAP_USE_THRESHOLD 10
 
 static COREMU_THREAD TranslationBlock *tbs;
-int COREMU_THREAD code_gen_max_blocks;
+int code_gen_max_blocks;
 COREMU_THREAD TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
 static COREMU_THREAD int nb_tbs;
 /* any access to the tbs or the page table must use this lock */
@@ -105,9 +107,9 @@ COREMU_THREAD spinlock_t tb_lock = SPIN_LOCK_UNLOCKED;
 
 uint8_t code_gen_prologue[1024] code_gen_section;
 static COREMU_THREAD uint8_t *code_gen_buffer;
-static COREMU_THREAD unsigned long code_gen_buffer_size;
+static unsigned long code_gen_buffer_size;
 /* threshold to flush the translated code buffer */
-static COREMU_THREAD unsigned long code_gen_buffer_max_size; /* XXX Thread local or not? */
+static unsigned long code_gen_buffer_max_size;
 COREMU_THREAD uint8_t *code_gen_ptr;
 
 #if !defined(CONFIG_USER_ONLY)
@@ -464,7 +466,12 @@ static void tlb_unprotect_code_phys(CPUState *env, ram_addr_t ram_addr,
 #define mmap_unlock() do { } while(0)
 #endif
 
+#ifdef CONFIG_COREMU
+/* Since each core uses it's own code buffer, we set a large value here. */
+#define DEFAULT_CODE_GEN_BUFFER_SIZE (800 * 1024 * 1024)
+#else
 #define DEFAULT_CODE_GEN_BUFFER_SIZE (32 * 1024 * 1024)
+#endif
 
 #if defined(CONFIG_USER_ONLY)
 /* Currently it is not recommended to allocate big chunks of data in
@@ -477,6 +484,55 @@ static uint8_t static_code_gen_buffer[DEFAULT_CODE_GEN_BUFFER_SIZE]
                __attribute__((aligned (CODE_GEN_ALIGN)));
 #endif
 
+#ifdef CONFIG_COREMU
+
+/* XXX How to clean up the following code? */
+extern int smp_cpus;
+
+static uint64_t cm_bufsize = 0;
+static void *cm_bufbase = NULL;
+#define min(a, b) ((a) < (b) ? (a) : (b))
+
+/* Prepare a large code cache for each CORE to allocate later */
+static void cm_code_gen_alloc_all(void)
+{
+    int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT;
+
+    /*cm_bufsize = (min(DEFAULT_CODE_GEN_BUFFER_SIZE, phys_ram_size));*/
+    /* XXX what if this is larger than physical ram size? */
+    cm_bufsize = DEFAULT_CODE_GEN_BUFFER_SIZE;
+    cm_bufbase = mmap(NULL, cm_bufsize, PROT_WRITE | PROT_READ | PROT_EXEC,
+            flags, -1, 0);
+
+    if (cm_bufbase == MAP_FAILED) {
+        cm_assert(0, "mmap failed\n");
+    }
+
+    code_gen_buffer_size = (unsigned long)(cm_bufsize / (smp_cpus));
+    cm_assert(code_gen_buffer_size >= MIN_CODE_GEN_BUFFER_SIZE,
+            "code buffer size too small");
+
+    code_gen_buffer_max_size = code_gen_buffer_size - code_gen_max_block_size();
+    code_gen_max_blocks = code_gen_buffer_size / CODE_GEN_AVG_BLOCK_SIZE;
+}
+
+/* From the allocated memory in code_gen_alloc_all, we allocate memory for each
+ * core. */
+static void cm_code_gen_alloc(void)
+{
+    /* We use cpu_index here, note that this maybe not the same as architecture
+     * dependent cpu id. eg. cpuid_apic_id. */
+    code_gen_buffer = cm_bufbase + (code_gen_buffer_size *
+            cpu_single_env->cpu_index);
+
+    /* Allocate space for TBs. */
+    tbs = qemu_malloc(code_gen_max_blocks * sizeof(TranslationBlock));
+
+    cm_print("CORE[%u] TC [%lu MB] at %p", cpu_single_env->cpu_index,
+            (code_gen_buffer_size) / (1024*1024), code_gen_buffer);
+}
+
+#else /* ! CONFIG_COREMU */
 static void code_gen_alloc(unsigned long tb_size)
 {
 #ifdef USE_STATIC_CODE_GEN_BUFFER
@@ -563,6 +619,31 @@ static void code_gen_alloc(unsigned long tb_size)
     code_gen_max_blocks = code_gen_buffer_size / CODE_GEN_AVG_BLOCK_SIZE;
     tbs = qemu_malloc(code_gen_max_blocks * sizeof(TranslationBlock));
 }
+#endif /* CONFIG_COREMU */
+
+#ifdef CONFIG_COREMU
+
+#include "cm-init.h"
+
+/* For coremu, code generator related initialization should be called by all
+ * core thread. While other stuff only need to be done in the hardware
+ * thread. */
+void cm_cpu_exec_init(void)
+{
+    /* code prologue init also need to be done here. */
+    page_init();
+    io_mem_init();
+    cm_code_gen_alloc_all();
+}
+
+void cm_cpu_exec_init_core(void)
+{
+    cpu_gen_init();
+    cm_code_gen_alloc();
+    code_gen_ptr = code_gen_buffer;
+}
+
+#else /* ! CONFIG_COREMU */
 
 /* Must be called before using the QEMU cpus. 'tb_size' is the size
    (in bytes) allocated to the translation buffer. Zero means default
@@ -577,6 +658,8 @@ void cpu_exec_init_all(unsigned long tb_size)
     io_mem_init();
 #endif
 }
+
+#endif /* CONFIG_COREMU */
 
 #if defined(CPU_SAVE_VERSION) && !defined(CONFIG_USER_ONLY)
 

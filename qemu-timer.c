@@ -155,7 +155,7 @@ typedef struct TimersState {
     int64_t dummy;
 } TimersState;
 
-TimersState timers_state;
+COREMU_THREAD TimersState timers_state;
 
 /* return the host CPU cycle counter and handle stop/restart */
 int64_t cpu_get_ticks(void)

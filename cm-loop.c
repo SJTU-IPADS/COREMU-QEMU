@@ -29,10 +29,11 @@
 #include "cpu.h"
 #include "cpus.h"
 
-#include "cm-loop.h"
-#include "cm-timer.h"
 #include "coremu-intr.h"
 #include "coremu-debug.h"
+#include "cm-loop.h"
+#include "cm-timer.h"
+#include "cm-init.h"
 
 static bool cm_tcg_cpu_exec(void);
 static bool cm_tcg_cpu_exec(void)
@@ -68,20 +69,35 @@ static bool cm_tcg_cpu_exec(void)
 
 void *cm_cpu_loop(void *args)
 {
-    /* do some initialization */
-    /* Need to initial per cpu timer */
-    cpu_single_env = (CPUState *)args;
-    assert(cpu_single_env);
+    int ret;
 
-    int res;
-    res = cm_init_local_timer_alarm();
-    if (res < 0) {
-        printf("initialize local alarm failed\n");
-        cm_assert(0, "local alarm initialize error");
+    /* Initialization */
+    assert(args);
+    cpu_single_env = (CPUState *)args;
+
+    /* XXX moving this initialization stuff to cm_cpu_exec_init_core? */
+
+    /* Setup dynamic translator */
+    cm_cpu_exec_init_core();
+    optimize_flags_init();
+
+    /* Setup the scheduling for core thread */
+    coremu_init_sched_core();
+
+    /* Set up ticks mechanism for every core.
+     * Do we need to call this? It's already called in vm_start */
+    /*cpu_enable_ticks();*/
+
+    /* TODO not finished */
+
+    /* Create per core timer. */
+    ret = cm_init_local_timer_alarm();
+    if (ret < 0) {
+        cm_assert(0, "local alarm initialize failed");
     }
 
-    /* not complete */
-    int ret;
+    /* Wait other core to finish initialization. */
+    coremu_wait_init();
 
     for (;;) {
         do {
