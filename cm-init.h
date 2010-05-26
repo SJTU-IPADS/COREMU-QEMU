@@ -30,4 +30,7 @@ void cm_cpu_exec_init(void);
 /* Allocate code buffer for each core. Called by each core. */
 void cm_cpu_exec_init_core(void);
 
+/* This function is defined in tcg/tcg.c */
+void cm_code_prologue_init(void);
+
 #endif /* _CM_INIT_H */

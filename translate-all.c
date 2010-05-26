@@ -31,6 +31,8 @@
 #include "tcg.h"
 #include "qemu-timer.h"
 
+#include "coremu-config.h"
+
 /* code generation context */
 COREMU_THREAD TCGContext tcg_ctx;
 

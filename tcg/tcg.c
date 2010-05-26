@@ -59,6 +59,8 @@
 #include "tcg-op.h"
 #include "elf.h"
 
+#include "coremu-config.h"
+
 #if defined(CONFIG_USE_GUEST_BASE) && !defined(TCG_TARGET_HAS_GUEST_BASE)
 #error GUEST_BASE not supported on this host.
 #endif
@@ -242,9 +244,13 @@ void tcg_context_init(TCGContext *s)
     tcg_target_init(s);
 
     /* init global prologue and epilogue */
+#ifndef CONFIG_COREMU
+    /* For coremu, we only need one piece code prologue. We initialize it in the
+     * hardware thread. */
     s->code_buf = code_gen_prologue;
     s->code_ptr = s->code_buf;
     tcg_target_qemu_prologue(s);
+#endif
     flush_icache_range((unsigned long)s->code_buf, 
                        (unsigned long)s->code_ptr);
 }
@@ -2143,3 +2149,21 @@ void tcg_dump_info(FILE *f,
     cpu_fprintf(f, "[TCG profiler not compiled]\n");
 }
 #endif
+
+#ifdef CONFIG_COREMU
+
+#include <sys/types.h>
+#include <sys/mman.h>
+#include "cm-init.h"
+void cm_code_prologue_init(void)
+{
+    TCGContext tmp_ctx;
+    memset(&tmp_ctx, 0, sizeof(tmp_ctx));
+
+    /* init global prologue and epilogue */
+    tmp_ctx.code_buf = code_gen_prologue;
+    tmp_ctx.code_ptr = tmp_ctx.code_buf;
+    tcg_target_qemu_prologue(&tmp_ctx);
+}
+
+#endif /* CONFIG_COREMU */

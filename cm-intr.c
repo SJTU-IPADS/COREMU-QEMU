@@ -1,6 +1,7 @@
 /*
  * COREMU Parallel Emulator Framework
- * The common interface for hardware interrupt sending and handling
+ *
+ * The common interface for hardware interrupt sending and handling.
  *
  * Copyright (C) 2010 PPI, Fudan Univ.
  *  <http://ppi.fudan.edu.cn/system_research_group>
