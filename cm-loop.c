@@ -31,6 +31,9 @@
 
 #include "coremu-intr.h"
 #include "coremu-debug.h"
+#include "cm-loop.h"
+#include "cm-timer.h"
+#include "cm-init.h"
 
 static bool cm_tcg_cpu_exec(void);
 static bool cm_tcg_cpu_exec(void)
