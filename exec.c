@@ -201,7 +201,7 @@ unsigned long qemu_host_page_mask;
 
 /* This is a multi-level map on the virtual address space.
    The bottom level has pointers to PageDesc.  */
-static void *l1_map[V_L1_SIZE];
+static COREMU_THREAD void *l1_map[V_L1_SIZE];
 
 #if !defined(CONFIG_USER_ONLY)
 typedef struct PhysPageDesc {
