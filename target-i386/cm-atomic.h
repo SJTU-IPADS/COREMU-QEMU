@@ -20,9 +20,6 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _CM_ATOMIC_H
-#define _CM_ATOMIC_H
-
 #define __GEN_HEADER(type) \
 DEF_HELPER_3(atomic_inc##type, void, tl, int, int)           \
 DEF_HELPER_3(xchg##type, void, tl, int, int)                 \
@@ -32,10 +29,10 @@ DEF_HELPER_4(atomic_cmpxchg##type, void, tl, int, int, int)  \
 DEF_HELPER_1(atomic_not##type, void, tl)                     \
 DEF_HELPER_1(atomic_neg##type, void, tl)
 
-__GEN_HEADER(b);
-__GEN_HEADER(w);
-__GEN_HEADER(l);
-__GEN_HEADER(q);
+__GEN_HEADER(b)
+__GEN_HEADER(w)
+__GEN_HEADER(l)
+__GEN_HEADER(q)
 
 DEF_HELPER_1(atomic_cmpxchg8b, void, tl)
 DEF_HELPER_1(atomic_cmpxchg16b, void, tl)
@@ -50,4 +47,3 @@ DEF_HELPER_0(fence, void)
 /* pause */
 DEF_HELPER_0(pause, void)
 
-#endif /* _CM_ATOMIC_H */
