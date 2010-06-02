@@ -5662,3 +5662,8 @@ uint32_t helper_cc_compute_c(int op)
 #endif
     }
 }
+
+#include "coremu-config.h"
+#ifdef CONFIG_COREMU
+#include "cm-atomic.c"
+#endif

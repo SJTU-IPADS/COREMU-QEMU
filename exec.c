@@ -2851,7 +2851,8 @@ void *qemu_get_ram_ptr(ram_addr_t addr)
     /* Move this entry to to start of the list.  */
 #ifndef CONFIG_COREMU
     /* Different core can access this function at the same time.
-     * For coremu, disable this optimization to avoid data race.*/
+     * For coremu, disable this optimization to avoid data race. 
+     * XXX or use spin lock here if performance impact is big. */
     if (prev) {
         prev->next = block->next;
         block->next = *prevp;
