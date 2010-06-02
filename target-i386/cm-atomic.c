@@ -22,7 +22,8 @@
 
 /* We include this file in op_helper.c */
 
-#include <assert.h>
+#include <stdlib.h>
+#include <pthread.h>
 #include "coremu-atomic.h"
 
 /* These definitions are copied from translate.c */
@@ -155,13 +156,13 @@ static void cm_set_reg_val(int ot, int hregs, int reg, target_ulong val)
     do {                                                      \
         __oldv = value = LD_##type((DATA_##type *)__q_addr);  \
         {command;};                                           \
+        mb();                                                 \
     } while (__oldv != (atomic_compare_exchange##type(        \
                     (DATA_##type *)__q_addr, __oldv, value)))
 
 /* Atomically emulate INC instruction using CAS1 and memory transaction. */
 
 #define GEN_ATOMIC_INC(type, TYPE) \
-void helper_atomic_inc##type(target_ulong a0, int c, int cpu_cc_op);  \
 void helper_atomic_inc##type(target_ulong a0, int c, int cpu_cc_op)   \
 {                                                                     \
     int eflags_c, eflags;                                             \
@@ -185,7 +186,6 @@ void helper_atomic_inc##type(target_ulong a0, int c, int cpu_cc_op)   \
                                                                       \
     eflags = helper_cc_compute_all(cc_op);                            \
     CC_SRC = eflags;                                                  \
-    mb();                                                             \
 }                                                                     \
 
 GEN_ATOMIC_INC(b, B);
@@ -193,24 +193,23 @@ GEN_ATOMIC_INC(w, W);
 GEN_ATOMIC_INC(l, L);
 GEN_ATOMIC_INC(q, Q);
 
-#define VAL_b 0
-#define VAL_w 1
-#define VAL_l 2
-#define VAL_q 3
+#define OT_b 0
+#define OT_w 1
+#define OT_l 2
+#define OT_q 3
 
 #define GEN_XCHG(type) \
-void helper_xchg##type(target_ulong a0, int reg, int hreg);   \
 void helper_xchg##type(target_ulong a0, int reg, int hreg)    \
 {                                                             \
     DATA_##type val, out;                                     \
     target_ulong q_addr;                                      \
                                                               \
     q_addr = cm_get_qemu_addr(a0);                            \
-    val = (DATA_##type)cm_get_reg_val(VAL_##type, hreg, reg); \
+    val = (DATA_##type)cm_get_reg_val(OT_##type, hreg, reg);  \
     out = atomic_exchange##type((DATA_##type *)q_addr, val);  \
-                                                              \
-    cm_set_reg_val(VAL_##type, hreg, reg, out);               \
     mb();                                                     \
+                                                              \
+    cm_set_reg_val(OT_##type, hreg, reg, out);                \
 }
 
 GEN_XCHG(b);
@@ -220,8 +219,6 @@ GEN_XCHG(q);
 
 #define GEN_OP(type, TYPE) \
 void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
-        int op, int cpu_cc_op);                                  \
-void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
         int op, int cpu_cc_op)                                   \
 {                                                                \
     DATA_##type operand;                                         \
@@ -230,7 +227,6 @@ void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
     target_ulong q_addr;                                         \
                                                                  \
     q_addr = cm_get_qemu_addr(a0);                               \
-    assert(cpu_cc_op == CC_OP);                                  \
                                                                  \
     /* compute the previous instruction c flags */               \
     eflags_c = helper_cc_compute_c(CC_OP);                       \
@@ -272,7 +268,7 @@ void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
             cc_op = CC_OP_LOGIC##TYPE;                           \
             break;                                               \
         case OP_CMPL:                                            \
-            assert(0);                                           \
+            abort();                                             \
             break;                                               \
         }                                                        \
     });                                                          \
@@ -280,7 +276,6 @@ void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
     /* successful transaction, compute the eflags */             \
     eflags = helper_cc_compute_all(cc_op);                       \
     CC_SRC = eflags;                                             \
-    mb();                                                        \
 }
 
 GEN_OP(b, B);
@@ -289,3 +284,205 @@ GEN_OP(l, L);
 GEN_OP(q, Q);
 
 /* xadd */
+#define GEN_XADD(type, TYPE) \
+void helper_atomic_xadd##type(target_ulong a0, int reg,   \
+        int hreg,  int cpu_cc_op)                         \
+{                                                         \
+    DATA_##type operand, oldv;                            \
+    int eflags;                                           \
+                                                          \
+    operand = (DATA_##type)cm_get_reg_val(                \
+            OT_##type, hreg, reg);                        \
+                                                          \
+    TX(a0, type, newv, {                                  \
+        oldv = newv;                                      \
+        newv += operand;                                  \
+    });                                                   \
+                                                          \
+    /* transaction successes */                           \
+    /* xchg the register and compute the eflags */        \
+    cm_set_reg_val(OT_##type, hreg, reg, oldv);           \
+    CC_SRC = oldv;                                        \
+    CC_DST = newv;                                        \
+                                                          \
+    eflags = helper_cc_compute_all(CC_OP_ADD##TYPE);      \
+    CC_SRC = eflags;                                      \
+}
+
+GEN_XADD(b, B);
+GEN_XADD(w, W);
+GEN_XADD(l, L);
+GEN_XADD(q, Q);
+
+/* cmpxchg */
+#define GEN_CMPXCHG(type, TYPE) \
+void helper_atomic_cmpxchg##type(target_ulong a0, int reg,       \
+        int hreg,  int cpu_cc_op)                                \
+{                                                                \
+    DATA_##type reg_v, eax_v, res;                               \
+    int eflags;                                                  \
+    target_ulong q_addr;                                         \
+                                                                 \
+    q_addr = cm_get_qemu_addr(a0);                               \
+    reg_v = (DATA_##type)cm_get_reg_val(OT_##type, hreg, reg);   \
+    eax_v = (DATA_##type)cm_get_reg_val(OT_##type, 0, R_EAX);    \
+                                                                 \
+    res = atomic_compare_exchange##type(                         \
+            (DATA_##type *)q_addr, eax_v, reg_v);                \
+    mb();                                                        \
+                                                                 \
+    if (res != eax_v)                                            \
+        cm_set_reg_val(OT_##type, 0, R_EAX, res);                \
+                                                                 \
+    CC_SRC = res;                                                \
+    CC_DST = eax_v - res;                                        \
+                                                                 \
+    eflags = helper_cc_compute_all(CC_OP_SUB##TYPE);             \
+    CC_SRC = eflags;                                             \
+}
+
+GEN_CMPXCHG(b, B);
+GEN_CMPXCHG(w, W);
+GEN_CMPXCHG(l, L);
+GEN_CMPXCHG(q, Q);
+
+/* cmpxchgb (8, 16) */
+void helper_atomic_cmpxchg8b(target_ulong a0)
+{
+    uint64_t edx_eax, ecx_ebx, res;
+    int eflags;
+    target_ulong q_addr;
+
+    eflags = helper_cc_compute_all(CC_OP);
+    q_addr = cm_get_qemu_addr(a0);
+
+    edx_eax = (((uint64_t)EDX << 32) | (uint32_t)EAX);
+    ecx_ebx = (((uint64_t)ECX << 32) | (uint32_t)EBX);
+
+    res = atomic_compare_exchangeq(
+            (uint64_t *)q_addr, edx_eax, ecx_ebx);
+    mb();
+
+    if (res == edx_eax) {
+         eflags |= CC_Z;
+    } else {
+        EDX = (uint32_t)(res >> 32);
+        EAX = (uint32_t)res;
+        eflags &= ~CC_Z;
+    }
+
+    CC_SRC = eflags;
+}
+
+void helper_atomic_cmpxchg16b(target_ulong a0)
+{
+    uint8_t res;
+    int eflags;
+    target_ulong q_addr;
+
+    eflags = helper_cc_compute_all(CC_OP);
+    q_addr = cm_get_qemu_addr(a0);
+
+    uint64_t old_rax = *(uint64_t *)q_addr;
+    uint64_t old_rdx = *(uint64_t *)(q_addr + 8);
+    res = atomic_compare_exchange16b(
+            (uint64_t *)q_addr, EAX, EDX, EBX, ECX);
+    mb();
+
+    if (res) {
+        eflags |= CC_Z;         /* swap success */
+    } else {
+        EDX = old_rdx;
+        EAX = old_rax;
+        eflags &= ~CC_Z;        /* read the old value ! */
+    }
+
+    CC_SRC = eflags;
+}
+
+/* not */
+#define GEN_NOT(type) \
+void helper_atomic_not##type(target_ulong a0)  \
+{                                              \
+    TX(a0, type, value, {                      \
+        value = ~value;                        \
+    });                                        \
+}
+
+GEN_NOT(b);
+GEN_NOT(w);
+GEN_NOT(l);
+GEN_NOT(q);
+
+/* neg */
+#define GEN_NEG(type, TYPE) \
+void helper_atomic_neg##type(target_ulong a0)        \
+{                                                    \
+    int eflags;                                      \
+                                                     \
+    TX(a0, type, value, {                            \
+        value = -value;                              \
+    });                                              \
+                                                     \
+    CC_SRC = value;                                  \
+    CC_DST = value;                                  \
+                                                     \
+    eflags = helper_cc_compute_all(CC_OP_SUB##TYPE); \
+    CC_SRC = eflags;                                 \
+}                                                    \
+
+GEN_NEG(b, B);
+GEN_NEG(w, W);
+GEN_NEG(l, L);
+GEN_NEG(q, Q);
+
+/* This macro is only used in the btx  */
+#define TX2(vaddr, type, value, offset, command) \
+    target_ulong __q_addr;                                    \
+    DATA_##type __oldv;                                       \
+    DATA_##type value;                                        \
+    __q_addr = cm_get_qemu_addr(vaddr) + (offset >> 3);       \
+    do {                                                      \
+        __oldv = value = LD_##type((DATA_##type *)__q_addr);  \
+        {command;};                                           \
+        mb();                                                 \
+    } while (__oldv != (atomic_compare_exchange##type(        \
+                    (DATA_##type *)__q_addr, __oldv, value)))
+
+#define GEN_BTX(ins, command) \
+void helper_atomic_##ins(target_ulong a0, target_ulong offset) \
+{                                                              \
+    uint8_t old_byte;                                          \
+                                                               \
+    TX2(a0, b, value, offset, {                                \
+        old_byte = value;                                      \
+        {command;};                                            \
+    });                                                        \
+                                                               \
+    CC_SRC = (old_byte >> (offset & 0x7)) & 1;                 \
+}
+
+/* bts */
+GEN_BTX(bts, {
+    value |= (1 << (offset & 0x7));
+});
+/* btr */
+GEN_BTX(btr, {
+    value &= ~(1 << (offset & 0x7));
+});
+/* btc */
+GEN_BTX(btc, {
+    value ^= (1 << (offset & 0x7));
+});
+
+/* fence **/
+void helper_fence(void)
+{
+    mb();
+}
+
+/* pause */
+void helper_pause(void)
+{
+    pthread_yield();
+}
