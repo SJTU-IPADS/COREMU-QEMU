@@ -1432,6 +1432,40 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
 /* if d == OR_TMP0, it means memory operand (address in A0) */
 static void gen_inc(DisasContext *s1, int ot, int d, int c)
 {
+#ifdef CONFIG_COREMU
+    /* with lock prefix */
+    if(s1->prefix & PREFIX_LOCK) {
+        assert(d == OR_TMP0);
+
+        /* The helper will use CAS1 as a unified way to
+           implement atomic inc (locked inc) */
+        if (s1->cc_op != CC_OP_DYNAMIC)
+            gen_op_set_cc_op(s1->cc_op);
+
+        switch(ot & 3) {
+        case 0:
+            gen_helper_atomic_incb(cpu_A0, tcg_const_i32(c), cpu_cc_op);
+            break;
+        case 1:
+            gen_helper_atomic_incw(cpu_A0, tcg_const_i32(c), cpu_cc_op);
+            break;
+        case 2:
+            gen_helper_atomic_incl(cpu_A0, tcg_const_i32(c), cpu_cc_op);
+            break;
+        default:
+        case 3:
+            /* Should never happen on 32-bit targets.  */
+#ifdef TARGET_X86_64
+            gen_helper_atomic_incq(cpu_A0, tcg_const_i32(c), cpu_cc_op);
+#endif
+            break;
+        }
+        s1->cc_op = CC_OP_EFLAGS;
+		return;
+    } 
+
+#endif
+
     if (d != OR_TMP0)
         gen_op_mov_TN_reg(ot, 0, d);
     else
@@ -4401,6 +4435,28 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             s->cc_op = CC_OP_LOGICB + ot;
             break;
         case 2: /* not */
+#ifdef CONFIG_COREMU
+            if(s->prefix & PREFIX_LOCK) {
+                switch(ot & 3) {
+                case 0:
+                    gen_helper_atomic_notb(cpu_A0);
+                    break;
+                case 1:
+                    gen_helper_atomic_notw(cpu_A0);
+                    break;
+                case 2:
+                    gen_helper_atomic_notl(cpu_A0);
+                    break;
+                case 3:
+                    gen_helper_atomic_notq(cpu_A0);
+                    break;
+                default:
+                    assert(0);
+
+                }
+				break;
+            }
+#endif
             tcg_gen_not_tl(cpu_T[0], cpu_T[0]);
             if (mod != 3) {
                 gen_op_st_T0_A0(ot + s->mem_index);
@@ -4409,6 +4465,33 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             }
             break;
         case 3: /* neg */
+#ifdef CONFIG_COREMU
+			if(s->prefix & PREFIX_LOCK) {
+                assert(mod != 3);
+
+                if (s->cc_op != CC_OP_DYNAMIC)
+                    gen_op_set_cc_op(s->cc_op);
+
+                switch(ot & 3) {
+                case 0:
+                    gen_helper_atomic_negb(cpu_A0);
+                    break;
+                case 1:
+                    gen_helper_atomic_negw(cpu_A0);
+                    break;
+                case 2:
+                    gen_helper_atomic_negl(cpu_A0);
+                    break;
+                case 3:
+                    gen_helper_atomic_negq(cpu_A0);
+                    break;
+                default:
+                    assert(0);
+                }
+                s->cc_op = CC_OP_EFLAGS;
+				break;
+            } 
+#endif
             tcg_gen_neg_tl(cpu_T[0], cpu_T[0]);
             if (mod != 3) {
                 gen_op_st_T0_A0(ot + s->mem_index);
