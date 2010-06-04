@@ -56,33 +56,30 @@ enum {
     OP_CMPL,
 };
 
-/* The following several cm_getxxx function is used in implementing the atomic
- * instruction.
- * XXX: These functions are not platform specific, move them to other place
+/* XXX: This function is not platform specific, move them to other place
  * later. */
 
 /* Given the guest virtual address, get the corresponding host address.
- * This function resembles __ldxxx in softmmu_template.h */
+ * This function resembles ldxxx in softmmu_template.h */
 static target_ulong cm_get_qemu_addr(target_ulong v_addr)
 {
-    int mmu_idx, index, pd;
+    int mmu_idx, index;
     CPUState *env1 = cpu_single_env;
-    target_ulong q_addr = 0;
+    unsigned long q_addr = 0;
     void *retaddr;
 
     index = (v_addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
 
     /* get the CPL, hence determine the MMU mode */
     mmu_idx = cpu_mmu_index(env1);
+    /* We use this function in the implementation of atomic instructions,
+     * and we are going to modify these memory. So we use addr_write. */
     if (unlikely(env1->tlb_table[mmu_idx][index].addr_write
-                 != (v_addr & TARGET_PAGE_MASK))) {
-            retaddr = GETPC();
-            tlb_fill(v_addr, 1, mmu_idx, retaddr);
+                != (v_addr & TARGET_PAGE_MASK))) {
+        retaddr = GETPC();
+        tlb_fill(v_addr, 1, mmu_idx, retaddr);
     }
 
-    /* We use this function when in the implementation of atomic instructions,
-     * and we are going to modify these memory. So we use addr_write. */
-    pd = env1->tlb_table[mmu_idx][index].addr_write & ~TARGET_PAGE_MASK;
     q_addr = v_addr + env1->tlb_table[mmu_idx][index].addend;
 
     return q_addr;
@@ -93,8 +90,7 @@ static target_ulong cm_get_reg_val(int ot, int hregs, int reg)
     target_ulong val, offset;
     CPUState *env1 = cpu_single_env;
 
-    switch(ot)
-    {
+    switch(ot) {
     case 0:  /*OT_BYTE*/
         if (reg < 4 || reg >= 8 || hregs) {
             goto std_case;
@@ -250,7 +246,7 @@ void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
             CC_SRC = operand;                                    \
             break;                                               \
         case OP_SUBL:                                            \
-            value = value - operand;                             \
+            value -= operand;                                    \
             cc_op = CC_OP_SUB##TYPE;                             \
             CC_SRC = operand;                                    \
             break;                                               \

@@ -226,7 +226,7 @@ int cpu_exec(CPUState *env1)
 
     if (cpu_halted(env1) == EXCP_HALTED)
         return EXCP_HALTED;
-    
+
 #ifndef CONFIG_COREMU
     cpu_single_env = env1;
 #endif

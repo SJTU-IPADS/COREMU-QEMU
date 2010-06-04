@@ -221,9 +221,5 @@ DEF_HELPER_2(rcrq, tl, tl, tl)
 #ifdef CONFIG_COREMU
 #include "cm-atomic.h"
 #endif
-/*
- *DEF_HELPER_1(atomic_cmpxchg8b, void, tl)
- *DEF_HELPER_1(atomic_cmpxchg16b, void, tl)
- */
 
 #include "def-helper.h"

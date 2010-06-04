@@ -1307,7 +1307,6 @@ static void gen_helper_fp_arith_STN_ST0(int op, int opreg)
 /* if d == OR_TMP0, it means memory operand (address in A0) */
 static void gen_op(DisasContext *s1, int op, int ot, int d)
 {
-
 #ifdef CONFIG_COREMU
     if (s1->prefix & PREFIX_LOCK) {
         if (s1->cc_op != CC_OP_DYNAMIC) {
@@ -1434,7 +1433,7 @@ static void gen_inc(DisasContext *s1, int ot, int d, int c)
 {
 #ifdef CONFIG_COREMU
     /* with lock prefix */
-    if(s1->prefix & PREFIX_LOCK) {
+    if (s1->prefix & PREFIX_LOCK) {
         assert(d == OR_TMP0);
 
         /* The helper will use CAS1 as a unified way to
@@ -1461,9 +1460,8 @@ static void gen_inc(DisasContext *s1, int ot, int d, int c)
             break;
         }
         s1->cc_op = CC_OP_EFLAGS;
-		return;
-    } 
-
+        return;
+    }
 #endif
 
     if (d != OR_TMP0)
@@ -4436,7 +4434,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             break;
         case 2: /* not */
 #ifdef CONFIG_COREMU
-            if(s->prefix & PREFIX_LOCK) {
+            if (s->prefix & PREFIX_LOCK) {
                 switch(ot & 3) {
                 case 0:
                     gen_helper_atomic_notb(cpu_A0);
@@ -4454,7 +4452,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                     assert(0);
 
                 }
-				break;
+                break;
             }
 #endif
             tcg_gen_not_tl(cpu_T[0], cpu_T[0]);
@@ -4466,7 +4464,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             break;
         case 3: /* neg */
 #ifdef CONFIG_COREMU
-			if(s->prefix & PREFIX_LOCK) {
+            if (s->prefix & PREFIX_LOCK) {
                 assert(mod != 3);
 
                 if (s->cc_op != CC_OP_DYNAMIC)
@@ -4489,7 +4487,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                     assert(0);
                 }
                 s->cc_op = CC_OP_EFLAGS;
-				break;
+                break;
             } 
 #endif
             tcg_gen_neg_tl(cpu_T[0], cpu_T[0]);
@@ -4949,6 +4947,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         } else
 #ifdef CONFIG_COREMU
         if (s->prefix & PREFIX_LOCK) {
+            gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
                 switch (ot & 3) {
