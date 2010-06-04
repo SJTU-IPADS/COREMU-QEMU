@@ -1307,7 +1307,7 @@ static void gen_helper_fp_arith_STN_ST0(int op, int opreg)
 /* if d == OR_TMP0, it means memory operand (address in A0) */
 static void gen_op(DisasContext *s1, int op, int ot, int d)
 {
-#ifdef CONFIG_COREMU
+#ifndef CONFIG_COREMU
     if (s1->prefix & PREFIX_LOCK) {
         if (s1->cc_op != CC_OP_DYNAMIC) {
             gen_op_set_cc_op(s1->cc_op);
@@ -1431,7 +1431,7 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
 /* if d == OR_TMP0, it means memory operand (address in A0) */
 static void gen_inc(DisasContext *s1, int ot, int d, int c)
 {
-#ifdef CONFIG_COREMU
+#ifndef CONFIG_COREMU
     /* with lock prefix */
     if (s1->prefix & PREFIX_LOCK) {
         assert(d == OR_TMP0);
@@ -4433,7 +4433,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             s->cc_op = CC_OP_LOGICB + ot;
             break;
         case 2: /* not */
-#ifdef CONFIG_COREMU
+#ifndef CONFIG_COREMU
             if (s->prefix & PREFIX_LOCK) {
                 switch(ot & 3) {
                 case 0:
@@ -4450,7 +4450,6 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                     break;
                 default:
                     assert(0);
-
                 }
                 break;
             }
@@ -4463,7 +4462,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             }
             break;
         case 3: /* neg */
-#ifdef CONFIG_COREMU
+#ifndef CONFIG_COREMU
             if (s->prefix & PREFIX_LOCK) {
                 assert(mod != 3);
 
@@ -4971,6 +4970,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                     assert(0);
                 }
                 s->cc_op = CC_OP_EFLAGS;
+                break;
         } else
 #endif
         {
@@ -4998,7 +4998,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             reg = ((modrm >> 3) & 7) | rex_r;
             mod = (modrm >> 6) & 3;
 
-#ifdef CONFIG_COREMU
+#ifndef CONFIG_COREMU
             if (s->prefix & PREFIX_LOCK) {
                 assert(mod != 3);
                 gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
@@ -5084,7 +5084,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
-#ifdef CONFIG_COREMU
+#ifndef CONFIG_COREMU
             if (s->prefix | PREFIX_LOCK) {
                 gen_helper_atomic_cmpxchg16b(cpu_A0);
             } else
@@ -5099,7 +5099,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
-#ifdef CONFIG_COREMU
+#ifndef CONFIG_COREMU
             if (s->prefix | PREFIX_LOCK) {
                 gen_helper_atomic_cmpxchg16b(cpu_A0);
             } else
@@ -5498,7 +5498,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         } else {
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
 
-#ifdef CONFIG_COREMU
+#ifndef CONFIG_COREMU
             /* for xchg, lock is implicit.
                XXX: none flag is affected! */
             switch (ot & 3) {
@@ -6738,7 +6738,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_op_mov_TN_reg(ot, 0, rm);
         }
     bt_op:
-#ifdef CONFIG_COREMU
+#ifndef CONFIG_COREMU
         if (s->prefix & PREFIX_LOCK) {
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
