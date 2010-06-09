@@ -60,30 +60,27 @@ enum {
  * later. */
 
 /* Given the guest virtual address, get the corresponding host address.
- * This function resembles ldxxx in softmmu_template.h */
-static target_ulong cm_get_qemu_addr(target_ulong v_addr)
-{
-    int mmu_idx, index;
-    CPUState *env1 = cpu_single_env;
-    unsigned long q_addr = 0;
-    void *retaddr;
-
-    index = (v_addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-
-    /* get the CPL, hence determine the MMU mode */
-    mmu_idx = cpu_mmu_index(env1);
-    /* We use this function in the implementation of atomic instructions,
-     * and we are going to modify these memory. So we use addr_write. */
-    if (unlikely(env1->tlb_table[mmu_idx][index].addr_write
-                != (v_addr & TARGET_PAGE_MASK))) {
-        retaddr = GETPC();
-        tlb_fill(v_addr, 1, mmu_idx, retaddr);
-    }
-
-    q_addr = v_addr + env1->tlb_table[mmu_idx][index].addend;
-
-    return q_addr;
-}
+ * This macro resembles ldxxx in softmmu_template.h
+ * NOTE: This must be inlined since the use of GETPC needs to get the
+ * return address. Using always inline does not work, so we make it a macro
+ * here. */
+#define CM_GET_QEMU_ADDR(q_addr, v_addr) \
+do {                                                                        \
+    int __mmu_idx, __index;                                                 \
+    CPUState *__env1 = cpu_single_env;                                      \
+    void *__retaddr;                                                        \
+    __index = (v_addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);            \
+    /* get the CPL, hence determine the MMU mode */                         \
+    __mmu_idx = cpu_mmu_index(__env1);                                      \
+    /* We use this function in the implementation of atomic instructions */ \
+    /* and we are going to modify these memory. So we use addr_write. */    \
+    if (unlikely(__env1->tlb_table[__mmu_idx][__index].addr_write           \
+                != (v_addr & TARGET_PAGE_MASK))) {                          \
+        __retaddr = GETPC();                                                \
+        tlb_fill(v_addr, 1, __mmu_idx, __retaddr);                          \
+    }                                                                       \
+    q_addr = v_addr + __env1->tlb_table[__mmu_idx][__index].addend;         \
+} while(0)
 
 static target_ulong cm_get_reg_val(int ot, int hregs, int reg)
 {
@@ -146,9 +143,11 @@ static void cm_set_reg_val(int ot, int hregs, int reg, target_ulong val)
 
 /* Lightweight transactional memory. */
 #define TX(vaddr, type, value, command) \
-    target_ulong __q_addr = cm_get_qemu_addr(vaddr);          \
+    target_ulong __q_addr;                                    \
     DATA_##type __oldv;                                       \
     DATA_##type value;                                        \
+                                                              \
+    CM_GET_QEMU_ADDR(__q_addr, vaddr);                        \
     do {                                                      \
         __oldv = value = LD_##type((DATA_##type *)__q_addr);  \
         {command;};                                           \
@@ -200,7 +199,7 @@ void helper_xchg##type(target_ulong a0, int reg, int hreg)    \
     DATA_##type val, out;                                     \
     target_ulong q_addr;                                      \
                                                               \
-    q_addr = cm_get_qemu_addr(a0);                            \
+    CM_GET_QEMU_ADDR(q_addr, a0);                             \
     val = (DATA_##type)cm_get_reg_val(OT_##type, hreg, reg);  \
     out = atomic_exchange##type((DATA_##type *)q_addr, val);  \
     mb();                                                     \
@@ -222,7 +221,7 @@ void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
     int cc_op;                                                   \
     target_ulong q_addr;                                         \
                                                                  \
-    q_addr = cm_get_qemu_addr(a0);                               \
+    CM_GET_QEMU_ADDR(q_addr, a0);                                \
                                                                  \
     /* compute the previous instruction c flags */               \
     eflags_c = helper_cc_compute_c(CC_OP);                       \
@@ -319,7 +318,7 @@ void helper_atomic_cmpxchg##type(target_ulong a0, int reg,       \
     int eflags;                                                  \
     target_ulong q_addr;                                         \
                                                                  \
-    q_addr = cm_get_qemu_addr(a0);                               \
+    CM_GET_QEMU_ADDR(q_addr, a0);                                \
     reg_v = (DATA_##type)cm_get_reg_val(OT_##type, hreg, reg);   \
     eax_v = (DATA_##type)cm_get_reg_val(OT_##type, 0, R_EAX);    \
                                                                  \
@@ -350,7 +349,7 @@ void helper_atomic_cmpxchg8b(target_ulong a0)
     target_ulong q_addr;
 
     eflags = helper_cc_compute_all(CC_OP);
-    q_addr = cm_get_qemu_addr(a0);
+    CM_GET_QEMU_ADDR(q_addr, a0);
 
     edx_eax = (((uint64_t)EDX << 32) | (uint32_t)EAX);
     ecx_ebx = (((uint64_t)ECX << 32) | (uint32_t)EBX);
@@ -377,7 +376,7 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
     target_ulong q_addr;
 
     eflags = helper_cc_compute_all(CC_OP);
-    q_addr = cm_get_qemu_addr(a0);
+    CM_GET_QEMU_ADDR(q_addr, a0);
 
     uint64_t old_rax = *(uint64_t *)q_addr;
     uint64_t old_rdx = *(uint64_t *)(q_addr + 8);
@@ -437,7 +436,9 @@ GEN_NEG(q, Q);
     target_ulong __q_addr;                                    \
     DATA_##type __oldv;                                       \
     DATA_##type value;                                        \
-    __q_addr = cm_get_qemu_addr(vaddr) + (offset >> 3);       \
+                                                              \
+    CM_GET_QEMU_ADDR(__q_addr, vaddr);                        \
+    __q_addr += (offset >> 3);                                \
     do {                                                      \
         __oldv = value = LD_##type((DATA_##type *)__q_addr);  \
         {command;};                                           \

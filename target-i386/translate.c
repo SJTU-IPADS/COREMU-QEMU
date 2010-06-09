@@ -4998,7 +4998,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             reg = ((modrm >> 3) & 7) | rex_r;
             mod = (modrm >> 6) & 3;
 
-#ifndef CONFIG_COREMU
+#ifdef CONFIG_COREMU
             if (s->prefix & PREFIX_LOCK) {
                 assert(mod != 3);
                 gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
