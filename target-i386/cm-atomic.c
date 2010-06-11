@@ -62,8 +62,8 @@ enum {
 /* Given the guest virtual address, get the corresponding host address.
  * This macro resembles ldxxx in softmmu_template.h
  * NOTE: This must be inlined since the use of GETPC needs to get the
- * return address. Using always inline does not work, so we make it a macro
- * here. */
+ * return address. Using always inline also works, we use macro here to be more
+ * explicit. */
 #define CM_GET_QEMU_ADDR(q_addr, v_addr) \
 do {                                                                        \
     int __mmu_idx, __index;                                                 \
@@ -431,45 +431,35 @@ GEN_NEG(w, W);
 GEN_NEG(l, L);
 GEN_NEG(q, Q);
 
-/* This macro is only used in the btx  */
-#define TX2(vaddr, type, value, offset, command) \
-    target_ulong __q_addr;                                    \
-    DATA_##type __oldv;                                       \
-    DATA_##type value;                                        \
-                                                              \
-    CM_GET_QEMU_ADDR(__q_addr, vaddr);                        \
-    __q_addr += (offset >> 3);                                \
-    do {                                                      \
-        __oldv = value = LD_##type((DATA_##type *)__q_addr);  \
-        {command;};                                           \
-        mb();                                                 \
-    } while (__oldv != (atomic_compare_exchange##type(        \
-                    (DATA_##type *)__q_addr, __oldv, value)))
-
 #define GEN_BTX(ins, command) \
-void helper_atomic_##ins(target_ulong a0, target_ulong offset) \
+void helper_atomic_##ins(target_ulong a0, target_ulong offset, \
+        int ot)                                                \
 {                                                              \
     uint8_t old_byte;                                          \
+    int eflags;                                                \
                                                                \
-    TX2(a0, b, value, offset, {                                \
+    TX(a0, b, value, {                                 \
         old_byte = value;                                      \
         {command;};                                            \
     });                                                        \
                                                                \
-    CC_SRC = (old_byte >> (offset & 0x7)) & 1;                 \
+    CC_SRC = (old_byte >> offset);                             \
+    CC_DST = 0;                                                \
+    eflags = helper_cc_compute_all(CC_OP_SARB + ot);           \
+    CC_DST = eflags;                                           \
 }
 
 /* bts */
 GEN_BTX(bts, {
-    value |= (1 << (offset & 0x7));
+    value |= (1 << offset);
 });
 /* btr */
 GEN_BTX(btr, {
-    value &= ~(1 << (offset & 0x7));
+    value &= ~(1 << offset);
 });
 /* btc */
 GEN_BTX(btc, {
-    value ^= (1 << (offset & 0x7));
+    value ^= (1 << offset);
 });
 
 /* fence **/

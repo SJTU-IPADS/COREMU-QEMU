@@ -37,9 +37,9 @@ __GEN_HEADER(q)
 DEF_HELPER_1(atomic_cmpxchg8b, void, tl)
 DEF_HELPER_1(atomic_cmpxchg16b, void, tl)
 
-DEF_HELPER_2(atomic_bts, void, tl, tl)
-DEF_HELPER_2(atomic_btr, void, tl, tl)
-DEF_HELPER_2(atomic_btc, void, tl, tl)
+DEF_HELPER_3(atomic_bts, void, tl, tl, int)
+DEF_HELPER_3(atomic_btr, void, tl, tl, int)
+DEF_HELPER_3(atomic_btc, void, tl, tl, int)
 
 /* fence */
 DEF_HELPER_0(fence, void)
