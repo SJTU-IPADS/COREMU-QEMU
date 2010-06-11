@@ -158,7 +158,7 @@ static void cm_set_reg_val(int ot, int hregs, int reg, target_ulong val)
 /* Atomically emulate INC instruction using CAS1 and memory transaction. */
 
 #define GEN_ATOMIC_INC(type, TYPE) \
-void helper_atomic_inc##type(target_ulong a0, int c, int cpu_cc_op)   \
+void helper_atomic_inc##type(target_ulong a0, int c)                  \
 {                                                                     \
     int eflags_c, eflags;                                             \
     int cc_op;                                                        \
@@ -214,14 +214,11 @@ GEN_XCHG(q);
 
 #define GEN_OP(type, TYPE) \
 void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
-        int op, int cpu_cc_op)                                   \
+                       int op)                                   \
 {                                                                \
     DATA_##type operand;                                         \
     int eflags_c, eflags;                                        \
     int cc_op;                                                   \
-    target_ulong q_addr;                                         \
-                                                                 \
-    CM_GET_QEMU_ADDR(q_addr, a0);                                \
                                                                  \
     /* compute the previous instruction c flags */               \
     eflags_c = helper_cc_compute_c(CC_OP);                       \
@@ -281,7 +278,7 @@ GEN_OP(q, Q);
 /* xadd */
 #define GEN_XADD(type, TYPE) \
 void helper_atomic_xadd##type(target_ulong a0, int reg,   \
-        int hreg,  int cpu_cc_op)                         \
+                        int hreg)                         \
 {                                                         \
     DATA_##type operand, oldv;                            \
     int eflags;                                           \
@@ -312,7 +309,7 @@ GEN_XADD(q, Q);
 /* cmpxchg */
 #define GEN_CMPXCHG(type, TYPE) \
 void helper_atomic_cmpxchg##type(target_ulong a0, int reg,       \
-        int hreg,  int cpu_cc_op)                                \
+                            int hreg)                            \
 {                                                                \
     DATA_##type reg_v, eax_v, res;                               \
     int eflags;                                                  \

@@ -1307,34 +1307,30 @@ static void gen_helper_fp_arith_STN_ST0(int op, int opreg)
 /* if d == OR_TMP0, it means memory operand (address in A0) */
 static void gen_op(DisasContext *s1, int op, int ot, int d)
 {
-#ifndef CONFIG_COREMU
+#ifdef CONFIG_COREMU
     if (s1->prefix & PREFIX_LOCK) {
-        if (s1->cc_op != CC_OP_DYNAMIC) {
+        if (s1->cc_op != CC_OP_DYNAMIC) 
             gen_op_set_cc_op(s1->cc_op);
-            switch (ot & 3) {
-            case 0:
-                gen_helper_atomic_opb(cpu_A0,cpu_T[1], tcg_const_i32(op),
-                        cpu_cc_op);
-                break;
-            case 1:
-                gen_helper_atomic_opw(cpu_A0,cpu_T[1], tcg_const_i32(op),
-                        cpu_cc_op);
-                break;
-            case 2:
-                gen_helper_atomic_opl(cpu_A0,cpu_T[1], tcg_const_i32(op),
-                        cpu_cc_op);
-                break;
-            default:
+        
+        switch (ot & 3) {
+        case 0:
+            gen_helper_atomic_opb(cpu_A0,cpu_T[1], tcg_const_i32(op));
+            break;
+        case 1:
+            gen_helper_atomic_opw(cpu_A0,cpu_T[1], tcg_const_i32(op));
+            break;
+        case 2:
+            gen_helper_atomic_opl(cpu_A0,cpu_T[1], tcg_const_i32(op));
+            break;
+        default:
 #ifdef TARGET_X86_64
-            case 3:
-                gen_helper_atomic_opq(cpu_A0,cpu_T[1], tcg_const_i32(op),
-                        cpu_cc_op);
+        case 3:
+            gen_helper_atomic_opq(cpu_A0,cpu_T[1], tcg_const_i32(op));
 #endif
-            }
         }
-    }
+        return;
+    } 
 #endif
-
     if (d != OR_TMP0) {
         gen_op_mov_TN_reg(ot, 0, d);
     } else {
@@ -1443,18 +1439,18 @@ static void gen_inc(DisasContext *s1, int ot, int d, int c)
 
         switch(ot & 3) {
         case 0:
-            gen_helper_atomic_incb(cpu_A0, tcg_const_i32(c), cpu_cc_op);
+            gen_helper_atomic_incb(cpu_A0, tcg_const_i32(c));
             break;
         case 1:
-            gen_helper_atomic_incw(cpu_A0, tcg_const_i32(c), cpu_cc_op);
+            gen_helper_atomic_incw(cpu_A0, tcg_const_i32(c));
             break;
         case 2:
-            gen_helper_atomic_incl(cpu_A0, tcg_const_i32(c), cpu_cc_op);
+            gen_helper_atomic_incl(cpu_A0, tcg_const_i32(c));
             break;
         default:
 #ifdef TARGET_X86_64
         case 3:
-            gen_helper_atomic_incq(cpu_A0, tcg_const_i32(c), cpu_cc_op);
+            gen_helper_atomic_incq(cpu_A0, tcg_const_i32(c));
 #endif
         }
         s1->cc_op = CC_OP_EFLAGS;
@@ -4954,21 +4950,21 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 switch (ot & 3) {
                 case 0:
                     gen_helper_atomic_xaddb(cpu_A0, tcg_const_i32(reg),
-                            tcg_const_i32(x86_64_hregs), cpu_cc_op);
+                                                tcg_const_i32(x86_64_hregs));
                     break;
                 case 1:
                     gen_helper_atomic_xaddw(cpu_A0, tcg_const_i32(reg),
-                            tcg_const_i32(x86_64_hregs), cpu_cc_op);
+                                                tcg_const_i32(x86_64_hregs));
                     break;
                 case 2:
                     gen_helper_atomic_xaddl(cpu_A0, tcg_const_i32(reg),
-                            tcg_const_i32(x86_64_hregs), cpu_cc_op);
+                                                tcg_const_i32(x86_64_hregs));
                     break;
                 default:
 #ifdef TARGET_X86_64
                 case 3:
                     gen_helper_atomic_xaddq(cpu_A0, tcg_const_i32(reg),
-                            tcg_const_i32(x86_64_hregs), cpu_cc_op);
+                            tcg_const_i32(x86_64_hregs));
 #endif
                 }
                 s->cc_op = CC_OP_EFLAGS;
@@ -5011,21 +5007,21 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 switch(ot & 3) {
                 case 0:
                     gen_helper_atomic_cmpxchgb(cpu_A0, tcg_const_i32(reg),
-                            tcg_const_i32(x86_64_hregs), cpu_cc_op);
+                                                    tcg_const_i32(x86_64_hregs));
                     break;
                 case 1:
                     gen_helper_atomic_cmpxchgw(cpu_A0, tcg_const_i32(reg),
-                            tcg_const_i32(x86_64_hregs), cpu_cc_op);
+                                                    tcg_const_i32(x86_64_hregs));
                     break;
                 case 2:
                     gen_helper_atomic_cmpxchgl(cpu_A0, tcg_const_i32(reg),
-                            tcg_const_i32(x86_64_hregs), cpu_cc_op);
+                                                    tcg_const_i32(x86_64_hregs));
                     break;
                 default:
 #ifdef TARGET_X86_64
                 case 3:
                     gen_helper_atomic_cmpxchgq(cpu_A0, tcg_const_i32(reg),
-                            tcg_const_i32(x86_64_hregs), cpu_cc_op);
+                            tcg_const_i32(x86_64_hregs));
 #endif
                 }
                 s->cc_op = CC_OP_EFLAGS;

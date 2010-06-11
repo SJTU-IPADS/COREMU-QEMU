@@ -21,11 +21,11 @@
  */
 
 #define __GEN_HEADER(type) \
-DEF_HELPER_3(atomic_inc##type, void, tl, int, int)           \
+DEF_HELPER_2(atomic_inc##type, void, tl, int)                \
 DEF_HELPER_3(xchg##type, void, tl, int, int)                 \
-DEF_HELPER_4(atomic_op##type, void, tl, tl, int, int)        \
-DEF_HELPER_4(atomic_xadd##type, void, tl, int, int, int)     \
-DEF_HELPER_4(atomic_cmpxchg##type, void, tl, int, int, int)  \
+DEF_HELPER_3(atomic_op##type, void, tl, tl, int)             \
+DEF_HELPER_3(atomic_xadd##type, void, tl, int, int)          \
+DEF_HELPER_3(atomic_cmpxchg##type, void, tl, int, int)       \
 DEF_HELPER_1(atomic_not##type, void, tl)                     \
 DEF_HELPER_1(atomic_neg##type, void, tl)
 
