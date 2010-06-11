@@ -443,7 +443,7 @@ void helper_atomic_##ins(target_ulong a0, target_ulong offset, \
     CC_SRC = (old_byte >> offset);                             \
     CC_DST = 0;                                                \
     eflags = helper_cc_compute_all(CC_OP_SARB + ot);           \
-    CC_DST = eflags;                                           \
+    CC_SRC = eflags;                                           \
 }
 
 /* bts */

@@ -1311,7 +1311,7 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
     if (s1->prefix & PREFIX_LOCK) {
         if (s1->cc_op != CC_OP_DYNAMIC) 
             gen_op_set_cc_op(s1->cc_op);
-        
+
         switch (ot & 3) {
         case 0:
             gen_helper_atomic_opb(cpu_A0,cpu_T[1], tcg_const_i32(op));
@@ -1329,7 +1329,7 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
 #endif
         }
         return;
-    } 
+    }
 #endif
     if (d != OR_TMP0) {
         gen_op_mov_TN_reg(ot, 0, d);
@@ -4947,28 +4947,29 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
-                switch (ot & 3) {
-                case 0:
-                    gen_helper_atomic_xaddb(cpu_A0, tcg_const_i32(reg),
-                                                tcg_const_i32(x86_64_hregs));
-                    break;
-                case 1:
-                    gen_helper_atomic_xaddw(cpu_A0, tcg_const_i32(reg),
-                                                tcg_const_i32(x86_64_hregs));
-                    break;
-                case 2:
-                    gen_helper_atomic_xaddl(cpu_A0, tcg_const_i32(reg),
-                                                tcg_const_i32(x86_64_hregs));
-                    break;
-                default:
-#ifdef TARGET_X86_64
-                case 3:
-                    gen_helper_atomic_xaddq(cpu_A0, tcg_const_i32(reg),
-                            tcg_const_i32(x86_64_hregs));
-#endif
-                }
-                s->cc_op = CC_OP_EFLAGS;
+
+            switch (ot & 3) {
+            case 0:
+                gen_helper_atomic_xaddb(cpu_A0, tcg_const_i32(reg),
+                        tcg_const_i32(x86_64_hregs));
                 break;
+            case 1:
+                gen_helper_atomic_xaddw(cpu_A0, tcg_const_i32(reg),
+                        tcg_const_i32(x86_64_hregs));
+                break;
+            case 2:
+                gen_helper_atomic_xaddl(cpu_A0, tcg_const_i32(reg),
+                        tcg_const_i32(x86_64_hregs));
+                break;
+            default:
+#ifdef TARGET_X86_64
+            case 3:
+                gen_helper_atomic_xaddq(cpu_A0, tcg_const_i32(reg),
+                        tcg_const_i32(x86_64_hregs));
+#endif
+            }
+            s->cc_op = CC_OP_EFLAGS;
+            break;
         } else
 #endif
         {
