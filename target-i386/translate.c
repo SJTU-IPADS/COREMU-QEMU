@@ -6754,11 +6754,8 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             case 2:
                 gen_helper_atomic_btr(cpu_A0, cpu_T[1], tcg_const_i32(ot));
                 break;
-            default:
-#ifdef TARGET_X86_64
             case 3:
                 gen_helper_atomic_btc(cpu_A0, cpu_T[1], tcg_const_i32(ot));
-#endif
             }
             s->cc_op = CC_OP_EFLAGS;
             break;
