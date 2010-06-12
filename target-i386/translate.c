@@ -1328,6 +1328,7 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
             gen_helper_atomic_opq(cpu_A0,cpu_T[1], tcg_const_i32(op));
 #endif
         }
+        s1->cc_op = CC_OP_EFLAGS;
         return;
     }
 #endif
