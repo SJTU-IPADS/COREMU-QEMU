@@ -4463,7 +4463,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             }
             break;
         case 3: /* neg */
-#ifndef CONFIG_COREMU
+#ifdef CONFIG_COREMU
             if (s->prefix & PREFIX_LOCK) {
                 if (mod == 3)
                     goto illegal_op;

@@ -416,8 +416,8 @@ void helper_atomic_neg##type(target_ulong a0)        \
         value = -value;                              \
     });                                              \
                                                      \
-    CC_SRC = value;                                  \
-    CC_DST = value;                                  \
+    /* We should use the old value to compute CC */  \
+    CC_SRC = CC_DST = -value;                        \
                                                      \
     eflags = helper_cc_compute_all(CC_OP_SUB##TYPE); \
     CC_SRC = eflags;                                 \
@@ -435,7 +435,7 @@ void helper_atomic_##ins(target_ulong a0, target_ulong offset, \
     uint8_t old_byte;                                          \
     int eflags;                                                \
                                                                \
-    TX(a0, b, value, {                                 \
+    TX(a0, b, value, {                                         \
         old_byte = value;                                      \
         {command;};                                            \
     });                                                        \
