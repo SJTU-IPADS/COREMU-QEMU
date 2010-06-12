@@ -1309,7 +1309,7 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
 {
 #ifdef CONFIG_COREMU
     if (s1->prefix & PREFIX_LOCK) {
-        if (s1->cc_op != CC_OP_DYNAMIC) 
+        if (s1->cc_op != CC_OP_DYNAMIC)
             gen_op_set_cc_op(s1->cc_op);
 
         switch (ot & 3) {
@@ -4431,8 +4431,11 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             s->cc_op = CC_OP_LOGICB + ot;
             break;
         case 2: /* not */
-#ifndef CONFIG_COREMU
+#ifdef CONFIG_COREMU
             if (s->prefix & PREFIX_LOCK) {
+                if (mod == 3)
+                    goto illegal_op;
+
                 switch(ot & 3) {
                 case 0:
                     gen_helper_atomic_notb(cpu_A0);
@@ -4462,7 +4465,8 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         case 3: /* neg */
 #ifndef CONFIG_COREMU
             if (s->prefix & PREFIX_LOCK) {
-                assert(mod != 3);
+                if (mod == 3)
+                    goto illegal_op;
 
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
@@ -4999,7 +5003,9 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
 
 #ifdef CONFIG_COREMU
             if (s->prefix & PREFIX_LOCK) {
-                assert(mod != 3);
+                if (mod == 3)
+                    goto illegal_op;
+
                 gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
 
                 if (s->cc_op != CC_OP_DYNAMIC)
