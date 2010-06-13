@@ -428,6 +428,24 @@ GEN_NEG(w, W);
 GEN_NEG(l, L);
 GEN_NEG(q, Q);
 
+/* This is only used in BTX instruction, with an additional offset.
+ * Note that, when using register bitoffset, the value can be larger than
+ * operand size - 1 (operand size can be 16/32/64), refer to intel manual 2A
+ * page 3-11. */
+#define TX2(vaddr, type, value, offset, command) \
+    target_ulong __q_addr;                                    \
+    DATA_##type __oldv;                                       \
+    DATA_##type value;                                        \
+                                                              \
+    CM_GET_QEMU_ADDR(__q_addr, vaddr);                        \
+    __q_addr += offset >> 3;                                  \
+    do {                                                      \
+        __oldv = value = LD_##type((DATA_##type *)__q_addr);  \
+        {command;};                                           \
+        mb();                                                 \
+    } while (__oldv != (atomic_compare_exchange##type(        \
+                    (DATA_##type *)__q_addr, __oldv, value)))
+
 #define GEN_BTX(ins, command) \
 void helper_atomic_##ins(target_ulong a0, target_ulong offset, \
         int ot)                                                \
@@ -435,12 +453,12 @@ void helper_atomic_##ins(target_ulong a0, target_ulong offset, \
     uint8_t old_byte;                                          \
     int eflags;                                                \
                                                                \
-    TX(a0, b, value, {                                         \
+    TX2(a0, b, value, offset, {                                 \
         old_byte = value;                                      \
         {command;};                                            \
     });                                                        \
                                                                \
-    CC_SRC = (old_byte >> offset);                             \
+    CC_SRC = (old_byte >> (offset & 0x7));                     \
     CC_DST = 0;                                                \
     eflags = helper_cc_compute_all(CC_OP_SARB + ot);           \
     CC_SRC = eflags;                                           \
@@ -448,15 +466,15 @@ void helper_atomic_##ins(target_ulong a0, target_ulong offset, \
 
 /* bts */
 GEN_BTX(bts, {
-    value |= (1 << offset);
+    value |= (1 << (offset & 0x7));
 });
 /* btr */
 GEN_BTX(btr, {
-    value &= ~(1 << offset);
+    value &= ~(1 << (offset & 0x7));
 });
 /* btc */
 GEN_BTX(btc, {
-    value ^= (1 << offset);
+    value ^= (1 << (offset & 0x7));
 });
 
 /* fence **/
