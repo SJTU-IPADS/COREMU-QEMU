@@ -5090,7 +5090,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
-#ifndef CONFIG_COREMU
+#ifdef CONFIG_COREMU
             if (s->prefix | PREFIX_LOCK) {
                 gen_helper_atomic_cmpxchg16b(cpu_A0);
             } else
@@ -5105,9 +5105,9 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
-#ifndef CONFIG_COREMU
+#ifdef CONFIG_COREMU
             if (s->prefix | PREFIX_LOCK) {
-                gen_helper_atomic_cmpxchg16b(cpu_A0);
+                gen_helper_atomic_cmpxchg8b(cpu_A0);
             } else
 #endif
             gen_helper_cmpxchg8b(cpu_A0);
@@ -5504,7 +5504,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         } else {
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
 
-#ifndef CONFIG_COREMU
+#ifdef CONFIG_COREMU
             /* for xchg, lock is implicit.
                XXX: none flag is affected! */
             switch (ot & 3) {
