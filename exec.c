@@ -72,6 +72,10 @@
 //#define DEBUG_SUBPAGE
 
 #include "coremu-config.h"
+#include "coremu-spinlock.h"
+#include "coremu-malloc.h"
+#include "coremu-atomic.h"
+#include "cm-tbinval.h"
 
 #if !defined(CONFIG_USER_ONLY)
 /* TB consistency checks only implemented for usermode emulation.  */
@@ -141,6 +145,16 @@ int use_icount = 0;
    include some instructions that have not yet been executed.  */
 int64_t qemu_icount;
 
+#ifdef CONFIG_COREMU
+typedef struct PageDesc {
+    /* in order to optimize self modifying code, we count the number
+       of lookups we do to a given page to use a bitmap */
+    unsigned int code_write_count;
+
+   /* Given the different page and tb information for different cpu */
+    CMPageDesc cpu_tbs[COREMU_MAX_CPU];
+} PageDesc;
+#else
 typedef struct PageDesc {
     /* list of TBs intersecting this ram page */
     TranslationBlock *first_tb;
@@ -152,7 +166,7 @@ typedef struct PageDesc {
     unsigned long flags;
 #endif
 } PageDesc;
-
+#endif
 /* In system mode we want L1_MAP to be based on ram offsets,
    while in user mode we want it to be based on virtual addresses.  */
 #if !defined(CONFIG_USER_ONLY)
@@ -201,7 +215,7 @@ unsigned long qemu_host_page_mask;
 
 /* This is a multi-level map on the virtual address space.
    The bottom level has pointers to PageDesc.  */
-static COREMU_THREAD void *l1_map[V_L1_SIZE];
+static void *l1_map[V_L1_SIZE];
 
 #if !defined(CONFIG_USER_ONLY)
 typedef struct PhysPageDesc {
@@ -385,8 +399,13 @@ static PageDesc *page_find_alloc(tb_page_addr_t index, int alloc)
             if (!alloc) {
                 return NULL;
             }
+#ifdef CONFIG_COREMU
+            coremu_atomic_mallocz(lp, sizeof(void *) * L2_SIZE);
+            p = *lp;
+#else
             ALLOC(p, sizeof(void *) * L2_SIZE);
             *lp = p;
+#endif            
         }
 
         lp = p + ((index >> (i * L2_BITS)) & (L2_SIZE - 1));
@@ -397,8 +416,13 @@ static PageDesc *page_find_alloc(tb_page_addr_t index, int alloc)
         if (!alloc) {
             return NULL;
         }
+#ifdef CONFIG_COREMU
+        coremu_atomic_mallocz(lp, sizeof(PageDesc) * L2_SIZE);
+        pd = *lp;
+#else        
         ALLOC(pd, sizeof(PageDesc) * L2_SIZE);
         *lp = pd;
+#endif        
     }
 
 #undef ALLOC
@@ -651,10 +675,15 @@ void cpu_exec_init(CPUState *env)
 
 static inline void invalidate_page_bitmap(PageDesc *p)
 {
+#ifdef CONFIG_COREMU
+    int cpuid = cpu_single_env->cpuid_apic_id;
+    cm_invalidate_bitmap(&p->cpu_tbs[cpuid]);
+#else
     if (p->code_bitmap) {
         qemu_free(p->code_bitmap);
         p->code_bitmap = NULL;
     }
+#endif
     p->code_write_count = 0;
 }
 
@@ -670,7 +699,12 @@ static void page_flush_tb_1 (int level, void **lp)
     if (level == 0) {
         PageDesc *pd = *lp;
         for (i = 0; i < L2_SIZE; ++i) {
+#ifdef CONFIG_COREMU
+            /* XXX only flush tb for the corresponding cpu. */
+            pd[i].cpu_tbs[cpu_single_env->cpuid_apic_id].first_tb = NULL;
+#else
             pd[i].first_tb = NULL;
+#endif
             invalidate_page_bitmap(pd + i);
         }
     } else {
@@ -693,7 +727,9 @@ static void page_flush_tb(void)
 /* XXX: tb_flush is currently not thread safe */
 void tb_flush(CPUState *env1)
 {
+#ifndef CONFIG_COREMU
     CPUState *env;
+#endif
 #if defined(DEBUG_FLUSH)
     printf("qemu: flush code_size=%ld nb_tbs=%d avg_tb_size=%ld\n",
            (unsigned long)(code_gen_ptr - code_gen_buffer),
@@ -704,10 +740,13 @@ void tb_flush(CPUState *env1)
         cpu_abort(env1, "Internal error: code buffer overflow\n");
 
     nb_tbs = 0;
-
+#ifdef CONFIG_COREMU
+    memset (env1->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
+#else
     for(env = first_cpu; env != NULL; env = env->next_cpu) {
         memset (env->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
     }
+#endif    
 
     memset (tb_phys_hash, 0, CODE_GEN_PHYS_HASH_SIZE * sizeof (void *));
     page_flush_tb();
@@ -831,7 +870,10 @@ void tb_phys_invalidate(TranslationBlock *tb, tb_page_addr_t page_addr)
     unsigned int h, n1;
     tb_page_addr_t phys_pc;
     TranslationBlock *tb1, *tb2;
-
+#ifdef CONFIG_COREMU
+    int cpuid = cpu_single_env->cpuid_apic_id;
+    CMPageDesc *cp; 
+#endif
     /* remove the TB from the hash list */
     phys_pc = tb->page_addr[0] + (tb->pc & ~TARGET_PAGE_MASK);
     h = tb_phys_hash_func(phys_pc);
@@ -841,12 +883,26 @@ void tb_phys_invalidate(TranslationBlock *tb, tb_page_addr_t page_addr)
     /* remove the TB from the page list */
     if (tb->page_addr[0] != page_addr) {
         p = page_find(tb->page_addr[0] >> TARGET_PAGE_BITS);
+#ifdef CONFIG_COREMU
+        cp = &p->cpu_tbs[cpuid];
+        coremu_spin_lock(&cp->tb_list_lock);
+        tb_page_remove(&cp->first_tb, tb);        
+        coremu_spin_unlock(&cp->tb_list_lock);
+#else
         tb_page_remove(&p->first_tb, tb);
+#endif
         invalidate_page_bitmap(p);
     }
     if (tb->page_addr[1] != -1 && tb->page_addr[1] != page_addr) {
         p = page_find(tb->page_addr[1] >> TARGET_PAGE_BITS);
+#ifdef CONFIG_COREMU
+        cp = &p->cpu_tbs[cpuid];
+        coremu_spin_lock(&cp->tb_list_lock);
+        tb_page_remove(&cp->first_tb, tb);        
+        coremu_spin_unlock(&cp->tb_list_lock);
+#else        
         tb_page_remove(&p->first_tb, tb);
+#endif
         invalidate_page_bitmap(p);
     }
 
@@ -854,10 +910,17 @@ void tb_phys_invalidate(TranslationBlock *tb, tb_page_addr_t page_addr)
 
     /* remove the TB from the hash list */
     h = tb_jmp_cache_hash_func(tb->pc);
+
+#ifdef CONFIG_COREMU
+    env = cpu_single_env;
+    if (env->tb_jmp_cache[h] == tb)
+        env->tb_jmp_cache[h] = NULL;
+#else    
     for(env = first_cpu; env != NULL; env = env->next_cpu) {
         if (env->tb_jmp_cache[h] == tb)
             env->tb_jmp_cache[h] = NULL;
     }
+#endif    
 
     /* suppress this TB from the two jump lists */
     tb_jmp_remove(tb, 0);
@@ -911,10 +974,16 @@ static void build_page_bitmap(PageDesc *p)
 {
     int n, tb_start, tb_end;
     TranslationBlock *tb;
-
+#ifdef CONFIG_COREMU
+    int cpuid = cpu_single_env->cpuid_apic_id;
+    CMPageDesc *cp = &p->cpu_tbs[cpuid];
+    coremu_spin_lock(&cp->bitmap_lock);
+    cp->code_bitmap = coremu_mallocz(TARGET_PAGE_SIZE / 8);
+    tb = cp->first_tb;
+#else
     p->code_bitmap = qemu_mallocz(TARGET_PAGE_SIZE / 8);
-
     tb = p->first_tb;
+#endif    
     while (tb != NULL) {
         n = (long)tb & 3;
         tb = (TranslationBlock *)((long)tb & ~3);
@@ -930,9 +999,16 @@ static void build_page_bitmap(PageDesc *p)
             tb_start = 0;
             tb_end = ((tb->pc + tb->size) & ~TARGET_PAGE_MASK);
         }
+#ifdef CONFIG_COREMU
+        set_bits(cp->code_bitmap, tb_start, tb_end - tb_start);
+#else        
         set_bits(p->code_bitmap, tb_start, tb_end - tb_start);
+#endif
         tb = tb->page_next[n];
     }
+#ifdef CONFIG_COREMU
+    coremu_spin_unlock(&cp->bitmap_lock);
+#endif
 }
 
 TranslationBlock *tb_gen_code(CPUState *env,
@@ -998,6 +1074,18 @@ void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
     p = page_find(start >> TARGET_PAGE_BITS);
     if (!p)
         return;
+#ifdef CONFIG_COREMU
+    int cpuid = cpu_single_env->cpuid_apic_id;
+    atomic_incl((uint32_t *)&p->code_write_count);
+    if (!p->cpu_tbs[cpuid].code_bitmap &&
+        p->code_write_count >= SMC_BITMAP_USE_THRESHOLD &&
+        is_cpu_write_access) {
+        /* build code bitmap */
+        build_page_bitmap(p);
+    }
+
+    tb = p->cpu_tbs[cpuid].first_tb;
+#else
     if (!p->code_bitmap &&
         ++p->code_write_count >= SMC_BITMAP_USE_THRESHOLD &&
         is_cpu_write_access) {
@@ -1008,6 +1096,8 @@ void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
     /* we remove all the TBs in the range [start, end[ */
     /* XXX: see if in some cases it could be faster to invalidate all the code */
     tb = p->first_tb;
+#endif
+    
     while (tb != NULL) {
         n = (long)tb & 3;
         tb = (TranslationBlock *)((long)tb & ~3);
@@ -1054,6 +1144,9 @@ void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
                 saved_tb = env->current_tb;
                 env->current_tb = NULL;
             }
+#ifdef CONFIG_COREMU
+            tb->has_invalidate = 1;
+#endif            
             tb_phys_invalidate(tb, -1);
             if (env) {
                 env->current_tb = saved_tb;
@@ -1065,12 +1158,22 @@ void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
     }
 #if !defined(CONFIG_USER_ONLY)
     /* if no code remaining, no need to continue to use slow writes */
+#ifdef CONFIG_COREMU
+    if (!p->cpu_tbs[cpuid].first_tb) {
+        invalidate_page_bitmap(p);
+        cm_phys_del_tb(start);
+        if ((!cm_phys_page_tb_p(start)) && is_cpu_write_access) {
+            tlb_unprotect_code_phys(env, start, env->mem_io_vaddr);
+        }
+    }
+#else
     if (!p->first_tb) {
         invalidate_page_bitmap(p);
         if (is_cpu_write_access) {
             tlb_unprotect_code_phys(env, start, env->mem_io_vaddr);
         }
     }
+#endif    
 #endif
 #ifdef TARGET_HAS_PRECISE_SMC
     if (current_tb_modified) {
@@ -1100,9 +1203,16 @@ static inline void tb_invalidate_phys_page_fast(tb_page_addr_t start, int len)
     p = page_find(start >> TARGET_PAGE_BITS);
     if (!p)
         return;
+#ifdef CONFIG_COREMU
+    int cpuid = cpu_single_env->cpuid_apic_id;
+    if (p->cpu_tbs[cpuid].code_bitmap) {
+        offset = start & ~TARGET_PAGE_MASK;
+        b = p->cpu_tbs[cpuid].code_bitmap[offset >> 3] >> (offset & 7);
+#else
     if (p->code_bitmap) {
         offset = start & ~TARGET_PAGE_MASK;
         b = p->code_bitmap[offset >> 3] >> (offset & 7);
+#endif        
         if (b & ((1 << len) - 1))
             goto do_invalidate;
     } else {
@@ -1181,9 +1291,17 @@ static inline void tb_alloc_page(TranslationBlock *tb,
 
     tb->page_addr[n] = page_addr;
     p = page_find_alloc(page_addr >> TARGET_PAGE_BITS, 1);
+#ifdef CONFIG_COREMU
+    assert(cpu_single_env);
+    int cpuid = cpu_single_env->cpuid_apic_id;
+    tb->page_next[n] = p->cpu_tbs[cpuid].first_tb;
+    last_first_tb = p->cpu_tbs[cpuid].first_tb;
+    p->cpu_tbs[cpuid].first_tb = (TranslationBlock *)((long)tb | n);
+#else    
     tb->page_next[n] = p->first_tb;
     last_first_tb = p->first_tb;
     p->first_tb = (TranslationBlock *)((long)tb | n);
+#endif    
     invalidate_page_bitmap(p);
 
 #if defined(TARGET_HAS_SMC) || 1
@@ -1219,7 +1337,13 @@ static inline void tb_alloc_page(TranslationBlock *tb,
        protected. So we handle the case where only the first TB is
        allocated in a physical page */
     if (!last_first_tb) {
+#ifdef CONFIG_COREMU
+        if(!cm_phys_page_tb_p(page_addr))
+            tlb_protect_code(page_addr);
+        cm_phys_add_tb(page_addr);
+#else
         tlb_protect_code(page_addr);
+#endif
     }
 #endif
 
@@ -1392,7 +1516,11 @@ static void breakpoint_invalidate(CPUState *env, target_ulong pc)
         pd = p->phys_offset;
     }
     ram_addr = (pd & TARGET_PAGE_MASK) | (pc & ~TARGET_PAGE_MASK);
+#ifdef CONFIG_COREMU
+    cm_invalidate_tb(ram_addr, 1);
+#else
     tb_invalidate_phys_page_range(ram_addr, ram_addr + 1, 0);
+#endif
 }
 #endif
 #endif /* TARGET_HAS_ICE */
@@ -2050,8 +2178,13 @@ void cpu_physical_memory_reset_dirty(ram_addr_t start, ram_addr_t end,
         int mmu_idx;
         for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
             for(i = 0; i < CPU_TLB_SIZE; i++)
+#ifdef CONFIG_COREMU
+                cm_tlb_reset_dirty_range(&env->tlb_table[mmu_idx][i], 
+                                        start1, length);
+#else
                 tlb_reset_dirty_range(&env->tlb_table[mmu_idx][i],
                                       start1, length);
+#endif
         }
     }
 }
@@ -2807,8 +2940,11 @@ ram_addr_t qemu_ram_alloc(ram_addr_t size)
     memset(phys_ram_dirty + (last_ram_offset >> TARGET_PAGE_BITS),
            0xff, size >> TARGET_PAGE_BITS);
 
+#ifdef CONFIG_COREMU
+    cm_init_tb_cnt(last_ram_offset, size);
+#endif  
     last_ram_offset += size;
-
+  
     if (kvm_enabled())
         kvm_setup_guest_memory(new_block->host, size);
 
@@ -2963,7 +3099,11 @@ static void notdirty_mem_writeb(void *opaque, target_phys_addr_t ram_addr,
     dirty_flags = cpu_physical_memory_get_dirty_flags(ram_addr);
     if (!(dirty_flags & CODE_DIRTY_FLAG)) {
 #if !defined(CONFIG_USER_ONLY)
+#ifdef CONFIG_COREMU
+        cm_invalidate_tb(ram_addr, 1);
+#else
         tb_invalidate_phys_page_fast(ram_addr, 1);
+#endif
         dirty_flags = cpu_physical_memory_get_dirty_flags(ram_addr);
 #endif
     }
@@ -2983,7 +3123,11 @@ static void notdirty_mem_writew(void *opaque, target_phys_addr_t ram_addr,
     dirty_flags = cpu_physical_memory_get_dirty_flags(ram_addr);
     if (!(dirty_flags & CODE_DIRTY_FLAG)) {
 #if !defined(CONFIG_USER_ONLY)
+#ifdef CONFIG_COREMU
+        cm_invalidate_tb(ram_addr, 2);
+#else
         tb_invalidate_phys_page_fast(ram_addr, 2);
+#endif
         dirty_flags = cpu_physical_memory_get_dirty_flags(ram_addr);
 #endif
     }
@@ -3003,7 +3147,11 @@ static void notdirty_mem_writel(void *opaque, target_phys_addr_t ram_addr,
     dirty_flags = cpu_physical_memory_get_dirty_flags(ram_addr);
     if (!(dirty_flags & CODE_DIRTY_FLAG)) {
 #if !defined(CONFIG_USER_ONLY)
+#ifdef CONFIG_COREMU
+        cm_invalidate_tb(ram_addr, 4);
+#else
         tb_invalidate_phys_page_fast(ram_addr, 4);
+#endif
         dirty_flags = cpu_physical_memory_get_dirty_flags(ram_addr);
 #endif
     }
@@ -3426,7 +3574,11 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
                 memcpy(ptr, buf, l);
                 if (!cpu_physical_memory_is_dirty(addr1)) {
                     /* invalidate code */
+#ifdef CONFIG_COREMU
+                    cm_invalidate_tb(addr1, l);
+#else
                     tb_invalidate_phys_page_range(addr1, addr1 + l, 0);
+#endif
                     /* set dirty bit */
                     cpu_physical_memory_set_dirty_flags(
                         addr1, (0xff & ~CODE_DIRTY_FLAG));
@@ -3633,7 +3785,11 @@ void cpu_physical_memory_unmap(void *buffer, target_phys_addr_t len,
                     l = access_len;
                 if (!cpu_physical_memory_is_dirty(addr1)) {
                     /* invalidate code */
+#ifdef CONFIG_COREMU
+                    cm_invalidate_tb(addr1, l);
+#else
                     tb_invalidate_phys_page_range(addr1, addr1 + l, 0);
+#endif
                     /* set dirty bit */
                     cpu_physical_memory_set_dirty_flags(
                         addr1, (0xff & ~CODE_DIRTY_FLAG));
@@ -3792,7 +3948,11 @@ void stl_phys_notdirty(target_phys_addr_t addr, uint32_t val)
         if (unlikely(in_migration)) {
             if (!cpu_physical_memory_is_dirty(addr1)) {
                 /* invalidate code */
+ #ifdef CONFIG_COREMU
+                cm_invalidate_tb(addr1, 4);
+ #else
                 tb_invalidate_phys_page_range(addr1, addr1 + 4, 0);
+ #endif
                 /* set dirty bit */
                 cpu_physical_memory_set_dirty_flags(
                     addr1, (0xff & ~CODE_DIRTY_FLAG));
@@ -3861,7 +4021,11 @@ void stl_phys(target_phys_addr_t addr, uint32_t val)
         stl_p(ptr, val);
         if (!cpu_physical_memory_is_dirty(addr1)) {
             /* invalidate code */
+ #ifdef CONFIG_COREMU
+            cm_invalidate_tb(addr1, 4);
+ #else            
             tb_invalidate_phys_page_range(addr1, addr1 + 4, 0);
+ #endif
             /* set dirty bit */
             cpu_physical_memory_set_dirty_flags(addr1,
                 (0xff & ~CODE_DIRTY_FLAG));
@@ -4086,4 +4250,5 @@ void dump_exec_info(FILE *f,
 
 #ifdef CONFIG_COREMU
 #include "cm-init.c"
+#include "cm-tbinval.c"
 #endif

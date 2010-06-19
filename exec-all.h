@@ -164,6 +164,9 @@ struct TranslationBlock {
     struct TranslationBlock *jmp_next[2];
     struct TranslationBlock *jmp_first;
     uint32_t icount;
+#ifdef CONFIG_COREMU
+    uint16_t has_invalidate; /* if this TB has been invalidated */
+#endif    
 };
 
 static inline unsigned int tb_jmp_cache_hash_page(target_ulong pc)
