@@ -452,7 +452,12 @@ static PhysPageDesc *phys_page_find_alloc(target_phys_addr_t index, int alloc)
             if (!alloc) {
                 return NULL;
             }
+#ifdef CONFIG_COREMU
+            coremu_atomic_mallocz(lp, sizeof(void *) * L2_SIZE);
+            p = *lp;
+#else
             *lp = p = qemu_mallocz(sizeof(void *) * L2_SIZE);
+#endif
         }
         lp = p + ((index >> (i * L2_BITS)) & (L2_SIZE - 1));
     }
@@ -464,9 +469,12 @@ static PhysPageDesc *phys_page_find_alloc(target_phys_addr_t index, int alloc)
         if (!alloc) {
             return NULL;
         }
-
+#ifdef CONFIG_COREMU
+        coremu_atomic_mallocz(lp, sizeof(PhysPageDesc) * L2_SIZE);
+        pd = *lp;
+#else
         *lp = pd = qemu_malloc(sizeof(PhysPageDesc) * L2_SIZE);
-
+#endif
         for (i = 0; i < L2_SIZE; i++) {
             pd[i].phys_offset = IO_MEM_UNASSIGNED;
             pd[i].region_offset = (index + i) << TARGET_PAGE_BITS;
