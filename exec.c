@@ -2902,6 +2902,8 @@ static void *file_ram_alloc(ram_addr_t memory, const char *path)
 
 ram_addr_t qemu_ram_alloc(ram_addr_t size)
 {
+    static int i;
+    printf("WZG qemu ram alloc %d\n", i++);
     RAMBlock *new_block;
 
     size = TARGET_PAGE_ALIGN(size);
@@ -2941,6 +2943,7 @@ ram_addr_t qemu_ram_alloc(ram_addr_t size)
            0xff, size >> TARGET_PAGE_BITS);
 
 #ifdef CONFIG_COREMU
+    coremu_assert_hw_thr("qemu_ram_alloc should only called by hw thr");
     cm_init_tb_cnt(last_ram_offset, size);
 #endif  
     last_ram_offset += size;
