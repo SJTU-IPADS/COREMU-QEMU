@@ -2074,7 +2074,13 @@ void tlb_flush(CPUState *env, int flush_global)
     for(i = 0; i < CPU_TLB_SIZE; i++) {
         int mmu_idx;
         for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
+#ifdef CONFIG_COREMU
+            env->tlb_table[mmu_idx][i].addr_read = -1;
+            env->tlb_table[mmu_idx][i].addr_write = -1;
+            env->tlb_table[mmu_idx][i].addr_code = -1;
+#else
             env->tlb_table[mmu_idx][i] = s_cputlb_empty_entry;
+#endif
         }
     }
 
