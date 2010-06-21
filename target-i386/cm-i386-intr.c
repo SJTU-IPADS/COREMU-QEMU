@@ -30,6 +30,7 @@
 
 #include "coremu-intr.h"
 #include "coremu-malloc.h"
+#include "coremu-atomic.h"
 #include "cm-intr.h"
 #include "cm-i386-intr.h"
 
@@ -68,6 +69,14 @@ static CMIntr *cm_ipi_intr_init(int vector_num, int deliver_mode)
     return (CMIntr *)intr;
 }
 
+static CMIntr *cm_tlb_flush_req_init(void)
+{
+    CMTLBFlushReq *intr = coremu_mallocz(sizeof(*intr));
+    ((CMIntr *)intr)->handler = cm_tlb_flush_req_handler;
+
+    return (CMIntr *)intr;
+}
+
 void cm_send_pic_intr(int target, int level)
 {
     coremu_send_intr(cm_pic_intr_init(level), target);
@@ -83,6 +92,11 @@ void cm_send_apicbus_intr(int target, int mask,
 void cm_send_ipi_intr(int target, int vector_num, int deliver_mode)
 {
     coremu_send_intr(cm_ipi_intr_init(vector_num, deliver_mode), target);
+}
+
+void cm_send_tlb_flush_req(int target)
+{
+    coremu_send_intr(cm_tlb_flush_req_init(), target);
 }
 
 /* Handle the interrupt from the i8259 chip */
@@ -137,5 +151,12 @@ void cm_ipi_intr_handler(void *opaque)
         /* the INIT level de-assert */
         cm_apic_setup_arbid(self->apic_state);
     }
+}
+
+
+/* Handler the tlb flush request */
+void cm_tlb_flush_req_handler(void *opaque)
+{
+    tlb_flush(cpu_single_env, 1);
 }
 

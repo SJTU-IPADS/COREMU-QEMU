@@ -2075,6 +2075,7 @@ void tlb_flush(CPUState *env, int flush_global)
         int mmu_idx;
         for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
 #ifdef CONFIG_COREMU
+            /* XXX: temporay solution to the tlb lookup data race problem */
             env->tlb_table[mmu_idx][i].addr_read = -1;
             env->tlb_table[mmu_idx][i].addr_write = -1;
             env->tlb_table[mmu_idx][i].addr_code = -1;
@@ -2788,7 +2789,17 @@ void cpu_register_physical_memory_offset(target_phys_addr_t start_addr,
        reset the modified entries */
     /* XXX: slow ! */
     for(env = first_cpu; env != NULL; env = env->next_cpu) {
+    /* If there is no hot plug device this function won't be invoked 
+       after pci bus initialized, so we don't enable broadcast flush
+       tlb in common case. */
+#if defined(CONFIG_COREMU) && defined(COREMU_FLUSH_TLB)
+        if(coremu_init_done_p())
+            cm_send_tlb_flush_req(env->cpuid_apic_id);
+        else
+            tlb_flush(env, 1);
+#else
         tlb_flush(env, 1);
+#endif
     }
 }
 
@@ -2916,8 +2927,6 @@ static void *file_ram_alloc(ram_addr_t memory, const char *path)
 
 ram_addr_t qemu_ram_alloc(ram_addr_t size)
 {
-    static int i;
-    printf("WZG qemu ram alloc %d\n", i++);
     RAMBlock *new_block;
 
     size = TARGET_PAGE_ALIGN(size);
