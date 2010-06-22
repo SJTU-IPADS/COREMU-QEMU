@@ -27,6 +27,7 @@
 #include "exec-all.h"
 #include "disas.h"
 #include "tcg-op.h"
+#include "coremu-sched.h"
 
 #include "helper.h"
 #define GEN_HELPER 1
@@ -6907,6 +6908,11 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             goto illegal_op;
         if (prefixes & PREFIX_REPZ) {
             gen_svm_check_intercept(s, pc_start, SVM_EXIT_PAUSE);
+            /* When the emulated core number is more than the real number 
+               on the machine, we need to catch the pause instruction to 
+               avoid the lockholder thread to be preemted. */
+            if (coremu_get_targetcpu() > coremu_get_hostcpu())
+                gen_helper_pause();
         }
         break;
     case 0x9b: /* fwait */

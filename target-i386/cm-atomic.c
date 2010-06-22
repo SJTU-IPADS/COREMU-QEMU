@@ -25,6 +25,8 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include "coremu-atomic.h"
+#include "coremu-sched.h"
+#include "coremu-types.h"
 
 /* These definitions are copied from translate.c */
 #if defined(WORDS_BIGENDIAN)
@@ -486,5 +488,5 @@ void helper_fence(void)
 /* pause */
 void helper_pause(void)
 {
-    pthread_yield();
+    coremu_cpu_sched(CM_EVENT_PAUSE);
 }

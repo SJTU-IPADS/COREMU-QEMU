@@ -31,6 +31,8 @@
 
 #include "coremu-intr.h"
 #include "coremu-debug.h"
+#include "coremu-sched.h"
+#include "coremu-types.h"
 #include "cm-loop.h"
 #include "cm-timer.h"
 #include "cm-init.h"
@@ -60,10 +62,9 @@ static bool cm_tcg_cpu_exec(void)
         }
 
         if (ret == EXCP_HALTED || ret == EXCP_HLT) {
-            nanosleep(&halt_interval, NULL);
+            coremu_cpu_sched(CM_EVENT_HALTED);
         }
     }
-    //return tcg_has_work();
     return 1;
 }
 
