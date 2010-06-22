@@ -1346,9 +1346,9 @@ static inline void tb_alloc_page(TranslationBlock *tb,
        allocated in a physical page */
     if (!last_first_tb) {
 #ifdef CONFIG_COREMU
-        if(!cm_phys_page_tb_p(page_addr))
-            tlb_protect_code(page_addr);
         cm_phys_add_tb(page_addr);
+        if(cm_phys_page_tb_p(page_addr) == 1)
+            tlb_protect_code(page_addr);
 #else
         tlb_protect_code(page_addr);
 #endif
