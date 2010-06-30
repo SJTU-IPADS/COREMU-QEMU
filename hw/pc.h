@@ -3,6 +3,8 @@
 
 #include "qemu-common.h"
 #include "ioport.h"
+#include "coremu-config.h"
+#include "coremu-sched.h"
 
 /* PC-style peripherals (also used by other machines).  */
 
@@ -37,8 +39,15 @@ void pic_info(Monitor *mon);
 void irq_info(Monitor *mon);
 
 /* i8254.c */
-
+#ifdef CONFIG_COREMU
+/* *
+ * For parallel emualtion, timer frequency need to be reduced when 
+ * more than one thread runs on a simple physical cores  
+ */
+#define PIT_FREQ (1193182 / coremu_get_thrs_per_core() * 2)
+#else
 #define PIT_FREQ 1193182
+#endif
 
 typedef struct PITState PITState;
 
