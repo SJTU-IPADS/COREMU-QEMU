@@ -26,27 +26,27 @@
 #include "coremu-atomic.h"
 #include "coremu-hw.h"
 
-static uint8_t *cm_phys_tb_cnt;
+static uint16_t *cm_phys_tb_cnt;
 
 void cm_init_tb_cnt(ram_addr_t ram_offset, ram_addr_t size)
 {
     coremu_assert_hw_thr("cm_init_bt_cnt should only called by hw thr");
 
     cm_phys_tb_cnt = coremu_realloc(cm_phys_tb_cnt,
-            ((ram_offset + size) >> TARGET_PAGE_BITS));
+            ((ram_offset + size) >> TARGET_PAGE_BITS) * sizeof(uint16_t));
     memset(cm_phys_tb_cnt + (ram_offset >> TARGET_PAGE_BITS),
-           0x0,  (size >> TARGET_PAGE_BITS));
+           0x0,  (size >> TARGET_PAGE_BITS) * sizeof(uint16_t));
 }
 
 void cm_phys_add_tb(ram_addr_t addr)
 {
-    atomic_incb(&cm_phys_tb_cnt[addr >> TARGET_PAGE_BITS]);
+    atomic_incw(&cm_phys_tb_cnt[addr >> TARGET_PAGE_BITS]);
 }
 
 void cm_phys_del_tb(ram_addr_t addr)
 {
     assert(cm_phys_tb_cnt[addr >> TARGET_PAGE_BITS]);
-    atomic_decb(&cm_phys_tb_cnt[addr >> TARGET_PAGE_BITS]);
+    atomic_decw(&cm_phys_tb_cnt[addr >> TARGET_PAGE_BITS]);
 }
 
 uint16_t cm_phys_page_tb_p(ram_addr_t addr)
