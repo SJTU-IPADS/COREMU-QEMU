@@ -179,6 +179,14 @@ static void ioapic_mem_writel(void *opaque, target_phys_addr_t addr, uint32_t va
             default:
                 index = (s->ioregsel - 0x10) >> 1;
                 if (index >= 0 && index < IOAPIC_NUM_PINS) {
+#ifdef CONFIG_COREMU
+                    /* Qemu's code will cause data race: when ioapic_service
+                     * reads the table entry, and the read happens between the
+                     * two assignment, it may get a zero entry.
+                     * In fact, we just need to assign to the high or low 32 bits of
+                     * the table entry according to ioregsel. */
+                    *((uint32_t *)(s->ioredtbl + index) + (s->ioregsel & 1)) = val;
+#else
                     if (s->ioregsel & 1) {
                         s->ioredtbl[index] &= 0xffffffff;
                         s->ioredtbl[index] |= (uint64_t)val << 32;
@@ -186,6 +194,7 @@ static void ioapic_mem_writel(void *opaque, target_phys_addr_t addr, uint32_t va
                         s->ioredtbl[index] &= ~0xffffffffULL;
                         s->ioredtbl[index] |= val;
                     }
+#endif
                     ioapic_service(s);
                 }
         }
