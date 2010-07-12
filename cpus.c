@@ -271,7 +271,7 @@ void qemu_notify_event(void)
 {
     CPUState *env = cpu_single_env;
 
-#ifdef CONFIG_COREMU
+#ifndef CONFIG_COREMU
     qemu_event_increment();
 #endif
 

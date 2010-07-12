@@ -31,6 +31,8 @@
 
 #include "coremu-config.h"
 #include "coremu-hw.h"
+#include "coremu-thread.h"
+
 
 struct qemu_paiocb {
     BlockDriverAIOCB common;
@@ -305,7 +307,9 @@ static ssize_t handle_aiocb_rw(struct qemu_paiocb *aiocb)
 static void *aio_thread(void *unused)
 {
 
-#ifndef CONFIG_COREMU
+#ifdef CONFIG_COREMU
+    coremu_thread_setpriority(PRIO_PROCESS, 0, -21);
+#else
     pid_t pid;
     pid = getpid();
 #endif
@@ -505,6 +509,10 @@ static PosixAioState *posix_aio_state;
 
 static void aio_signal_handler(int signum)
 {
+#ifdef CONFIG_COREMU
+    coremu_assert_hw_thr("aio_signal_handler should only called by hw thr\n");
+#endif
+
     if (posix_aio_state) {
         char byte = 0;
         ssize_t ret;

@@ -169,6 +169,7 @@ int main(int argc, char **argv)
 #include "coremu-init.h"
 #include "coremu-core.h"
 #include "coremu-intr.h"
+#include "coremu-thread.h"
 #include "coremu-debug.h"
 #include "cm-loop.h"
 #include "cm-intr.h"
@@ -1888,6 +1889,7 @@ void main_loop_wait(int nonblocking)
         qemu_bh_update_timeout(&timeout);
     }
 
+    timeout = 1000;
     host_main_loop_wait(&timeout);
 
     /* poll any events */
@@ -1988,6 +1990,8 @@ static void main_loop(void)
 
     /* 4. Create cpu thread body*/
     coremu_run_all_cores(cm_cpu_loop);
+
+    coremu_thread_setpriority(PRIO_PROCESS, 0, -21);
 #else
     qemu_main_loop_start();
 #endif
