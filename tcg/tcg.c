@@ -48,6 +48,7 @@
 #include "cache-utils.h"
 #include "host-utils.h"
 #include "qemu-timer.h"
+#include "coremu-atomic.h"
 
 /* Note: the long term plan is to reduce the dependancies on the QEMU
    CPU definitions. Currently they are used for qemu_ld/st
@@ -2164,6 +2165,23 @@ void cm_code_prologue_init(void)
     tmp_ctx.code_buf = code_gen_prologue;
     tmp_ctx.code_ptr = tmp_ctx.code_buf;
     tcg_target_qemu_prologue(&tmp_ctx);
+}
+
+void cm_inject_invalidate_code(TranslationBlock *tb)
+{
+    uint16_t ret =  atomic_compare_exchangew(&tb->has_invalidate, 0, 1);
+
+    if(ret == 1)
+       return;
+
+    
+    TCGContext *s = &tcg_ctx;
+    s->code_buf = tb->tc_ptr;
+    s->code_ptr = tb->tc_ptr;
+
+    tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_RAX, (long) tb + 3);
+    tcg_out8(s, 0xe9); /* jmp tb_ret_addr */
+    tcg_out32(s, tb_ret_addr - s->code_ptr - 4);
 }
 
 #endif /* CONFIG_COREMU */

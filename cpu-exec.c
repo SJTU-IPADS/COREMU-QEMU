@@ -616,7 +616,19 @@ int cpu_exec(CPUState *env1)
 
 #ifdef CONFIG_COREMU
                     coremu_receive_intr();
+
+#ifdef COREMU_CMC_SUPPORT
+                    if((next_tb & 3) == 3) {
+                        //assert(0);
+                        /* this tb has been invalidate */
+                        TranslationBlock *tmp_tb = (TranslationBlock *)(next_tb & ~3);
+                        next_tb = 0;
+                        cpu_pc_from_tb(env, tmp_tb);
+                        tb_phys_invalidate(tmp_tb, -1);
+                    }
 #endif
+#endif
+
                     env->current_tb = NULL;
                     if ((next_tb & 3) == 2) {
                         /* Instruction counter expired.  */

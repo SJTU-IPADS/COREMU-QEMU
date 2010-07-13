@@ -24,6 +24,7 @@
 
 /* We include this file in qemu-timer.c qemu_alarm_timer is defined in it, and
  * there's lots of static function there. */
+#include "coremu-sched.h"
 int cm_pit_freq;
 
 static int64_t cm_local_next_deadline(void);
