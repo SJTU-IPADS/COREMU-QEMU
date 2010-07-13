@@ -44,6 +44,7 @@ void cm_init_pit_freq(void)
 {
     int thrs_num = coremu_get_thrs_per_core();
     cm_pit_freq = 1193182 / thrs_num;
+    printf("WZG cm_pit_freq %d\n", cm_pit_freq);
 }
 
 /* Called by each core thread to create a local timer. */

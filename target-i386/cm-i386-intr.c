@@ -96,6 +96,7 @@ void cm_send_ipi_intr(int target, int vector_num, int deliver_mode)
 
 void cm_send_tlb_flush_req(int target)
 {
+    assert(0);
     coremu_send_intr(cm_tlb_flush_req_init(), target);
 }
 
