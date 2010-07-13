@@ -38,6 +38,8 @@
 void cm_common_intr_handler(CMIntr *intr)
 {
     coremu_assert_core_thr();
+    if (!intr)
+        return;
     intr->handler(intr);
     coremu_free(intr);
 }

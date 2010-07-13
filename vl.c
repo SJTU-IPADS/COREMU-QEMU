@@ -1885,11 +1885,14 @@ void main_loop_wait(int nonblocking)
     if (nonblocking)
         timeout = 0;
     else {
+#ifdef CONFIG_COREMU
+        timeout = 1000;
+#else
         timeout = qemu_calculate_timeout();
         qemu_bh_update_timeout(&timeout);
+#endif
     }
 
-    timeout = 1000;
     host_main_loop_wait(&timeout);
 
     /* poll any events */
@@ -1990,8 +1993,6 @@ static void main_loop(void)
 
     /* 4. Create cpu thread body*/
     coremu_run_all_cores(cm_cpu_loop);
-
-    coremu_thread_setpriority(PRIO_PROCESS, 0, -21);
 #else
     qemu_main_loop_start();
 #endif
