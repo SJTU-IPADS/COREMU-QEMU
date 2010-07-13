@@ -92,7 +92,7 @@ void cm_invalidate_tb(target_phys_addr_t start, int len)
         if(cpu_idx == cpu_single_env->cpuid_apic_id)
             continue;
         have_done += cm_invalidate_other(cpu_idx, start, len);
-        if(have_done >= cm_phys_page_tb_p(start))
+        if(have_done > cm_phys_page_tb_p(start))
             break;
     }
 #endif
