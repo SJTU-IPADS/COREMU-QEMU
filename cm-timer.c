@@ -24,6 +24,7 @@
 
 /* We include this file in qemu-timer.c qemu_alarm_timer is defined in it, and
  * there's lots of static function there. */
+int cm_pit_freq;
 
 static int64_t cm_local_next_deadline(void);
 static uint64_t cm_local_next_deadline_dyntick(void);
@@ -37,6 +38,12 @@ static COREMU_THREAD struct qemu_alarm_timer cm_local_alarm_timers[] = {
      dynticks_stop_timer, cm_local_dynticks_rearm_timer, NULL},
     {NULL, }
 };
+
+void cm_init_pit_freq(void)
+{
+    int thrs_num = coremu_get_thrs_per_core();
+    cm_pit_freq = 1193182 / thrs_num;
+}
 
 /* Called by each core thread to create a local timer. */
 int cm_init_local_timer_alarm(void)

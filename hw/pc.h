@@ -40,11 +40,12 @@ void irq_info(Monitor *mon);
 
 /* i8254.c */
 #ifdef CONFIG_COREMU
+extern int cm_pit_freq;
 /* *
  * For parallel emualtion, timer frequency need to be reduced when 
  * more than one thread runs on a simple physical cores  
  */
-#define PIT_FREQ (1193182 / coremu_get_thrs_per_core() * 2)
+#define PIT_FREQ cm_pit_freq
 #else
 #define PIT_FREQ 1193182
 #endif

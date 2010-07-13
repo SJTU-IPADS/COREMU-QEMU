@@ -174,6 +174,7 @@ int main(int argc, char **argv)
 #include "cm-loop.h"
 #include "cm-intr.h"
 #include "cm-init.h"
+#include "cm-timer.h"
 
 //#include "cm-i386-intr.h"
 
@@ -3499,6 +3500,8 @@ int main(int argc, char **argv, char **envp)
              "|     [COREMU Parallel Emulator]   |",
              "------------------------------------");
     coremu_init(smp_cpus);
+    /* Initialize qemu variable for coremu */
+    cm_init_pit_freq();
 #endif
 
     qemu_opts_foreach(&qemu_device_opts, default_driver_check, NULL, 0);
