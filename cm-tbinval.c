@@ -75,7 +75,7 @@ void cm_invalidate_bitmap(CMPageDesc *p)
 void cm_invalidate_tb(target_phys_addr_t start, int len)
 {
     int count = tb_phys_invalidate_count;
-    if (! coremu_hw_thr_p()) {
+    if (!coremu_hw_thr_p()) {
         tb_invalidate_phys_page_fast(start, len);
         count = tb_phys_invalidate_count - count;
     }
@@ -89,7 +89,7 @@ void cm_invalidate_tb(target_phys_addr_t start, int len)
     int cpu_idx = 0;
     for(cpu_idx = 0; cpu_idx < coremu_get_targetcpu(); cpu_idx++)
     {
-        if(cpu_idx == cpu_single_env->cpuid_apic_id)
+        if((!coremu_hw_thr_p()) && cpu_idx == cpu_single_env->cpuid_apic_id)
             continue;
         have_done += cm_invalidate_other(cpu_idx, start, len);
         if(have_done > cm_phys_page_tb_p(start))
