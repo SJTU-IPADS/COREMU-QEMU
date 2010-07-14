@@ -56,16 +56,18 @@ static bool cm_tcg_cpu_exec(void)
         else if (env->stop)
             break;
 
+        if (!cm_vm_can_run())
+            break;
+
         if (ret == EXCP_DEBUG) {
             cm_assert(0, "debug support hasn't been finished\n");
             break;
         }
-
         if (ret == EXCP_HALTED || ret == EXCP_HLT) {
             coremu_cpu_sched(CM_EVENT_HALTED);
         }
     }
-    return 1;
+    return ret;
 }
 
 void *cm_cpu_loop(void *args)
@@ -80,13 +82,22 @@ void *cm_cpu_loop(void *args)
     cm_cpu_exec_init_core();
 
     for (;;) {
-        do {
-            ret = cm_tcg_cpu_exec();
-            cm_assert(ret, "CPU Stop mechanism hasn't been implemented!\n");
-        } while (cm_vm_can_run());
-
-        cm_assert(0, "not finish here\n");
+        ret = cm_tcg_cpu_exec();
+        if(test_reset_request()){
+            cm_print("cpu_loop[%lu] pauses", (unsigned long int)coremu_gettid());
+            coremu_pause_core();
+            continue;
+        }
+        break;
     }
-    pause_all_vcpus();
+
+    cm_print(">>> core quit local timer <<<");
+    cm_stop_local_timer();
+    unsigned int* ret_ptr;
+    ret_ptr = qemu_mallocz(sizeof(int));
+    *ret_ptr = ret;
+    cm_print("cpu_loop[%lu] exits", (unsigned long int)coremu_gettid());
+    coremu_core_exit(ret_ptr);	
+    assert(0);
 }
 

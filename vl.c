@@ -1722,6 +1722,13 @@ int debug_requested;
 int vmstop_requested;
 static int exit_requested;
 
+#ifdef CONFIG_COREMU
+int test_reset_request(void)
+{
+	return reset_requested;
+}
+#endif
+
 int qemu_shutdown_requested(void)
 {
     int r = shutdown_requested;
@@ -2029,6 +2036,7 @@ static void main_loop(void)
             } else
                 break;
         }
+#ifndef CONFIG_COREMU
         if (qemu_reset_requested()) {
             pause_all_vcpus();
             qemu_system_reset();
@@ -2038,6 +2046,18 @@ static void main_loop(void)
             monitor_protocol_event(QEVENT_POWERDOWN, NULL);
             qemu_irq_raise(qemu_system_powerdown);
         }
+#else
+        if (reset_requested) {
+            coremu_wait_all_cores_pause();
+            qemu_system_reset();
+            reset_requested=0;
+            coremu_restart_all_cores();
+        }
+        if (qemu_powerdown_requested()) {
+            monitor_protocol_event(QEVENT_POWERDOWN, NULL);
+            exit(0);
+        }
+#endif
         if ((r = qemu_vmstop_requested())) {
             vm_stop(r);
         }

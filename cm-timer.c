@@ -253,3 +253,6 @@ static int64_t cm_local_next_deadline(void)
     return delta;
 }
 
+void cm_stop_local_timer(void){
+    cm_local_alarm_timer->stop(cm_local_alarm_timer);
+}

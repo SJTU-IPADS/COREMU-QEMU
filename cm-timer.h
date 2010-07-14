@@ -34,5 +34,5 @@ void cm_run_all_local_timers(void);
 void cm_local_host_alarm_handler(int host_signum);
 int  cm_local_alarm_pending(void);
 void cm_init_pit_freq(void);
-
+void cm_stop_local_timer(void);
 #endif

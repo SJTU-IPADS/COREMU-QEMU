@@ -27,7 +27,6 @@
 #define CM_LOOP_H
 
 /*#include "cpu.h"*/
-
 void *cm_cpu_loop(void *args);
 
 /* The wrapper for static function of qemu */
