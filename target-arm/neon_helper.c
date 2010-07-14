@@ -18,7 +18,7 @@
 
 #define SET_QC() env->vfp.xregs[ARM_VFP_FPSCR] = CPSR_Q
 
-static float_status neon_float_status;
+static COREMU_THREAD float_status neon_float_status;
 #define NFS &neon_float_status
 
 /* Helper routines to perform bitwise copies between float and int.  */

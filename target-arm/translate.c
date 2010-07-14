@@ -72,21 +72,21 @@ typedef struct DisasContext {
 #define DISAS_WFI 4
 #define DISAS_SWI 5
 
-static TCGv_ptr cpu_env;
+static COREMU_THREAD TCGv_ptr cpu_env;
 /* We reuse the same 64-bit temporaries for efficiency.  */
-static TCGv_i64 cpu_V0, cpu_V1, cpu_M0;
-static TCGv_i32 cpu_R[16];
-static TCGv_i32 cpu_exclusive_addr;
-static TCGv_i32 cpu_exclusive_val;
-static TCGv_i32 cpu_exclusive_high;
+static COREMU_THREAD TCGv_i64 cpu_V0, cpu_V1, cpu_M0;
+static COREMU_THREAD TCGv_i32 cpu_R[16];
+static COREMU_THREAD TCGv_i32 cpu_exclusive_addr;
+static COREMU_THREAD TCGv_i32 cpu_exclusive_val;
+static COREMU_THREAD TCGv_i32 cpu_exclusive_high;
 #ifdef CONFIG_USER_ONLY
 static TCGv_i32 cpu_exclusive_test;
 static TCGv_i32 cpu_exclusive_info;
 #endif
 
 /* FIXME:  These should be removed.  */
-static TCGv cpu_F0s, cpu_F1s;
-static TCGv_i64 cpu_F0d, cpu_F1d;
+static COREMU_THREAD TCGv cpu_F0s, cpu_F1s;
+static COREMU_THREAD TCGv_i64 cpu_F0d, cpu_F1d;
 
 #include "gen-icount.h"
 
@@ -123,7 +123,7 @@ void arm_translate_init(void)
 #include "helpers.h"
 }
 
-static int num_temps;
+static COREMU_THREAD int num_temps;
 
 /* Allocate a temporary variable.  */
 static TCGv_i32 new_tmp(void)
@@ -6026,6 +6026,12 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     TCGv tmp2;
     TCGv tmp3;
     TCGv addr;
+
+#ifdef CONFIG_COREMU
+    TCGv cm_tmp;
+    TCGv cm_tmp1;
+#endif
+	
     TCGv_i64 tmp64;
 
     insn = ldl_code(s->pc);
@@ -6069,7 +6075,11 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
             switch ((insn >> 4) & 0xf) {
             case 1: /* clrex */
                 ARCH(6K);
+#ifdef CONFIG_COREMU
+                gen_helper_clear_exclusive();
+#else
                 gen_clrex(s);
+#endif
                 return;
             case 4: /* dsb */
             case 5: /* dmb */
@@ -6655,36 +6665,71 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         addr = tcg_temp_local_new_i32();
                         load_reg_var(s, addr, rn);
                         if (insn & (1 << 20)) {
+							cm_tmp = tcg_const_i32(rd);
                             switch (op1) {
                             case 0: /* ldrex */
-                                gen_load_exclusive(s, rd, 15, addr, 2);
+#ifdef CONFIG_COREMU
+                                gen_helper_load_exclusivel(cm_tmp, addr);                               
+#else
+                                 gen_load_exclusive(s, rd, 15, addr, 2);
+#endif                                
                                 break;
                             case 1: /* ldrexd */
+#ifdef CONFIG_COREMU
+                                gen_helper_load_exclusiveq(cm_tmp, addr);                               
+#else                                
                                 gen_load_exclusive(s, rd, rd + 1, addr, 3);
                                 break;
+#endif                                
                             case 2: /* ldrexb */
+#ifdef CONFIG_COREMU
+                                gen_helper_load_exclusiveb(cm_tmp, addr);                               
+#else                                
                                 gen_load_exclusive(s, rd, 15, addr, 0);
+#endif
                                 break;
                             case 3: /* ldrexh */
+#ifdef CONFIG_COREMU
+                                gen_helper_load_exclusivew(cm_tmp, addr);                               
+#else                                
                                 gen_load_exclusive(s, rd, 15, addr, 1);
+#endif
                                 break;
                             default:
                                 abort();
                             }
                         } else {
                             rm = insn & 0xf;
+							cm_tmp = tcg_const_i32(rd);
+                            cm_tmp1 = tcg_const_i32(rm);
                             switch (op1) {
                             case 0:  /*  strex */
+#ifdef CONFIG_COREMU
+                                gen_helper_store_exclusivel(cm_tmp, cm_tmp1, addr);                               
+#else
                                 gen_store_exclusive(s, rd, rm, 15, addr, 2);
+#endif
                                 break;
                             case 1: /*  strexd */
+#ifdef CONFIG_COREMU
+                                gen_helper_store_exclusiveq(cm_tmp, cm_tmp1, addr);                               
+#else                                
                                 gen_store_exclusive(s, rd, rm, rm + 1, addr, 3);
+#endif
                                 break;
                             case 2: /*  strexb */
+#ifdef CONFIG_COREMU
+                                gen_helper_store_exclusiveb(cm_tmp, cm_tmp1, addr);                               
+#else                                
                                 gen_store_exclusive(s, rd, rm, 15, addr, 0);
+#endif
                                 break;
                             case 3: /* strexh */
+#ifdef CONFIG_COREMU
+                                gen_helper_store_exclusivew(cm_tmp, cm_tmp1, addr);                               
+#else                                
                                 gen_store_exclusive(s, rd, rm, 15, addr, 1);
+#endif
                                 break;
                             default:
                                 abort();
@@ -7333,6 +7378,10 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
     TCGv tmp;
     TCGv tmp2;
     TCGv tmp3;
+#ifdef CONFIG_COREMU
+    TCGv cm_tmp;
+    TCGv cm_tmp1;
+#endif
     TCGv addr;
     TCGv_i64 tmp64;
     int op;
@@ -7445,9 +7494,20 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                 load_reg_var(s, addr, rn);
                 tcg_gen_addi_i32(addr, addr, (insn & 0xff) << 2);
                 if (insn & (1 << 20)) {
+#ifdef CONFIG_COREMU
+                    cm_tmp = tcg_const_i32(rs);
+                    gen_helper_load_exclusivel(cm_tmp, addr);
+#else
                     gen_load_exclusive(s, rs, 15, addr, 2);
+#endif
                 } else {
+#ifdef CONFIG_COREMU
+                    cm_tmp = tcg_const_i32(rd);
+                    cm_tmp1 = tcg_const_i32(rs);
+                    gen_helper_store_exclusivel(cm_tmp, cm_tmp1, addr);
+#else                
                     gen_store_exclusive(s, rd, rs, 15, addr, 2);
+#endif
                 }
                 tcg_temp_free(addr);
             } else if ((insn & (1 << 6)) == 0) {
