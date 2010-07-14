@@ -125,19 +125,19 @@ GEN_LOAD_EXCLUSIVE(l, L);
 GEN_LOAD_EXCLUSIVE(q, Q);
 
 #define GEN_STORE_EXCLUSIVE(type, TYPE) \
-void HELPER(store_exclusive##type)(uint32_t res, uint32_t reg, uint32_t addr) \ 
+void HELPER(store_exclusive##type)(uint32_t res, uint32_t reg, uint32_t addr) \
 {                                                                             \
     ram_addr_t q_addr = 0;                                                    \
     DATA_##type val = 0;                                                      \
-    DATA_##type = 0;                                                          \
+    DATA_##type r = 0;                                                        \
                                                                               \
     if(addr != cm_exclusive_addr)                                             \
         goto fail;                                                            \
                                                                               \
     CM_GET_QEMU_ADDR(q_addr,addr);                                            \
     val = (DATA_##type)cpu_single_env->regs[reg];                             \
-                                                                              \   
-    r = atomic_compare_exchange8((DATA_##type *)q_addr,                       \
+                                                                              \ 
+    r = atomic_compare_exchange##type((DATA_##type *)q_addr,                       \
                                     (DATA_##type)cm_exclusive_val, val);      \
                                                                               \
     if(r == (DATA_##type)cm_exclusive_val) {                                  \
