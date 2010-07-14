@@ -84,20 +84,13 @@ void *cm_cpu_loop(void *args)
     for (;;) {
         ret = cm_tcg_cpu_exec();
         if(test_reset_request()){
-            cm_print("cpu_loop[%lu] pauses", (unsigned long int)coremu_gettid());
             coremu_pause_core();
             continue;
         }
         break;
     }
-
-    cm_print(">>> core quit local timer <<<");
     cm_stop_local_timer();
-    unsigned int* ret_ptr;
-    ret_ptr = qemu_mallocz(sizeof(int));
-    *ret_ptr = ret;
-    cm_print("cpu_loop[%lu] exits", (unsigned long int)coremu_gettid());
-    coremu_core_exit(ret_ptr);	
+    coremu_core_exit(NULL);
     assert(0);
 }
 
