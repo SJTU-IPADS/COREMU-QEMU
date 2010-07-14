@@ -487,3 +487,8 @@ uint64_t HELPER(neon_sub_saturate_u64)(uint64_t src1, uint64_t src2)
     }
     return res;
 }
+
+#include "coremu-config.h"
+#ifdef CONFIG_COREMU
+#include "cm-atomic.c"
+#endif
