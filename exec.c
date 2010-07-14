@@ -684,7 +684,11 @@ void cpu_exec_init(CPUState *env)
 static inline void invalidate_page_bitmap(PageDesc *p)
 {
 #ifdef CONFIG_COREMU
+#if defined(TARGET_I386)
     int cpuid = cpu_single_env->cpuid_apic_id;
+#elif defined(TARGET_ARM)
+    int cpuid = cpu_single_env->cpu_index;
+#endif
     cm_invalidate_bitmap(&p->cpu_tbs[cpuid]);
 #else
     if (p->code_bitmap) {
@@ -704,12 +708,17 @@ static void page_flush_tb_1 (int level, void **lp)
     if (*lp == NULL) {
         return;
     }
+#if defined(TARGET_I386)
+    int cpuid = cpu_single_env->cpuid_apic_id;
+#elif defined(TARGET_ARM)
+    int cpuid = cpu_single_env->cpu_index;
+#endif
     if (level == 0) {
         PageDesc *pd = *lp;
         for (i = 0; i < L2_SIZE; ++i) {
 #ifdef CONFIG_COREMU
             /* XXX only flush tb for the corresponding cpu. */
-            pd[i].cpu_tbs[cpu_single_env->cpuid_apic_id].first_tb = NULL;
+            pd[i].cpu_tbs[cpuid].first_tb = NULL;
 #else
             pd[i].first_tb = NULL;
 #endif
@@ -879,7 +888,11 @@ void tb_phys_invalidate(TranslationBlock *tb, tb_page_addr_t page_addr)
     tb_page_addr_t phys_pc;
     TranslationBlock *tb1, *tb2;
 #ifdef CONFIG_COREMU
+#if defined(TARGET_I386)
     int cpuid = cpu_single_env->cpuid_apic_id;
+#elif defined(TARGET_ARM)
+    int cpuid = cpu_single_env->cpu_index;
+#endif
     CMPageDesc *cp; 
 #endif
     /* remove the TB from the hash list */
@@ -983,7 +996,11 @@ static void build_page_bitmap(PageDesc *p)
     int n, tb_start, tb_end;
     TranslationBlock *tb;
 #ifdef CONFIG_COREMU
+#if defined(TARGET_I386)
     int cpuid = cpu_single_env->cpuid_apic_id;
+#elif defined(TARGET_ARM)
+    int cpuid = cpu_single_env->cpu_index;
+#endif
     CMPageDesc *cp = &p->cpu_tbs[cpuid];
     coremu_spin_lock(&cp->bitmap_lock);
     cp->code_bitmap = coremu_mallocz(TARGET_PAGE_SIZE / 8);
@@ -1083,7 +1100,11 @@ void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
     if (!p)
         return;
 #ifdef CONFIG_COREMU
+#if defined(TARGET_I386)
     int cpuid = cpu_single_env->cpuid_apic_id;
+#elif defined(TARGET_ARM)
+    int cpuid = cpu_single_env->cpu_index;
+#endif
     atomic_incl((uint32_t *)&p->code_write_count);
     if (!p->cpu_tbs[cpuid].code_bitmap &&
         p->code_write_count >= SMC_BITMAP_USE_THRESHOLD &&
@@ -1212,7 +1233,11 @@ static inline void tb_invalidate_phys_page_fast(tb_page_addr_t start, int len)
     if (!p)
         return;
 #ifdef CONFIG_COREMU
+#if defined(TARGET_I386)
     int cpuid = cpu_single_env->cpuid_apic_id;
+#elif defined(TARGET_ARM)
+    int cpuid = cpu_single_env->cpu_index;
+#endif
     if (p->cpu_tbs[cpuid].code_bitmap) {
         offset = start & ~TARGET_PAGE_MASK;
         b = p->cpu_tbs[cpuid].code_bitmap[offset >> 3] >> (offset & 7);
@@ -1301,7 +1326,11 @@ static inline void tb_alloc_page(TranslationBlock *tb,
     p = page_find_alloc(page_addr >> TARGET_PAGE_BITS, 1);
 #ifdef CONFIG_COREMU
     assert(cpu_single_env);
+#if defined(TARGET_I386)
     int cpuid = cpu_single_env->cpuid_apic_id;
+#elif defined(TARGET_ARM)
+    int cpuid = cpu_single_env->cpu_index;
+#endif
     tb->page_next[n] = p->cpu_tbs[cpuid].first_tb;
     last_first_tb = p->cpu_tbs[cpuid].first_tb;
     p->cpu_tbs[cpuid].first_tb = (TranslationBlock *)((long)tb | n);

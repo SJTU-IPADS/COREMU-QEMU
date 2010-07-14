@@ -27,7 +27,7 @@
 
 //#define DEBUG_APIC
 #include "coremu-config.h"
-#include "cm-i386-intr.h"
+#include "cm-target-intr.h"
 #include "cm-timer.h"
 
 /* APIC Local Vector Table */

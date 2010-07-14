@@ -53,7 +53,7 @@
 #include "coremu-config.h"
 #include "coremu-init.h"
 #include "coremu-core.h"
-#include "cm-i386-intr.h"
+#include "cm-target-intr.h"
 
 #define BIOS_FILENAME "bios.bin"
 

@@ -32,7 +32,7 @@
 #include "coremu-malloc.h"
 #include "coremu-atomic.h"
 #include "cm-intr.h"
-#include "cm-i386-intr.h"
+#include "cm-target-intr.h"
 
 /* The initial function for interrupts */
 

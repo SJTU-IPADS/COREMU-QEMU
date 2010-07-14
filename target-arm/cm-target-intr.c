@@ -23,16 +23,20 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+#include <stdio.h>
+#include <stdlib.h>
+#include "cpu.h"
+#include "../hw/arm-misc.h"
 #include "coremu-intr.h"
 #include "coremu-malloc.h"
 #include "coremu-atomic.h"
 #include "cm-intr.h"
-#include "cm-arm-intr.h"
+#include "cm-target-intr.h"
 
 static void cm_gic_intr_handler(void *opaque)
 {
     CMGICIntr *gic_intr = (CMGICIntr *)opaque;
-    switch (gic_intr->irq) {
+    switch (gic_intr->irq_num) {
     case ARM_PIC_CPU_IRQ:
         if (gic_intr->level)
             cpu_interrupt(cpu_single_env, CPU_INTERRUPT_HARD);
@@ -46,7 +50,7 @@ static void cm_gic_intr_handler(void *opaque)
             cpu_reset_interrupt(cpu_single_env, CPU_INTERRUPT_FIQ);
         break;
     default:
-        hw_error("arm_pic_cpu_handler: Bad interrput line %d\n", irq);
+        hw_error("arm_pic_cpu_handler: Bad interrput line %d\n", gic_intr->irq_num);
     }
 
 }

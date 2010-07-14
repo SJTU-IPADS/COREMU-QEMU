@@ -108,9 +108,12 @@ void cm_cpu_exec_init_core(void)
     /* Get code cache. */
     cm_code_gen_alloc();
     code_gen_ptr = code_gen_buffer;
-
+    
+#if defined(TARGET_I386)
     optimize_flags_init();
-
+#elif defined(TARGET_ARM)
+    arm_translate_init();
+#endif
     /* Setup the scheduling for core thread */
     coremu_init_sched_core();
 

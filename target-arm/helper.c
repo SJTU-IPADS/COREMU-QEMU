@@ -295,9 +295,12 @@ CPUARMState *cpu_arm_init(const char *cpu_model)
         return NULL;
     env = qemu_mallocz(sizeof(CPUARMState));
     cpu_exec_init(env);
+       
     if (!inited) {
         inited = 1;
+#ifndef CONFIG_COREMU         
         arm_translate_init();
+#endif
     }
 
     env->cpu_model_str = cpu_model;
@@ -314,6 +317,10 @@ CPUARMState *cpu_arm_init(const char *cpu_model)
                                  19, "arm-vfp.xml", 0);
     }
     qemu_init_vcpu(env);
+    
+#ifdef CONFIG_COREMU    
+    coremu_core_init(env->cpu_index, env);
+#endif
     return env;
 }
 

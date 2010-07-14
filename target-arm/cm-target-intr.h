@@ -31,7 +31,7 @@ typedef struct CMGICIntr {
     CMIntr *base;
     int irq_num;
     int level;
-};
+} CMGICIntr;
 
 void cm_arm_pic_cpu_handler(void * opaque, int irq, int level);
 

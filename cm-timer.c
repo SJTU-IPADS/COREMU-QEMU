@@ -57,7 +57,8 @@ int cm_init_local_timer_alarm(void)
 
     for (i = 0; cm_local_alarm_timers[i].name; i++) {
         t = &cm_local_alarm_timers[i];
-
+        if(!t)
+            return 0;
         err = t->start(t);
         if (!err)
             break;
