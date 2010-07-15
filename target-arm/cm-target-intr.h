@@ -26,6 +26,7 @@
 #ifndef CM_ARM_INTR_H
 #define CM_ARM_INTR_H
 #include "cm-intr.h"
+#include "coremu-spinlock.h"
 
 typedef struct CMGICIntr {
     CMIntr *base;

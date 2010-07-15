@@ -19,6 +19,7 @@
 #include "qemu-timer.h"
 
 #if defined(TARGET_ARM)
+#include "coremu-spinlock.h"
 #include "cm-target-intr.h"
 #endif
 
@@ -60,7 +61,7 @@ static inline DATA_TYPE glue(io_read, SUFFIX)(target_phys_addr_t physaddr,
                                               void *retaddr)
 {
 #if defined(CONFIG_COREMU) && defined(TARGET_ARM)
-    cm_spin_lock(&cm_hw_lock);
+    coremu_spin_lock(&cm_hw_lock);
 #endif
     DATA_TYPE res;
     int index;
@@ -86,7 +87,7 @@ static inline DATA_TYPE glue(io_read, SUFFIX)(target_phys_addr_t physaddr,
 #endif /* SHIFT > 2 */
 
 #if defined(CONFIG_COREMU) && defined(TARGET_ARM)
-    cm_spin_unlock(&cm_hw_lock);
+    coremu_spin_unlock(&cm_hw_lock);
 #endif
     return res;
 }
@@ -211,7 +212,7 @@ static inline void glue(io_write, SUFFIX)(target_phys_addr_t physaddr,
                                           void *retaddr)
 {
 #if defined(CONFIG_COREMU) && defined(TARGET_ARM)
-    cm_spin_lock(&cm_hw_lock);
+    coremu_spin_lock(&cm_hw_lock);
 #endif
     int index;
     index = (physaddr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
@@ -236,7 +237,7 @@ static inline void glue(io_write, SUFFIX)(target_phys_addr_t physaddr,
 #endif /* SHIFT > 2 */
 
 #if defined(CONFIG_COREMU) && defined(TARGET_ARM)
-    cm_spin_unlock(&cm_hw_lock);
+    coremu_spin_unlock(&cm_hw_lock);
 #endif
 }
 
