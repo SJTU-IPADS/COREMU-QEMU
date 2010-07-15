@@ -6665,7 +6665,9 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         addr = tcg_temp_local_new_i32();
                         load_reg_var(s, addr, rn);
                         if (insn & (1 << 20)) {
+#ifdef CONFIG_COREMU						
 							cm_tmp = tcg_const_i32(rd);
+#endif 
                             switch (op1) {
                             case 0: /* ldrex */
 #ifdef CONFIG_COREMU
@@ -6700,8 +6702,10 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                             }
                         } else {
                             rm = insn & 0xf;
+#ifdef CONFIG_COREMU
 							cm_tmp = tcg_const_i32(rd);
                             cm_tmp1 = tcg_const_i32(rm);
+#endif
                             switch (op1) {
                             case 0:  /*  strex */
 #ifdef CONFIG_COREMU
