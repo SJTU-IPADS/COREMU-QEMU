@@ -30,9 +30,11 @@
 #include "coremu-intr.h"
 #include "coremu-malloc.h"
 #include "coremu-atomic.h"
+#include "coremu-spinlock.h"
 #include "cm-intr.h"
 #include "cm-target-intr.h"
 
+CMSpinLock cm_hw_lock;
 static void cm_gic_intr_handler(void *opaque)
 {
     CMGICIntr *gic_intr = (CMGICIntr *)opaque;

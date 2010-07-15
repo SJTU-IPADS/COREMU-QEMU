@@ -33,6 +33,7 @@ typedef struct CMGICIntr {
     int level;
 } CMGICIntr;
 
+extern CMSpinLock cm_hw_lock;
 void cm_arm_pic_cpu_handler(void * opaque, int irq, int level);
 
 #endif

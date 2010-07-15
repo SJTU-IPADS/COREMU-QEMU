@@ -12,6 +12,9 @@
    Nested Vectored Interrupt Controller.  */
 
 //#define DEBUG_GIC
+#include "coremu-config.h"
+#include "coremu-spinlock.h"
+#include "cm-target-intr.h"
 
 #ifdef DEBUG_GIC
 #define DPRINTF(fmt, ...) \
@@ -163,11 +166,21 @@ gic_set_pending_private(gic_state *s, int cpu, int irq)
 /* Process a change in an external IRQ input.  */
 static void gic_set_irq(void *opaque, int irq, int level)
 {
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_lock(&cm_hw_lock);
+#endif
     gic_state *s = (gic_state *)opaque;
     /* The first external input line is internal interrupt 32.  */
     irq += 32;
-    if (level == GIC_TEST_LEVEL(irq, ALL_CPU_MASK))
+    if (level == GIC_TEST_LEVEL(irq, ALL_CPU_MASK)) {
+#ifdef CONFIG_COREMU
+        if(coremu_hw_thr_p())
+            coremu_spin_unlock(&cm_hw_lock);
+#endif       
         return;
+
+    }
 
     if (level) {
         GIC_SET_LEVEL(irq, ALL_CPU_MASK);
@@ -179,6 +192,10 @@ static void gic_set_irq(void *opaque, int irq, int level)
         GIC_CLEAR_LEVEL(irq, ALL_CPU_MASK);
     }
     gic_update(s);
+#ifdef CONFIG_COREMU
+        if(coremu_hw_thr_p())
+            coremu_spin_unlock(&cm_hw_lock);
+#endif      
 }
 
 static void gic_set_running_irq(gic_state *s, int cpu, int irq)

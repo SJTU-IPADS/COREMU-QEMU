@@ -18,6 +18,10 @@
  */
 #include "qemu-timer.h"
 
+#if defined(TARGET_ARM)
+#include "cm-target-intr.h"
+#endif
+
 #define DATA_SIZE (1 << SHIFT)
 
 #if DATA_SIZE == 8
@@ -55,6 +59,9 @@ static inline DATA_TYPE glue(io_read, SUFFIX)(target_phys_addr_t physaddr,
                                               target_ulong addr,
                                               void *retaddr)
 {
+#if defined(CONFIG_COREMU) && defined(TARGET_ARM)
+    cm_spin_lock(&cm_hw_lock);
+#endif
     DATA_TYPE res;
     int index;
     index = (physaddr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
@@ -77,6 +84,10 @@ static inline DATA_TYPE glue(io_read, SUFFIX)(target_phys_addr_t physaddr,
     res |= (uint64_t)io_mem_read[index][2](io_mem_opaque[index], physaddr + 4) << 32;
 #endif
 #endif /* SHIFT > 2 */
+
+#if defined(CONFIG_COREMU) && defined(TARGET_ARM)
+    cm_spin_unlock(&cm_hw_lock);
+#endif
     return res;
 }
 
@@ -199,6 +210,9 @@ static inline void glue(io_write, SUFFIX)(target_phys_addr_t physaddr,
                                           target_ulong addr,
                                           void *retaddr)
 {
+#if defined(CONFIG_COREMU) && defined(TARGET_ARM)
+    cm_spin_lock(&cm_hw_lock);
+#endif
     int index;
     index = (physaddr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
     physaddr = (physaddr & TARGET_PAGE_MASK) + addr;
@@ -220,6 +234,10 @@ static inline void glue(io_write, SUFFIX)(target_phys_addr_t physaddr,
     io_mem_write[index][2](io_mem_opaque[index], physaddr + 4, val >> 32);
 #endif
 #endif /* SHIFT > 2 */
+
+#if defined(CONFIG_COREMU) && defined(TARGET_ARM)
+    cm_spin_unlock(&cm_hw_lock);
+#endif
 }
 
 void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
