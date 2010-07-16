@@ -25,6 +25,7 @@
 /* We include this file in qemu-timer.c qemu_alarm_timer is defined in it, and
  * there's lots of static function there. */
 #include "coremu-sched.h"
+#include <math.h>
 int cm_pit_freq;
 
 static int64_t cm_local_next_deadline(void);
@@ -42,14 +43,12 @@ static COREMU_THREAD struct qemu_alarm_timer cm_local_alarm_timers[] = {
 
 void cm_init_pit_freq(void)
 {
-    int pit_freq_suggest;
-    pit_freq_suggest = (coremu_get_targetcpu() + coremu_get_hostcpu() - 1) / 16;
-    if (pit_freq_suggest == 0)
-        pit_freq_suggest = 1;
-    else if (pit_freq_suggest > coremu_get_hostcpu())
-        pit_freq_suggest = coremu_get_hostcpu();
+    double v_num = coremu_get_targetcpu();
+    double p_num = coremu_get_hostcpu();
+    double p_root = sqrt(p_num) / 4;
+    double suggest = p_root * pow(v_num / p_num, p_root);
+    int pit_freq_suggest = ceil(suggest);
     cm_pit_freq = 1193182 / pit_freq_suggest;
-    printf("WZG cm_pit_freq %d\n", cm_pit_freq);
 }
 
 /* Called by each core thread to create a local timer. */
