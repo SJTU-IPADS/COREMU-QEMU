@@ -82,8 +82,8 @@ static void cm_code_gen_alloc(void)
     /* Allocate space for TBs. */
     tbs = qemu_malloc(code_gen_max_blocks * sizeof(TranslationBlock));
 
-    cm_print("CORE[%u] TC [%lu MB] at %p", cpu_single_env->cpu_index,
-             (code_gen_buffer_size) / (1024 * 1024), code_gen_buffer);
+   /* cm_print("CORE[%u] TC [%lu MB] at %p", cpu_single_env->cpu_index,
+             (code_gen_buffer_size) / (1024 * 1024), code_gen_buffer); */
 }
 
 /* For coremu, code generator related initialization should be called by all
