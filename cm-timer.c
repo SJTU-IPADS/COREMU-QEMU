@@ -8,6 +8,7 @@
  *  Zhaoguo Wang    <zgwang@fudan.edu.cn>
  *  Yufei Chen      <chenyufei@fudan.edu.cn>
  *  Ran Liu         <naruilone@gmail.com>
+ *  Xi Wu           <wuxi@fudan.edu.cn>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
