@@ -83,7 +83,7 @@ void *cm_cpu_loop(void *args)
 
     for (;;) {
         ret = cm_tcg_cpu_exec();
-        if(test_reset_request()){
+        if (test_reset_request()) {
             coremu_pause_core();
             continue;
         }
@@ -93,4 +93,3 @@ void *cm_cpu_loop(void *args)
     coremu_core_exit(NULL);
     assert(0);
 }
-

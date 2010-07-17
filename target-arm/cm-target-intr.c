@@ -37,7 +37,7 @@
 CMSpinLock cm_hw_lock;
 static void cm_gic_intr_handler(void *opaque)
 {
-    CMGICIntr *gic_intr = (CMGICIntr *)opaque;
+    CMGICIntr *gic_intr = (CMGICIntr *) opaque;
     switch (gic_intr->irq_num) {
     case ARM_PIC_CPU_IRQ:
         if (gic_intr->level)
@@ -52,26 +52,23 @@ static void cm_gic_intr_handler(void *opaque)
             cpu_reset_interrupt(cpu_single_env, CPU_INTERRUPT_FIQ);
         break;
     default:
-        hw_error("arm_pic_cpu_handler: Bad interrput line %d\n", gic_intr->irq_num);
+        hw_error("arm_pic_cpu_handler: Bad interrput line %d\n",
+                 gic_intr->irq_num);
     }
 
 }
 
-
 static CMIntr *cm_gic_intr_init(int irq, int level)
 {
-    CMGICIntr *intr =coremu_mallocz(sizeof(*intr));
+    CMGICIntr *intr = coremu_mallocz(sizeof(*intr));
     ((CMIntr *)intr)->handler = cm_gic_intr_handler;
     intr->irq_num = irq;
     intr->level = level;
     return (CMIntr *)intr;
 }
 
-
 void cm_arm_pic_cpu_handler(void *opaque, int irq, int level)
 {
     CPUState *env = (CPUState *)opaque;
     coremu_send_intr(cm_gic_intr_init(irq, level), env->cpu_index);
 }
-
-

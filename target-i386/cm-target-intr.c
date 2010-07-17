@@ -83,10 +83,10 @@ void cm_send_pic_intr(int target, int level)
 }
 
 void cm_send_apicbus_intr(int target, int mask,
-                                int vector_num, int trigger_mode)
+                          int vector_num, int trigger_mode)
 {
     coremu_send_intr(cm_apicbus_intr_init(mask, vector_num, trigger_mode),
-            target);
+                     target);
 }
 
 void cm_send_ipi_intr(int target, int vector_num, int deliver_mode)
@@ -103,7 +103,7 @@ void cm_send_tlb_flush_req(int target)
 /* Handle the interrupt from the i8259 chip */
 void cm_pic_intr_handler(void *opaque)
 {
-    CMPICIntr *pic_intr = (CMPICIntr *)opaque;
+    CMPICIntr *pic_intr = (CMPICIntr *) opaque;
 
     CPUState *self = cpu_single_env;
     int level = pic_intr->level;
@@ -125,17 +125,17 @@ void cm_pic_intr_handler(void *opaque)
    be hw interrupt or IPI */
 void cm_apicbus_intr_handler(void *opaque)
 {
-   CMAPICBusIntr *apicbus_intr = (CMAPICBusIntr *)opaque;
+    CMAPICBusIntr *apicbus_intr = (CMAPICBusIntr *)opaque;
 
-   CPUState *self = cpu_single_env;
+    CPUState *self = cpu_single_env;
 
-   if (apicbus_intr->vector_num >= 0) {
+    if (apicbus_intr->vector_num >= 0) {
         cm_apic_set_irq(self->apic_state, apicbus_intr->vector_num,
-                apicbus_intr->trigger_mode);
-   } else {
-       /* For NMI, SMI and INIT the vector information is ignored*/
+                        apicbus_intr->trigger_mode);
+    } else {
+        /* For NMI, SMI and INIT the vector information is ignored */
         cpu_interrupt(self, apicbus_intr->mask);
-   }
+    }
 }
 
 /* Handle the inter-processor interrupt (Only for INIT De-assert or SIPI) */
@@ -160,4 +160,3 @@ void cm_tlb_flush_req_handler(void *opaque)
 {
     tlb_flush(cpu_single_env, 1);
 }
-

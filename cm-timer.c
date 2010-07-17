@@ -29,7 +29,7 @@ int cm_pit_freq;
 
 static int64_t cm_local_next_deadline(void);
 static uint64_t cm_local_next_deadline_dyntick(void);
-static void cm_local_dynticks_rearm_timer(struct qemu_alarm_timer * t);
+static void cm_local_dynticks_rearm_timer(struct qemu_alarm_timer *t);
 static void cm_qemu_run_local_timers(QEMUClock *clock);
 
 COREMU_THREAD QEMUTimer *cm_local_active_timers;
@@ -37,13 +37,13 @@ COREMU_THREAD struct qemu_alarm_timer *cm_local_alarm_timer;
 static COREMU_THREAD struct qemu_alarm_timer cm_local_alarm_timers[] = {
     {"dynticks", dynticks_start_timer,
      dynticks_stop_timer, cm_local_dynticks_rearm_timer, NULL},
-    {NULL, }
+    {NULL,}
 };
 
 void cm_init_pit_freq(void)
 {
     int pit_freq_suggest;
-    pit_freq_suggest = (coremu_get_targetcpu() + coremu_get_hostcpu() -1) / 16;
+    pit_freq_suggest = (coremu_get_targetcpu() + coremu_get_hostcpu() - 1) / 16;
     if (pit_freq_suggest == 0)
         pit_freq_suggest = 1;
     else if (pit_freq_suggest > 16)
@@ -62,7 +62,7 @@ int cm_init_local_timer_alarm(void)
 
     for (i = 0; cm_local_alarm_timers[i].name; i++) {
         t = &cm_local_alarm_timers[i];
-        if(!t)
+        if (!t)
             return 0;
         err = t->start(t);
         if (!err)
@@ -98,7 +98,7 @@ void cm_mod_local_timer(QEMUTimer *ts, int64_t expire_time)
     /* NOTE: this code must be signal safe because
        qemu_timer_expired() can be called from a signal. */
     pt = &cm_local_active_timers;
-    for(;;) {
+    for (;;) {
         t = *pt;
         if (!t)
             break;
@@ -125,7 +125,7 @@ void cm_del_local_timer(QEMUTimer *ts)
     /* NOTE: this code must be signal safe because
        qemu_timer_expired() can be called from a signal. */
     pt = &cm_local_active_timers;
-    for(;;) {
+    for (;;) {
         t = *pt;
         if (!t)
             break;
@@ -166,8 +166,7 @@ void cm_local_host_alarm_handler(int host_signum)
         return;
 
     if (alarm_has_dynticks(t) ||
-            qemu_timer_expired(cm_local_active_timers,
-                qemu_get_clock(vm_clock))) {
+        qemu_timer_expired(cm_local_active_timers, qemu_get_clock(vm_clock))) {
         t->expired = alarm_has_dynticks(t);
         t->pending = 1;
         cm_notify_event();
@@ -184,7 +183,7 @@ static void cm_qemu_run_local_timers(QEMUClock *clock)
 
     current_time = qemu_get_clock(clock);
     ptimer_head = &cm_local_active_timers;
-    for(;;) {
+    for (;;) {
         ts = *ptimer_head;
         if (!ts || ts->expire_time > current_time)
             break;
@@ -216,13 +215,14 @@ static void cm_local_dynticks_rearm_timer(struct qemu_alarm_timer *t)
         fprintf(stderr, "Internal timer error: aborting\n");
         exit(1);
     }
-    current_us = timeout.it_value.tv_sec * 1000000 + timeout.it_value.tv_nsec/1000;
+    current_us =
+        timeout.it_value.tv_sec * 1000000 + timeout.it_value.tv_nsec / 1000;
     if (current_us && current_us <= nearest_delta_us)
         return;
 
     timeout.it_interval.tv_sec = 0;
-    timeout.it_interval.tv_nsec = 0; /* 0 for one-shot timer */
-    timeout.it_value.tv_sec =  nearest_delta_us / 1000000;
+    timeout.it_interval.tv_nsec = 0;    /* 0 for one-shot timer */
+    timeout.it_value.tv_sec = nearest_delta_us / 1000000;
     timeout.it_value.tv_nsec = (nearest_delta_us % 1000000) * 1000;
     if (timer_settime(host_timer, 0 /* RELATIVE */, &timeout, NULL)) {
         perror("settime");
@@ -249,8 +249,7 @@ static int64_t cm_local_next_deadline(void)
     int64_t delta = INT32_MAX;
 
     if (cm_local_active_timers) {
-        delta = cm_local_active_timers->expire_time -
-                     qemu_get_clock(vm_clock);
+        delta = cm_local_active_timers->expire_time - qemu_get_clock(vm_clock);
     }
 
     if (delta < 0)

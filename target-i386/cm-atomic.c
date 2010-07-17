@@ -95,7 +95,7 @@ static target_ulong cm_get_reg_val(int ot, int hregs, int reg)
             goto std_case;
         } else {
             offset = offsetof(CPUState, regs[reg - 4]) + REG_H_OFFSET;
-            val = *(((uint8_t *) env1) + offset);
+            val = *(((uint8_t *)env1) + offset);
         }
         break;
     default:
@@ -113,8 +113,7 @@ static void cm_set_reg_val(int ot, int hregs, int reg, target_ulong val)
 
       CPUState *env1 = cpu_single_env;
 
-      switch(ot)
-      {
+      switch(ot) {
       case 0: /* OT_BYTE */
           if (reg < 4 || reg >= 8 || hregs) {
               offset = offsetof(CPUState, regs[reg]) + REG_B_OFFSET;
@@ -353,8 +352,7 @@ void helper_atomic_cmpxchg8b(target_ulong a0)
     edx_eax = (((uint64_t)EDX << 32) | (uint32_t)EAX);
     ecx_ebx = (((uint64_t)ECX << 32) | (uint32_t)EBX);
 
-    res = atomic_compare_exchangeq(
-            (uint64_t *)q_addr, edx_eax, ecx_ebx);
+    res = atomic_compare_exchangeq((uint64_t *)q_addr, edx_eax, ecx_ebx);
     mb();
 
     if (res == edx_eax) {
@@ -379,8 +377,7 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
 
     uint64_t old_rax = *(uint64_t *)q_addr;
     uint64_t old_rdx = *(uint64_t *)(q_addr + 8);
-    res = atomic_compare_exchange16b(
-            (uint64_t *)q_addr, EAX, EDX, EBX, ECX);
+    res = atomic_compare_exchange16b((uint64_t *)q_addr, EAX, EDX, EBX, ECX);
     mb();
 
     if (res) {

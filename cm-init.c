@@ -56,7 +56,7 @@ static void cm_code_gen_alloc_all(void)
     /* XXX what if this is larger than physical ram size? */
     cm_bufsize = DEFAULT_CODE_GEN_BUFFER_SIZE;
     cm_bufbase = mmap(NULL, cm_bufsize, PROT_WRITE | PROT_READ | PROT_EXEC,
-            flags, -1, 0);
+                      flags, -1, 0);
 
     if (cm_bufbase == MAP_FAILED) {
         cm_assert(0, "mmap failed\n");
@@ -64,7 +64,7 @@ static void cm_code_gen_alloc_all(void)
 
     code_gen_buffer_size = (unsigned long)(cm_bufsize / (smp_cpus));
     cm_assert(code_gen_buffer_size >= MIN_CODE_GEN_BUFFER_SIZE,
-            "code buffer size too small");
+              "code buffer size too small");
 
     code_gen_buffer_max_size = code_gen_buffer_size - code_gen_max_block_size();
     code_gen_max_blocks = code_gen_buffer_size / CODE_GEN_AVG_BLOCK_SIZE;
@@ -77,13 +77,13 @@ static void cm_code_gen_alloc(void)
     /* We use cpu_index here, note that this maybe not the same as architecture
      * dependent cpu id. eg. cpuid_apic_id. */
     code_gen_buffer = cm_bufbase + (code_gen_buffer_size *
-            cpu_single_env->cpu_index);
+                                    cpu_single_env->cpu_index);
 
     /* Allocate space for TBs. */
     tbs = qemu_malloc(code_gen_max_blocks * sizeof(TranslationBlock));
 
     cm_print("CORE[%u] TC [%lu MB] at %p", cpu_single_env->cpu_index,
-            (code_gen_buffer_size) / (1024*1024), code_gen_buffer);
+             (code_gen_buffer_size) / (1024 * 1024), code_gen_buffer);
 }
 
 /* For coremu, code generator related initialization should be called by all
@@ -108,7 +108,7 @@ void cm_cpu_exec_init_core(void)
     /* Get code cache. */
     cm_code_gen_alloc();
     code_gen_ptr = code_gen_buffer;
-    
+
 #if defined(TARGET_I386)
     optimize_flags_init();
 #elif defined(TARGET_ARM)
@@ -128,4 +128,3 @@ void cm_cpu_exec_init_core(void)
     /* Wait other core to finish initialization. */
     coremu_wait_init();
 }
-

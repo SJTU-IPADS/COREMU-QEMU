@@ -179,7 +179,6 @@ void HELPER(store_exclusiveq)(uint32_t res, uint32_t reg, uint32_t addr)
    uint64_t val = 0;
    uint64_t r = 0;
    
-   
    if(addr != cm_exclusive_addr)
         goto fail;
 
@@ -190,15 +189,12 @@ void HELPER(store_exclusiveq)(uint32_t res, uint32_t reg, uint32_t addr)
    r = atomic_compare_exchangeq((uint64_t *)q_addr, 
                                     (uint64_t)cm_exclusive_val, val);
    
-   if(r == (uint64_t)cm_exclusive_val)
-   {
+   if(r == (uint64_t)cm_exclusive_val) {
         cpu_single_env->regs[res] = 0;
         goto done;
-   }else
-   {
+   } else {
         goto fail;
    }
-
 
 fail: 
     cpu_single_env->regs[res] = 1;

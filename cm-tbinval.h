@@ -34,7 +34,7 @@ typedef struct {
     /* Use a bitmap to optimize the self modify code */
     uint8_t *code_bitmap;
     CMSpinLock bitmap_lock;
- } CMPageDesc;
+} CMPageDesc;
 
 void cm_init_tb_cnt(ram_addr_t ram_offset, ram_addr_t size);
 void cm_phys_add_tb(ram_addr_t addr);
@@ -42,9 +42,9 @@ void cm_phys_del_tb(ram_addr_t addr);
 uint16_t cm_phys_page_tb_p(ram_addr_t addr);
 
 void cm_invalidate_bitmap(CMPageDesc *p);
-void cm_invalidate_tb(target_phys_addr_t start ,int len);
+void cm_invalidate_tb(target_phys_addr_t start, int len);
 
-void cm_tlb_reset_dirty_range(CPUTLBEntry * tlb_entry, unsigned long start,
-        unsigned long length);
+void cm_tlb_reset_dirty_range(CPUTLBEntry *tlb_entry, unsigned long start,
+                              unsigned long length);
 
 #endif

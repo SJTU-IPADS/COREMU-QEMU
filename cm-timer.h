@@ -27,12 +27,12 @@
 #define CM_TIMER_H
 
 #include "qemu-common.h"
-int  cm_init_local_timer_alarm(void);
+int cm_init_local_timer_alarm(void);
 void cm_mod_local_timer(QEMUTimer * ts, int64_t expire_time);
 void cm_del_local_timer(QEMUTimer * ts);
 void cm_run_all_local_timers(void);
 void cm_local_host_alarm_handler(int host_signum);
-int  cm_local_alarm_pending(void);
+int cm_local_alarm_pending(void);
 void cm_init_pit_freq(void);
 void cm_stop_local_timer(void);
 #endif

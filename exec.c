@@ -75,6 +75,7 @@
 #include "coremu-spinlock.h"
 #include "coremu-malloc.h"
 #include "coremu-atomic.h"
+#include "coremu-hw.h"
 #include "cm-tbinval.h"
 
 #if !defined(CONFIG_USER_ONLY)
