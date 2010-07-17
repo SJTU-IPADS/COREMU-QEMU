@@ -2,7 +2,7 @@
  * COREMU Parallel Emulator Framework
  * Defines qemu related structure and interface for hardware interrupt
  *
- * Copyright (C) 2010 PPI, Fudan Univ.
+ * Copyright (C) 2010 Parallel Processing Institute (PPI), Fudan Univ.
  *  <http://ppi.fudan.edu.cn/system_research_group>
  *
  * Authors:

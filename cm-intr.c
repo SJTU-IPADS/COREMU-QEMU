@@ -3,7 +3,7 @@
  *
  * The common interface for hardware interrupt sending and handling.
  *
- * Copyright (C) 2010 PPI, Fudan Univ.
+ * Copyright (C) 2010 Parallel Processing Institute (PPI), Fudan Univ.
  *  <http://ppi.fudan.edu.cn/system_research_group>
  *
  * Authors:
