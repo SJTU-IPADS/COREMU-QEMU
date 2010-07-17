@@ -46,8 +46,8 @@ void cm_init_pit_freq(void)
     pit_freq_suggest = (coremu_get_targetcpu() + coremu_get_hostcpu() -1) / 16;
     if (pit_freq_suggest == 0)
         pit_freq_suggest = 1;
-    else if (pit_freq_suggest > 16)
-        pit_freq_suggest = 16;
+    else if (pit_freq_suggest > coremu_get_hostcpu())
+        pit_freq_suggest = coremu_get_hostcpu();
     cm_pit_freq = 1193182 / pit_freq_suggest;
     printf("WZG cm_pit_freq %d\n", cm_pit_freq);
 }
