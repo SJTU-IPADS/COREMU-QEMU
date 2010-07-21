@@ -15,6 +15,7 @@
 #include "coremu-config.h"
 #include "coremu-spinlock.h"
 #include "cm-target-intr.h"
+#include "coremu-hw.h"
 
 #ifdef DEBUG_GIC
 #define DPRINTF(fmt, ...) \
@@ -154,13 +155,25 @@ static void __attribute__((unused))
 gic_set_pending_private(gic_state *s, int cpu, int irq)
 {
     int cm = 1 << cpu;
-
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_lock(&cm_hw_lock);
+#endif
     if (GIC_TEST_PENDING(irq, cm))
+    {
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_unlock(&cm_hw_lock);
+#endif
         return;
-
+    }
     DPRINTF("Set %d pending cpu %d\n", irq, cpu);
     GIC_SET_PENDING(irq, cm);
     gic_update(s);
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_unlock(&cm_hw_lock);
+#endif
 }
 
 /* Process a change in an external IRQ input.  */
@@ -177,7 +190,7 @@ static void gic_set_irq(void *opaque, int irq, int level)
 #ifdef CONFIG_COREMU
         if(coremu_hw_thr_p())
             coremu_spin_unlock(&cm_hw_lock);
-#endif       
+#endif
         return;
 
     }
@@ -195,7 +208,7 @@ static void gic_set_irq(void *opaque, int irq, int level)
 #ifdef CONFIG_COREMU
         if(coremu_hw_thr_p())
             coremu_spin_unlock(&cm_hw_lock);
-#endif      
+#endif
 }
 
 static void gic_set_running_irq(gic_state *s, int cpu, int irq)
@@ -211,6 +224,10 @@ static void gic_set_running_irq(gic_state *s, int cpu, int irq)
 
 static uint32_t gic_acknowledge_irq(gic_state *s, int cpu)
 {
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_lock(&cm_hw_lock);
+#endif
     int new_irq;
     int cm = 1 << cpu;
     new_irq = s->current_pending[cpu];
@@ -225,11 +242,19 @@ static uint32_t gic_acknowledge_irq(gic_state *s, int cpu)
     GIC_CLEAR_PENDING(new_irq, GIC_TEST_MODEL(new_irq) ? ALL_CPU_MASK : cm);
     gic_set_running_irq(s, cpu, new_irq);
     DPRINTF("ACK %d\n", new_irq);
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_unlock(&cm_hw_lock);
+#endif
     return new_irq;
 }
 
 static void gic_complete_irq(gic_state * s, int cpu, int irq)
 {
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_lock(&cm_hw_lock);
+#endif
     int update = 0;
     int cm = 1 << cpu;
     DPRINTF("EOI %d\n", irq);
@@ -262,6 +287,10 @@ static void gic_complete_irq(gic_state * s, int cpu, int irq)
         /* Complete the current running IRQ.  */
         gic_set_running_irq(s, cpu, s->last_active[s->running_irq[cpu]][cpu]);
     }
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_unlock(&cm_hw_lock);
+#endif
 }
 
 static uint32_t gic_dist_readb(void *opaque, target_phys_addr_t offset)
