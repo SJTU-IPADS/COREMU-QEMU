@@ -589,7 +589,7 @@ BlockDriverAIOCB *paio_submit(BlockDriverState *bs, int fd,
     acb->ev_signo = COREMU_AIO_SIG;
 #else
     acb->ev_signo = SIGUSR2;
-#endif    
+#endif
     acb->async_context_id = get_async_context_id();
 
     if (qiov) {

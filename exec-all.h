@@ -166,7 +166,7 @@ struct TranslationBlock {
     uint32_t icount;
 #ifdef CONFIG_COREMU
     uint16_t has_invalidate; /* if this TB has been invalidated */
-#endif    
+#endif
 };
 
 static inline unsigned int tb_jmp_cache_hash_page(target_ulong pc)

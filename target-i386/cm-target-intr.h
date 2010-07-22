@@ -38,7 +38,7 @@ enum cm_i386_intr_type {
                                    Only for de-assert INIT and SIPI */
     DIRECT_INTR,                /* Direct interrupt (SMI) */
     SHUTDOWN_REQ,               /* Shut down request */
-    TLB_FLUSH_REQ,              /* This kind of request does not exist in real world, 
+    TLB_FLUSH_REQ,              /* This kind of request does not exist in real world,
                                    we do this is just to confirm to Qemu framework */
 };
 
@@ -65,8 +65,8 @@ typedef struct CMAPICBusIntr {
 typedef struct CMIPIIntr {
     CMIntr *base;
     int vector_num;             /* The interrupt vector number */
-    int deliver_mode;           /* The deliver mode of interrupt 
-                                   0: INIT Level De-assert 
+    int deliver_mode;           /* The deliver mode of interrupt
+                                   0: INIT Level De-assert
                                    1: Start up IPI */
 } CMIPIIntr;
 
@@ -88,7 +88,7 @@ void cm_send_apicbus_intr(int target, int mask, int vector_num, int
 						  trigger_mode);
 void cm_send_ipi_intr(int target, int vector_num, int deliver_mode);
 void cm_send_tlb_flush_req(int target);
-    
+
 void cm_pic_intr_handler(void *opaque);
 void cm_apicbus_intr_handler(void *opaque);
 void cm_ipi_intr_handler(void *opaque);

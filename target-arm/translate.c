@@ -6031,7 +6031,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     TCGv cm_tmp;
     TCGv cm_tmp1;
 #endif
-	
+
     TCGv_i64 tmp64;
 
     insn = ldl_code(s->pc);
@@ -6665,35 +6665,35 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         addr = tcg_temp_local_new_i32();
                         load_reg_var(s, addr, rn);
                         if (insn & (1 << 20)) {
-#ifdef CONFIG_COREMU						
+#ifdef CONFIG_COREMU
 							cm_tmp = tcg_const_i32(rd);
-#endif 
+#endif
                             switch (op1) {
                             case 0: /* ldrex */
 #ifdef CONFIG_COREMU
-                                gen_helper_load_exclusivel(cm_tmp, addr);                               
+                                gen_helper_load_exclusivel(cm_tmp, addr);
 #else
                                  gen_load_exclusive(s, rd, 15, addr, 2);
-#endif                                
+#endif
                                 break;
                             case 1: /* ldrexd */
 #ifdef CONFIG_COREMU
-                                gen_helper_load_exclusiveq(cm_tmp, addr);                               
-#else                                
+                                gen_helper_load_exclusiveq(cm_tmp, addr);
+#else
                                 gen_load_exclusive(s, rd, rd + 1, addr, 3);
                                 break;
-#endif                                
+#endif
                             case 2: /* ldrexb */
 #ifdef CONFIG_COREMU
-                                gen_helper_load_exclusiveb(cm_tmp, addr);                               
-#else                                
+                                gen_helper_load_exclusiveb(cm_tmp, addr);
+#else
                                 gen_load_exclusive(s, rd, 15, addr, 0);
 #endif
                                 break;
                             case 3: /* ldrexh */
 #ifdef CONFIG_COREMU
-                                gen_helper_load_exclusivew(cm_tmp, addr);                               
-#else                                
+                                gen_helper_load_exclusivew(cm_tmp, addr);
+#else
                                 gen_load_exclusive(s, rd, 15, addr, 1);
 #endif
                                 break;
@@ -6709,29 +6709,29 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                             switch (op1) {
                             case 0:  /*  strex */
 #ifdef CONFIG_COREMU
-                                gen_helper_store_exclusivel(cm_tmp, cm_tmp1, addr);                               
+                                gen_helper_store_exclusivel(cm_tmp, cm_tmp1, addr);
 #else
                                 gen_store_exclusive(s, rd, rm, 15, addr, 2);
 #endif
                                 break;
                             case 1: /*  strexd */
 #ifdef CONFIG_COREMU
-                                gen_helper_store_exclusiveq(cm_tmp, cm_tmp1, addr);                               
-#else                                
+                                gen_helper_store_exclusiveq(cm_tmp, cm_tmp1, addr);
+#else
                                 gen_store_exclusive(s, rd, rm, rm + 1, addr, 3);
 #endif
                                 break;
                             case 2: /*  strexb */
 #ifdef CONFIG_COREMU
-                                gen_helper_store_exclusiveb(cm_tmp, cm_tmp1, addr);                               
-#else                                
+                                gen_helper_store_exclusiveb(cm_tmp, cm_tmp1, addr);
+#else
                                 gen_store_exclusive(s, rd, rm, 15, addr, 0);
 #endif
                                 break;
                             case 3: /* strexh */
 #ifdef CONFIG_COREMU
-                                gen_helper_store_exclusivew(cm_tmp, cm_tmp1, addr);                               
-#else                                
+                                gen_helper_store_exclusivew(cm_tmp, cm_tmp1, addr);
+#else
                                 gen_store_exclusive(s, rd, rm, 15, addr, 1);
 #endif
                                 break;
@@ -7509,7 +7509,7 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                     cm_tmp = tcg_const_i32(rd);
                     cm_tmp1 = tcg_const_i32(rs);
                     gen_helper_store_exclusivel(cm_tmp, cm_tmp1, addr);
-#else                
+#else
                     gen_store_exclusive(s, rd, rs, 15, addr, 2);
 #endif
                 }

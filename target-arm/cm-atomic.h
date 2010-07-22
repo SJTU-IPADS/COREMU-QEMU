@@ -23,7 +23,7 @@
 
 #define __GEN_HEADER(type) \
 DEF_HELPER_2(load_exclusive##type, void, i32, i32)           \
-DEF_HELPER_3(store_exclusive##type, void, i32, i32, i32)     
+DEF_HELPER_3(store_exclusive##type, void, i32, i32, i32)
 
 __GEN_HEADER(b)
 __GEN_HEADER(w)

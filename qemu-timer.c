@@ -168,14 +168,14 @@ int64_t cpu_get_ticks(void)
     } else {
         int64_t ticks;
         ticks = cpu_get_real_ticks();
-#ifndef CONFIG_COREMU        
+#ifndef CONFIG_COREMU
         if (timers_state.cpu_ticks_prev > ticks) {
             /* Note: non increasing ticks may happen if the host uses
                software suspend */
             timers_state.cpu_ticks_offset += timers_state.cpu_ticks_prev - ticks;
         }
         timers_state.cpu_ticks_prev = ticks;
-#endif        
+#endif
         return ticks + timers_state.cpu_ticks_offset;
     }
 }

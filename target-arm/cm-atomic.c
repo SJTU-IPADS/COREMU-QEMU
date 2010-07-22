@@ -126,7 +126,7 @@ GEN_LOAD_EXCLUSIVE(l, L);
 //GEN_LOAD_EXCLUSIVE(q, Q);
 
 #define GEN_STORE_EXCLUSIVE(type, TYPE) \
-void HELPER(store_exclusive##type)(uint32_t res, uint32_t reg, uint32_t addr) \ 
+void HELPER(store_exclusive##type)(uint32_t res, uint32_t reg, uint32_t addr) \
 {                                                                             \
     ram_addr_t q_addr = 0;                                                    \
     DATA_##type val = 0;                                                      \
@@ -137,7 +137,7 @@ void HELPER(store_exclusive##type)(uint32_t res, uint32_t reg, uint32_t addr) \
                                                                               \
     CM_GET_QEMU_ADDR(q_addr,addr);                                            \
     val = (DATA_##type)cpu_single_env->regs[reg];                             \
-                                                                              \   
+                                                                              \
     r = atomic_compare_exchange##type((DATA_##type *)q_addr,                  \
                                     (DATA_##type)cm_exclusive_val, val);      \
                                                                               \
@@ -154,42 +154,42 @@ fail:                                                                         \
 done:                                                                         \
     cm_exclusive_addr = -1;                                                   \
     return;                                                                   \
-}                     
+}
 
 GEN_STORE_EXCLUSIVE(b, B);
 GEN_STORE_EXCLUSIVE(w, W);
 GEN_STORE_EXCLUSIVE(l, L);
 //GEN_STORE_EXCLUSIVE(q, Q);
 
-void HELPER(load_exclusiveq)(uint32_t reg, uint32_t addr) 
+void HELPER(load_exclusiveq)(uint32_t reg, uint32_t addr)
 {
    ram_addr_t q_addr = 0;
    uint64_t val = 0;
-   
+
    cm_exclusive_addr = addr;
-   CM_GET_QEMU_ADDR(q_addr,addr); 
+   CM_GET_QEMU_ADDR(q_addr,addr);
    val = *(uint64_t *)q_addr;
    cm_exclusive_val = val;
    cpu_single_env->regs[reg] = (uint32_t)val;
    cpu_single_env->regs[reg + 1] = (uint32_t)(val>>32);
 }
 
-void HELPER(store_exclusiveq)(uint32_t res, uint32_t reg, uint32_t addr) 
+void HELPER(store_exclusiveq)(uint32_t res, uint32_t reg, uint32_t addr)
 {
    ram_addr_t q_addr = 0;
    uint64_t val = 0;
    uint64_t r = 0;
-   
+
    if(addr != cm_exclusive_addr)
         goto fail;
 
-   CM_GET_QEMU_ADDR(q_addr,addr); 
+   CM_GET_QEMU_ADDR(q_addr,addr);
    val = (uint32_t)cpu_single_env->regs[reg];
    val |= ((uint64_t)cpu_single_env->regs[reg + 1]) << 32;
-    
-   r = atomic_compare_exchangeq((uint64_t *)q_addr, 
+
+   r = atomic_compare_exchangeq((uint64_t *)q_addr,
                                     (uint64_t)cm_exclusive_val, val);
-   
+
    if(r == (uint64_t)cm_exclusive_val) {
         cpu_single_env->regs[res] = 0;
         goto done;
@@ -197,7 +197,7 @@ void HELPER(store_exclusiveq)(uint32_t res, uint32_t reg, uint32_t addr)
         goto fail;
    }
 
-fail: 
+fail:
     cpu_single_env->regs[res] = 1;
 
 done:
@@ -205,7 +205,7 @@ done:
     return;
 }
 
-void HELPER(clear_exclusive)() 
+void HELPER(clear_exclusive)()
 {
     cm_exclusive_addr = -1;
 }

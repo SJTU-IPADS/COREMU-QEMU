@@ -2174,7 +2174,6 @@ void cm_inject_invalidate_code(TranslationBlock *tb)
     if(ret == 1)
        return;
 
-    
     TCGContext *s = &tcg_ctx;
     s->code_buf = tb->tc_ptr;
     s->code_ptr = tb->tc_ptr;

@@ -42,8 +42,8 @@ void irq_info(Monitor *mon);
 #ifdef CONFIG_COREMU
 extern int cm_pit_freq;
 /* *
- * For parallel emualtion, timer frequency need to be reduced when 
- * more than one thread runs on a simple physical cores  
+ * For parallel emualtion, timer frequency need to be reduced when
+ * more than one thread runs on a simple physical cores
  */
 #define PIT_FREQ cm_pit_freq
 #else
