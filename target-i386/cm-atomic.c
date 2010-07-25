@@ -29,6 +29,7 @@
 #include "coremu-atomic.h"
 #include "coremu-sched.h"
 #include "coremu-types.h"
+#include "cm-mmu.h"
 
 /* These definitions are copied from translate.c */
 #if defined(WORDS_BIGENDIAN)
@@ -59,32 +60,6 @@ enum {
     OP_XORL,
     OP_CMPL,
 };
-
-/* XXX: This function is not platform specific, move them to other place
- * later. */
-
-/* Given the guest virtual address, get the corresponding host address.
- * This macro resembles ldxxx in softmmu_template.h
- * NOTE: This must be inlined since the use of GETPC needs to get the
- * return address. Using always inline also works, we use macro here to be more
- * explicit. */
-#define CM_GET_QEMU_ADDR(q_addr, v_addr) \
-do {                                                                        \
-    int __mmu_idx, __index;                                                 \
-    CPUState *__env1 = cpu_single_env;                                      \
-    void *__retaddr;                                                        \
-    __index = (v_addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);            \
-    /* get the CPL, hence determine the MMU mode */                         \
-    __mmu_idx = cpu_mmu_index(__env1);                                      \
-    /* We use this function in the implementation of atomic instructions */ \
-    /* and we are going to modify these memory. So we use addr_write. */    \
-    if (unlikely(__env1->tlb_table[__mmu_idx][__index].addr_write           \
-                != (v_addr & TARGET_PAGE_MASK))) {                          \
-        __retaddr = GETPC();                                                \
-        tlb_fill(v_addr, 1, __mmu_idx, __retaddr);                          \
-    }                                                                       \
-    q_addr = v_addr + __env1->tlb_table[__mmu_idx][__index].addend;         \
-} while(0)
 
 static target_ulong cm_get_reg_val(int ot, int hregs, int reg)
 {
