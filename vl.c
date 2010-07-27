@@ -1725,7 +1725,7 @@ static int exit_requested;
 #ifdef CONFIG_COREMU
 int test_reset_request(void)
 {
-	return reset_requested;
+    return reset_requested;
 }
 #endif
 
@@ -1995,7 +1995,6 @@ static void main_loop(void)
     struct sigaction act;
     sigfillset(&act.sa_mask);
     act.sa_flags = 0;
-    extern void cm_local_host_alarm_handler(int host_signum);
     act.sa_handler = cm_local_host_alarm_handler;
     sigaction(COREMU_CORE_ALARM, &act, NULL);
 

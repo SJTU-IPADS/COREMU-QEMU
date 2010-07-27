@@ -27,28 +27,36 @@
 
 #include "dyngen-exec.h"
 #include "cpu.h"
+#include "exec.h"
+
+#include "coremu-core.h"
 #include "cm-mmu.h"
 #include "cm-watch-util.h"
 
-#define env cpu_single_env
-#include "softmmu_exec.h"
+/* TODO: what information is needed in each util function. */
 
-void cm_dump_stack(unsigned long ebp, int level)
+void cm_dump_stack(int level)
 {
-    unsigned long qaddr; /* Address in qemu. */
-    unsigned long retaddr;
+    target_ulong ebp = EBP;
+    target_ulong qaddr; /* Address in qemu. */
+    target_ulong retaddr;
     int i;
 
+    coremu_core_log("Backtrace at rip: %p\n", (void *)env->eip);
     for (i = 0; i < level && ebp; i++) {
         /* XXX Are we calling this in helper function? If so, this function
          * needs to be inlined. */
         CM_GET_QEMU_ADDR(qaddr, ebp); /* Get the address pointed by ebp. */
 
-        retaddr = *((unsigned long *)(qaddr) + 1);
+        retaddr = *((target_ulong *)(qaddr) + 1);
 
-        /* TODO: store backtrace info in other places. */
-        printf("CYF: backtrace: %p\n", (void *)retaddr);
-        ebp = *(unsigned long *)qaddr;
+        coremu_core_log("B\t%p\n", (void *)retaddr);
+        ebp = *(target_ulong *)qaddr;
     }
+}
+
+void cm_record_access(target_ulong eip, char type, uint64_t order)
+{
+    coremu_core_log("A %c %p %l\n", type, (void *)eip, order);
 }
 
