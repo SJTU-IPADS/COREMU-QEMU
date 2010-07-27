@@ -94,7 +94,7 @@ void cm_cpu_exec_init(void)
 {
     page_init();
     io_mem_init();
-
+    
     /* Allocate code cache. */
     cm_code_gen_alloc_all();
 

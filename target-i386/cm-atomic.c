@@ -196,7 +196,7 @@ GEN_ATOMIC_INC(q, Q);
 #define OT_l 2
 #define OT_q 3
 
-#define GEN_XCHG(type) \
+#define GEN_ATOMIC_XCHG(type) \
 void helper_xchg##type(target_ulong a0, int reg, int hreg)    \
 {                                                             \
     DATA_##type val, out;                                     \
@@ -210,12 +210,12 @@ void helper_xchg##type(target_ulong a0, int reg, int hreg)    \
     cm_set_reg_val(OT_##type, hreg, reg, out);                \
 }
 
-GEN_XCHG(b);
-GEN_XCHG(w);
-GEN_XCHG(l);
-GEN_XCHG(q);
+GEN_ATOMIC_XCHG(b);
+GEN_ATOMIC_XCHG(w);
+GEN_ATOMIC_XCHG(l);
+GEN_ATOMIC_XCHG(q);
 
-#define GEN_OP(type, TYPE) \
+#define GEN_ATOMIC_OP(type, TYPE) \
 void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
                        int op)                                   \
 {                                                                \
@@ -273,13 +273,13 @@ void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
     CC_SRC = eflags;                                             \
 }
 
-GEN_OP(b, B);
-GEN_OP(w, W);
-GEN_OP(l, L);
-GEN_OP(q, Q);
+GEN_ATOMIC_OP(b, B);
+GEN_ATOMIC_OP(w, W);
+GEN_ATOMIC_OP(l, L);
+GEN_ATOMIC_OP(q, Q);
 
 /* xadd */
-#define GEN_XADD(type, TYPE) \
+#define GEN_ATOMIC_XADD(type, TYPE) \
 void helper_atomic_xadd##type(target_ulong a0, int reg,   \
                         int hreg)                         \
 {                                                         \
@@ -304,13 +304,13 @@ void helper_atomic_xadd##type(target_ulong a0, int reg,   \
     CC_SRC = eflags;                                      \
 }
 
-GEN_XADD(b, B);
-GEN_XADD(w, W);
-GEN_XADD(l, L);
-GEN_XADD(q, Q);
+GEN_ATOMIC_XADD(b, B);
+GEN_ATOMIC_XADD(w, W);
+GEN_ATOMIC_XADD(l, L);
+GEN_ATOMIC_XADD(q, Q);
 
 /* cmpxchg */
-#define GEN_CMPXCHG(type, TYPE) \
+#define GEN_ATOMIC_CMPXCHG(type, TYPE) \
 void helper_atomic_cmpxchg##type(target_ulong a0, int reg,       \
                             int hreg)                            \
 {                                                                \
@@ -336,10 +336,10 @@ void helper_atomic_cmpxchg##type(target_ulong a0, int reg,       \
     CC_SRC = eflags;                                             \
 }
 
-GEN_CMPXCHG(b, B);
-GEN_CMPXCHG(w, W);
-GEN_CMPXCHG(l, L);
-GEN_CMPXCHG(q, Q);
+GEN_ATOMIC_CMPXCHG(b, B);
+GEN_ATOMIC_CMPXCHG(w, W);
+GEN_ATOMIC_CMPXCHG(l, L);
+GEN_ATOMIC_CMPXCHG(q, Q);
 
 /* cmpxchgb (8, 16) */
 void helper_atomic_cmpxchg8b(target_ulong a0)
@@ -394,7 +394,7 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
 }
 
 /* not */
-#define GEN_NOT(type) \
+#define GEN_ATOMIC_NOT(type) \
 void helper_atomic_not##type(target_ulong a0)  \
 {                                              \
     TX(a0, type, value, {                      \
@@ -402,13 +402,13 @@ void helper_atomic_not##type(target_ulong a0)  \
     });                                        \
 }
 
-GEN_NOT(b);
-GEN_NOT(w);
-GEN_NOT(l);
-GEN_NOT(q);
+GEN_ATOMIC_NOT(b);
+GEN_ATOMIC_NOT(w);
+GEN_ATOMIC_NOT(l);
+GEN_ATOMIC_NOT(q);
 
 /* neg */
-#define GEN_NEG(type, TYPE) \
+#define GEN_ATOMIC_NEG(type, TYPE) \
 void helper_atomic_neg##type(target_ulong a0)        \
 {                                                    \
     int eflags;                                      \
@@ -424,10 +424,10 @@ void helper_atomic_neg##type(target_ulong a0)        \
     CC_SRC = eflags;                                 \
 }                                                    \
 
-GEN_NEG(b, B);
-GEN_NEG(w, W);
-GEN_NEG(l, L);
-GEN_NEG(q, Q);
+GEN_ATOMIC_NEG(b, B);
+GEN_ATOMIC_NEG(w, W);
+GEN_ATOMIC_NEG(l, L);
+GEN_ATOMIC_NEG(q, Q);
 
 /* This is only used in BTX instruction, with an additional offset.
  * Note that, when using register bitoffset, the value can be larger than
@@ -447,7 +447,7 @@ GEN_NEG(q, Q);
     } while (__oldv != (atomic_compare_exchange##type(        \
                     (DATA_##type *)__q_addr, __oldv, value)))
 
-#define GEN_BTX(ins, command) \
+#define GEN_ATOMIC_BTX(ins, command) \
 void helper_atomic_##ins(target_ulong a0, target_ulong offset, \
         int ot)                                                \
 {                                                              \
@@ -466,15 +466,15 @@ void helper_atomic_##ins(target_ulong a0, target_ulong offset, \
 }
 
 /* bts */
-GEN_BTX(bts, {
+GEN_ATOMIC_BTX(bts, {
     value |= (1 << (offset & 0x7));
 });
 /* btr */
-GEN_BTX(btr, {
+GEN_ATOMIC_BTX(btr, {
     value &= ~(1 << (offset & 0x7));
 });
 /* btc */
-GEN_BTX(btc, {
+GEN_ATOMIC_BTX(btc, {
     value ^= (1 << (offset & 0x7));
 });
 

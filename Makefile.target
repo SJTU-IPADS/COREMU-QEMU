@@ -59,7 +59,7 @@ libobj-$(TARGET_ARM) += neon_helper.o iwmmxt_helper.o
 libobj-y += disas.o
 
 # coremu related object, we may need to split this later.
-libobj-y += cm-loop.o cm-intr.o cm-target-intr.o
+libobj-y += cm-loop.o cm-intr.o cm-target-intr.o cm-watch.o
 
 $(libobj-y): $(GENERATED_HEADERS)
 

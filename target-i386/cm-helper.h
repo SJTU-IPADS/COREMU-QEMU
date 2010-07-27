@@ -48,3 +48,4 @@ DEF_HELPER_0(fence, void)
 /* pause */
 DEF_HELPER_0(pause, void)
 
+DEF_HELPER_0(watch_server, void)

@@ -76,6 +76,7 @@
 #include "coremu-malloc.h"
 #include "coremu-atomic.h"
 #include "coremu-hw.h"
+#include "cm-watch.h"
 #include "cm-tbinval.h"
 
 #if !defined(CONFIG_USER_ONLY)
@@ -2395,6 +2396,13 @@ void tlb_set_page(CPUState *env, target_ulong vaddr,
             address |= TLB_MMIO;
         }
     }
+    
+#if defined(CONFIG_COREMU) && defined(COREMU_DEBUG_MODEL)
+   if((pd & ~TARGET_PAGE_MASK) == IO_MEM_RAM && cm_is_watch_addr_p(pd)) {
+      address |= TLB_MMIO;            
+      iotlb = paddr + cm_get_watch_index();
+    }
+#endif
 
     index = (vaddr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     env->iotlb[mmu_idx][index] = iotlb - vaddr;
@@ -2998,6 +3006,11 @@ ram_addr_t qemu_ram_alloc(ram_addr_t size)
 #ifdef CONFIG_COREMU
     coremu_assert_hw_thr("qemu_ram_alloc should only called by hw thr");
     cm_init_tb_cnt(last_ram_offset, size);
+    
+#ifdef COREMU_DEBUG_MODEL
+    cm_watch_init(last_ram_offset, size);
+#endif
+
 #endif
     last_ram_offset += size;
 

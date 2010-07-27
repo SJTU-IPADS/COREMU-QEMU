@@ -219,7 +219,7 @@ DEF_HELPER_2(rcrq, tl, tl, tl)
 
 #include "coremu-config.h"
 #ifdef CONFIG_COREMU
-#include "cm-atomic.h"
+#include "cm-helper.h"
 #endif
 
 #include "def-helper.h"
