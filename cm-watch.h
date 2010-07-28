@@ -31,7 +31,7 @@
 #include "queue.h"
 #include "cm-intr.h"
 
-typedef long CMWatchID;
+typedef long CMTriggerID;
 typedef struct CMWatchAddrRange {
     ram_addr_t   ram_addr_offset;
     target_ulong vaddr;
@@ -40,7 +40,6 @@ typedef struct CMWatchAddrRange {
 
 typedef void (*CMIntr_Trigger)(void *opaque);
 typedef struct CMWatchEntry {
-    CMWatchID cm_wid;
     CMWatchAddrRange cm_wrange;
     CMIntr_Trigger cm_wtrigger;
     uint8_t cm_invalidate_flag;
@@ -50,7 +49,6 @@ typedef struct CMWatchPage {
     queue_t *cm_watch_q;
     target_ulong cnt;
 } CMWatchPage;
-
 
 typedef struct CMWatchReq {
     CMIntr *base;
@@ -66,8 +64,8 @@ enum {
 };
 
 void cm_watch_init(ram_addr_t ram_offset, ram_addr_t size);
-void cm_insert_watch_point(CMWatchID id, target_ulong start, target_ulong len);
-void cm_remove_watch_point(CMWatchID id, target_ulong start, target_ulong len);
+void cm_insert_watch_point(CMTriggerID id, target_ulong start, target_ulong len);
+void cm_remove_watch_point(CMTriggerID id, target_ulong start, target_ulong len);
 bool cm_is_watch_addr_p(ram_addr_t addr);
 int cm_get_watch_index(void);
 
