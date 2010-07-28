@@ -32,56 +32,77 @@
 #include "coremu-hw.h"
 #include "coremu-sched.h"
 #include "cm-intr.h"
+#include "queue.h"
 
 static int cm_watch_index;
 static CMWatchPage *cm_watch_p;
 static long wramoffset;
 
+#define inline __attribute__ (( always_inline )) __inline__
+static inline queue_t* cm_get_watch_queue(ram_addr_t addr)
+{
+    return &cm_watch_p[addr >> TARGET_PAGE_BITS].cm_watch_q;
+}
+
+static inline bool cm_is_watch_hit(ram_addr_t raddr, int size, CMWatchEntry *entry)
+{
+    ram_addr_t wraddr;
+    target_ulong wlen;
+    wraddr = entry->cm_wrange.ram_addr_offset;
+    wlen = entry->cm_wrange.len;
+    return (((raddr >= wraddr) && (raddr < (wraddr + wlen))) 
+            || ((wraddr >= raddr) && (wraddr < (raddr + size))));
+}
+
+static inline void cm_check_watch_paddr(target_phys_addr_t addr, int size, uint32_t value, int is_write)
+{
+    ram_addr_t ram_addr_offset = cpu_get_physical_page_desc(addr);
+    QUEUE_FOREACH(cm_get_watch_queue(ram_addr_offset), entry_p, {
+        CMWatchEntry *entry = *(CMWatchEntry **)entry_p;
+        if (cm_is_watch_hit(ram_addr_offset, size, entry))
+            entry->cm_wtrigger(NULL);
+    });
+}
+
 static uint32_t cm_watch_mem_readb(void *opaque, target_phys_addr_t addr)
 {
-    printf(" %s hello world\n", __FUNCTION__);
-    return ldub_phys(addr);
+    uint32_t value = ldub_phys(addr);
+    cm_check_watch_paddr(addr, 1, value, 0);
+    return value;
 }
 
 static uint32_t cm_watch_mem_readw(void *opaque, target_phys_addr_t addr)
 {
-    printf(" %s hello world\n", __FUNCTION__);
-    return lduw_phys(addr);
+    uint32_t value = lduw_phys(addr);
+    cm_check_watch_paddr(addr, 2, value, 0);
+    return value;
 }
 
 static uint32_t cm_watch_mem_readl(void *opaque, target_phys_addr_t addr)
 {
-    //printf(" %s addr [0x%x] val [%d] \n", __FUNCTION__, addr);
-    ram_addr_t ram_addr_p = cpu_get_physical_page_desc(addr);
-    if((ram_addr_p + (addr & (0xfff))) == wramoffset) {
-        printf(" %s paddr [0lx%lx] ram_addr_offset[0lx%lx] \n",
-                    __FUNCTION__, addr, (ram_addr_p + (addr & (0xfff))));
-    }
-    return ldl_phys(addr);
+    uint32_t value = ldl_phys(addr);
+    cm_check_watch_paddr(addr, 4, value, 0);
+    return value;
 }
 
 static void cm_watch_mem_writeb(void *opaque, target_phys_addr_t addr,
                              uint32_t val)
 {
-    printf(" %s hello world\n", __FUNCTION__);
+    cm_check_watch_paddr(addr, 1, val, 1);
     stb_phys(addr, val);
 }
 
 static void cm_watch_mem_writew(void *opaque, target_phys_addr_t addr,
                              uint32_t val)
 {
-    printf(" %s hello world\n", __FUNCTION__);
+    cm_check_watch_paddr(addr, 2, val, 1);
     stw_phys(addr, val);
 }
 
 static void cm_watch_mem_writel(void *opaque, target_phys_addr_t addr,
                              uint32_t val)
 {
-    ram_addr_t ram_addr_p = cpu_get_physical_page_desc(addr);
-    if((ram_addr_p + (addr & (0xfff))) == wramoffset) {
-        printf(" %s paddr [0x%lx] val [%d] ram_addr_offset[0x%lx] \n",
-                    __FUNCTION__, addr, val, (ram_addr_p + (addr & (0xfff))));
-     }
+    cm_check_watch_paddr(addr, 4, val, 1);
     stl_phys(addr, val);
 }
 
@@ -124,14 +145,14 @@ static void cm_watch_page_init(CMWatchPage *wpage)
         destroy_queue(q);
 }
 
-static CMWatchEntry *cm_insert_watch_entry(queue_t *q, CMWatchID id,
+static CMWatchEntry *cm_insert_watch_entry(queue_t *q, CMTriggerID id,
         ram_addr_t ram_addr_offset, target_ulong start, target_ulong len)
 {
     CMWatchEntry *new_wentry = coremu_mallocz(sizeof(CMWatchEntry));
-    new_wentry->cm_wid = id;
     new_wentry->cm_wrange.ram_addr_offset = ram_addr_offset;
     new_wentry->cm_wrange.vaddr = len;
     new_wentry->cm_invalidate_flag = 0;
+    // XXX: cm_wtrigger = trigger_func[id];
     new_wentry->cm_wtrigger = NULL;
     enqueue(q, (long)new_wentry);
     return new_wentry;
@@ -204,7 +225,7 @@ void cm_watch_init(ram_addr_t ram_offset, ram_addr_t size)
                                             cm_watch_mem_write, NULL);
 }
 
-void cm_insert_watch_point(CMWatchID id, target_ulong start, target_ulong len)
+void cm_insert_watch_point(CMTriggerID id, target_ulong start, target_ulong len)
 {
     CPUState *self;
     ram_addr_t ram_start;
@@ -240,7 +261,7 @@ void cm_insert_watch_point(CMWatchID id, target_ulong start, target_ulong len)
 
 }
 
-void cm_remove_watch_point(CMWatchID id, target_ulong start, target_ulong len)
+void cm_remove_watch_point(CMTriggerID id, target_ulong start, target_ulong len)
 {
 
 }
@@ -260,7 +281,7 @@ void helper_watch_server(void);
 void helper_watch_server(void)
 {
     CPUState *self;
-    CMWatchID id;
+    CMTriggerID id;
     target_ulong cmd, start, len;
     self = cpu_single_env;
     cmd = self->regs[R_EAX];
@@ -285,3 +306,4 @@ void helper_watch_server(void)
             printf("Invalidate watch cmd [%ld]\n", cmd);
     }
 }
+
