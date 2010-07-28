@@ -42,7 +42,7 @@ void cm_dump_stack(int level)
     target_ulong retaddr;
     int i;
 
-    coremu_core_log("Backtrace at rip: %p\n", (void *)env->eip);
+    /*coremu_core_log("Backtrace at rip: %p\n", (void *)env->eip);*/
     for (i = 0; i < level && ebp; i++) {
         /* XXX Are we calling this in helper function? If so, this function
          * needs to be inlined. */
@@ -50,13 +50,13 @@ void cm_dump_stack(int level)
 
         retaddr = *((target_ulong *)(qaddr) + 1);
 
-        coremu_core_log("B\t%p\n", (void *)retaddr);
+        /*coremu_core_log("B\t%p\n", (void *)retaddr);*/
         ebp = *(target_ulong *)qaddr;
     }
 }
 
 void cm_record_access(target_ulong eip, char type, uint64_t order)
 {
-    coremu_core_log("A %c %p %l\n", type, (void *)eip, order);
+    /*coremu_core_log("A %c %p %l\n", type, (void *)eip, order);*/
 }
 

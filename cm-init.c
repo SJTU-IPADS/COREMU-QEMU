@@ -60,11 +60,11 @@ static void cm_code_gen_alloc_all(void)
                       flags, -1, 0);
 
     if (cm_bufbase == MAP_FAILED) {
-        cm_assert(0, "mmap failed\n");
+        coremu_assert(0, "mmap failed\n");
     }
 
     code_gen_buffer_size = (unsigned long)(cm_bufsize / (smp_cpus));
-    cm_assert(code_gen_buffer_size >= MIN_CODE_GEN_BUFFER_SIZE,
+    coremu_assert(code_gen_buffer_size >= MIN_CODE_GEN_BUFFER_SIZE,
               "code buffer size too small");
 
     code_gen_buffer_max_size = code_gen_buffer_size - code_gen_max_block_size();
@@ -123,7 +123,7 @@ void cm_cpu_exec_init_core(void)
 
     /* Create per core timer. */
     if (cm_init_local_timer_alarm() < 0) {
-        cm_assert(0, "local alarm initialize failed");
+        coremu_assert(0, "local alarm initialize failed");
     }
 
     /* Wait other core to finish initialization. */

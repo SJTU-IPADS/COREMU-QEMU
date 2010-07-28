@@ -36,7 +36,7 @@
 static int cm_watch_index;
 static CMWatchPage *cm_watch_p;
 static long wramoffset;
-    
+
 static uint32_t cm_watch_mem_readb(void *opaque, target_phys_addr_t addr)
 {
     printf(" %s hello world\n", __FUNCTION__);
@@ -54,7 +54,7 @@ static uint32_t cm_watch_mem_readl(void *opaque, target_phys_addr_t addr)
     //printf(" %s addr [0x%x] val [%d] \n", __FUNCTION__, addr);
     ram_addr_t ram_addr_p = cpu_get_physical_page_desc(addr);
     if((ram_addr_p + (addr & (0xfff))) == wramoffset) {
-        printf(" %s paddr [0x%x] ram_addr_offset[0x%x] \n", 
+        printf(" %s paddr [0lx%lx] ram_addr_offset[0lx%lx] \n",
                     __FUNCTION__, addr, (ram_addr_p + (addr & (0xfff))));
     }
     return ldl_phys(addr);
@@ -79,7 +79,7 @@ static void cm_watch_mem_writel(void *opaque, target_phys_addr_t addr,
 {
     ram_addr_t ram_addr_p = cpu_get_physical_page_desc(addr);
     if((ram_addr_p + (addr & (0xfff))) == wramoffset) {
-        printf(" %s paddr [0x%x] val [%d] ram_addr_offset[0x%x] \n", 
+        printf(" %s paddr [0x%lx] val [%d] ram_addr_offset[0x%lx] \n",
                     __FUNCTION__, addr, val, (ram_addr_p + (addr & (0xfff))));
      }
     stl_phys(addr, val);
@@ -108,7 +108,7 @@ static inline ram_addr_t cm_get_page_addr(CPUState *env1, target_ulong addr)
                  (addr & TARGET_PAGE_MASK))) {
         ldub(addr);
     }
-  
+
     p = (void *)(unsigned long)addr
         + env1->tlb_table[mmu_idx][page_index].addend;
     return qemu_ram_addr_from_host(p);
@@ -118,13 +118,13 @@ static void cm_watch_page_init(CMWatchPage *wpage)
 {
     wpage->cnt = 0;
     queue_t *q = new_queue();
-    uint64_t res = atomic_compare_exchangeq((uint64_t *)(&wpage->cm_watch_q), 
+    uint64_t res = atomic_compare_exchangeq((uint64_t *)(&wpage->cm_watch_q),
                                                 (uint64_t)0, (uint64_t)q);
     if (res != (uint64_t)NULL)
         destroy_queue(q);
 }
 
-static CMWatchEntry *cm_insert_watch_entry(queue_t *q, CMWatchID id, 
+static CMWatchEntry *cm_insert_watch_entry(queue_t *q, CMWatchID id,
         ram_addr_t ram_addr_offset, target_ulong start, target_ulong len)
 {
     CMWatchEntry *new_wentry = coremu_mallocz(sizeof(CMWatchEntry));
@@ -140,19 +140,19 @@ static CMWatchEntry *cm_insert_watch_entry(queue_t *q, CMWatchID id,
 static inline void cm_tlb_set_watch(unsigned long vaddr, ram_addr_t ram_addr_offset)
 {
     CPUState *self;
-    int mmu_idx, idx; 
+    int mmu_idx, idx;
     self = cpu_single_env;
     idx = (vaddr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
-        if(((vaddr & TARGET_PAGE_MASK) == (env->tlb_table[mmu_idx][idx].addr_read & 
+        if(((vaddr & TARGET_PAGE_MASK) == (env->tlb_table[mmu_idx][idx].addr_read &
                                           (TARGET_PAGE_MASK | TLB_INVALID_MASK))) ||
-           ((vaddr & TARGET_PAGE_MASK) == (env->tlb_table[mmu_idx][idx].addr_write & 
+           ((vaddr & TARGET_PAGE_MASK) == (env->tlb_table[mmu_idx][idx].addr_write &
                                           (TARGET_PAGE_MASK | TLB_INVALID_MASK)))) {
             env->tlb_table[mmu_idx][idx].addr_read = -1;
             env->tlb_table[mmu_idx][idx].addr_write = -1;
         }
     }
-    
+
 }
 
 static inline void cm_tlb_set_unwatch(unsigned long vaddr, ram_addr_t ram_addr_offset)
@@ -184,7 +184,7 @@ static CMIntr *cm_watch_req_init(CMWatchAddrRange *range, int flag)
     return (CMIntr *)req;
 }
 
-static CMIntr *cm_send_watch_req(int target, CMWatchAddrRange *range, int flag)
+static void cm_send_watch_req(int target, CMWatchAddrRange *range, int flag)
 {
     coremu_send_intr(cm_watch_req_init(range, flag), target);
 }
@@ -207,9 +207,9 @@ void cm_watch_init(ram_addr_t ram_offset, ram_addr_t size)
 void cm_insert_watch_point(CMWatchID id, target_ulong start, target_ulong len)
 {
     CPUState *self;
-    ram_addr_t ram_start; 
+    ram_addr_t ram_start;
     CMWatchPage *wpage;
-    target_ulong cnt; 
+    target_ulong cnt;
     int cpu_idx;
 
     self = cpu_single_env;
@@ -217,12 +217,12 @@ void cm_insert_watch_point(CMWatchID id, target_ulong start, target_ulong len)
     wramoffset = ram_start;
     wpage = &cm_watch_p[ram_start >> TARGET_PAGE_BITS];
 
-    printf("%s : id[%ld] start[0x%x] len[%ld] phys-start[0x%x]\n",
+    printf("%s : id[%ld] start[0x%lx] len[%ld] phys-start[0x%lx]\n",
                         __FUNCTION__, id, start, len, ram_start);
 
     if (!wpage->cm_watch_q)
         cm_watch_page_init(wpage);
-    CMWatchEntry *wentry = cm_insert_watch_entry(wpage->cm_watch_q, 
+    CMWatchEntry *wentry = cm_insert_watch_entry(wpage->cm_watch_q,
                                                 id, ram_start, start, len);
     cnt = 1;
     atomic_xaddq(&cnt, &wpage->cnt);
@@ -237,7 +237,7 @@ void cm_insert_watch_point(CMWatchID id, target_ulong start, target_ulong len)
             cm_send_watch_req(cpu_idx, &wentry->cm_wrange, 1);
         }
     }
-    
+
 }
 
 void cm_remove_watch_point(CMWatchID id, target_ulong start, target_ulong len)
@@ -267,7 +267,7 @@ void helper_watch_server(void)
     id = self->regs[R_EDI];
     start = self->regs[R_ESI];
     len = self->regs[R_EDX];
-    printf("watch point[%ld] : cmd[%d] start[0x%x] len[%d]\n", id, cmd, start, len);
+    printf("watch point[%ld] : cmd[%ld] start[0x%lx] len[%ld]\n", id, cmd, start, len);
     switch(cmd) {
         case WATCH_START:
             //not implement
@@ -282,6 +282,6 @@ void helper_watch_server(void)
             cm_remove_watch_point(id, start, len);
             break;
         default:
-            printf("Invalidate watch cmd [%d]\n", cmd);
+            printf("Invalidate watch cmd [%ld]\n", cmd);
     }
 }
