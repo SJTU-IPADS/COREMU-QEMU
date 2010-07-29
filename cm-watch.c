@@ -24,8 +24,7 @@
  */
 #include <stdbool.h>
 #include "cm-watch.h"
-#define env cpu_single_env
-#include "softmmu_exec.h"
+#include "exec.h"
 #include "coremu-atomic.h"
 #include "coremu-malloc.h"
 #include "coremu-intr.h"
@@ -139,7 +138,7 @@ static CPUWriteMemoryFunc * const cm_watch_mem_write[3] = {
     cm_watch_mem_writel,
 };
 
-static inline ram_addr_t cm_get_page_addr(CPUState *env1, target_ulong addr)
+static ram_addr_t cm_get_page_addr(CPUState *env1, target_ulong addr)
 {
     int mmu_idx, page_index;
     void *p;
@@ -209,9 +208,9 @@ static inline void cm_tlb_set_watch(unsigned long vaddr, ram_addr_t ram_addr_off
     self = cpu_single_env;
     idx = (vaddr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
-        if(((vaddr & TARGET_PAGE_MASK) == (env->tlb_table[mmu_idx][idx].addr_read &
+        if(((vaddr & TARGET_PAGE_MASK) == (self->tlb_table[mmu_idx][idx].addr_read &
                                           (TARGET_PAGE_MASK | TLB_INVALID_MASK))) ||
-           ((vaddr & TARGET_PAGE_MASK) == (env->tlb_table[mmu_idx][idx].addr_write &
+           ((vaddr & TARGET_PAGE_MASK) == (self->tlb_table[mmu_idx][idx].addr_write &
                                           (TARGET_PAGE_MASK | TLB_INVALID_MASK)))) {
             env->tlb_table[mmu_idx][idx].addr_read = -1;
             env->tlb_table[mmu_idx][idx].addr_write = -1;
@@ -386,7 +385,6 @@ void cm_register_wtrigger_func(CMTriggerID id, CMWatch_Trigger tfunc)
     trigger_func[id] = tfunc;
 }
 
-void helper_watch_server(void);
 void helper_watch_server(void)
 {
     CPUState *self;

@@ -16,6 +16,8 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+#include "coremu-config.h"
+
 #if !defined(__DYNGEN_EXEC_H__)
 #define __DYNGEN_EXEC_H__
 
@@ -42,11 +44,18 @@ typedef void * host_reg_t;
 #ifdef CONFIG_BSD
 typedef struct __sFILE FILE;
 #else
+#ifdef CONFIG_COREMU
+#include <stdio.h>
+#else
 typedef struct FILE FILE;
 #endif
+#endif
+
+#ifndef CONFIG_COREMU
 extern int fprintf(FILE *, const char *, ...);
 extern int fputs(const char *, FILE *);
 extern int printf(const char *, ...);
+#endif
 
 #if defined(__i386__)
 #define AREG0 "ebp"

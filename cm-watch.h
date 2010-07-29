@@ -25,8 +25,8 @@
 #ifndef _CM_WATCH_H
 #define _CM_WATCH_H
 
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include "cpu.h"
 #include "queue.h"
 #include "cm-intr.h"
