@@ -36,7 +36,7 @@
 #include "coremu-debug.h"
 #include "coremu-init.h"
 #include "coremu-logbuffer.h"
-#include "coremu-watch-util.h"
+#include "cm-watch-util.h"
 #include "cm-timer.h"
 #include "cm-init.h"
 
