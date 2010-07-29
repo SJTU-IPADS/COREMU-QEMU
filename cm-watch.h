@@ -38,10 +38,19 @@ typedef struct CMWatchAddrRange {
     target_ulong len;
 } CMWatchAddrRange;
 
-typedef void (*CMIntr_Trigger)(void *opaque);
+typedef struct CMWParams {
+    target_phys_addr_t paddr;
+    target_ulong vaddr;
+    target_ulong value;
+    target_ulong len;
+    int is_write;
+} CMWParams;
+
+typedef void (*CMWatch_Trigger)(void *opaque);
+
 typedef struct CMWatchEntry {
     CMWatchAddrRange cm_wrange;
-    CMIntr_Trigger cm_wtrigger;
+    CMWatch_Trigger cm_wtrigger;
     uint8_t cm_invalidate_flag;
 } CMWatchEntry;
 
@@ -64,9 +73,8 @@ enum {
 };
 
 void cm_watch_init(ram_addr_t ram_offset, ram_addr_t size);
-void cm_insert_watch_point(CMTriggerID id, target_ulong start, target_ulong len);
-void cm_remove_watch_point(CMTriggerID id, target_ulong start, target_ulong len);
 bool cm_is_watch_addr_p(ram_addr_t addr);
 int cm_get_watch_index(void);
-
+void cm_register_wtrigger_func(CMTriggerID id, CMWatch_Trigger tfunc);
+void cm_wtriger_init(void);
 #endif
