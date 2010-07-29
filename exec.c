@@ -2397,7 +2397,7 @@ void tlb_set_page(CPUState *env, target_ulong vaddr,
         }
     }
     
-#if defined(CONFIG_COREMU) && defined(COREMU_DEBUG_MODEL)
+#if defined(CONFIG_COREMU) && defined(COREMU_DEBUG_MODE)
    if((pd & ~TARGET_PAGE_MASK) == IO_MEM_RAM && cm_is_watch_addr_p(pd)) {
       address |= TLB_MMIO;            
       iotlb = paddr + cm_get_watch_index();
@@ -3007,7 +3007,7 @@ ram_addr_t qemu_ram_alloc(ram_addr_t size)
     coremu_assert_hw_thr("qemu_ram_alloc should only called by hw thr");
     cm_init_tb_cnt(last_ram_offset, size);
     
-#ifdef COREMU_DEBUG_MODEL
+#ifdef COREMU_DEBUG_MODE
     cm_watch_init(last_ram_offset, size);
 #endif
 
