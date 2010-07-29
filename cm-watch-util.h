@@ -5,6 +5,8 @@
 
 void cm_watch_util_init(void);
 
+void cm_print_memtrace(void *addr);
+
 void cm_print_dumpstack(void *addr);
 void cm_dump_stack(int level);
 

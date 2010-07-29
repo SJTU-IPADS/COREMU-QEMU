@@ -32,15 +32,25 @@
 #include "cm-watch-util.h"
 
 FILE *stack_log;
+FILE *memtrace_log;
 
 void cm_watch_util_init(void)
 {
     stack_log = fopen("stack.log", "w");
     if (!stack_log)
         printf("Can't open stack trace log.\n");
+
+    memtrace_log = fopen("stack.log", "w");
+    if (!memtrace_log)
+        printf("Can't open mem trace log.\n");
 }
 
 /* TODO: what information is needed in each util function. */
+
+void cm_print_memtrace(void *addr)
+{
+    
+}
 
 void cm_print_dumpstack(void *paddr)
 {
