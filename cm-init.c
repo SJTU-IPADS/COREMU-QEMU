@@ -35,6 +35,8 @@
 #include "coremu-sched.h"
 #include "coremu-debug.h"
 #include "coremu-init.h"
+#include "coremu-logbuffer.h"
+#include "coremu-watch-util.h"
 #include "cm-timer.h"
 #include "cm-init.h"
 
@@ -101,6 +103,10 @@ void cm_cpu_exec_init(void)
     /* Code prologue initialization. */
     cm_code_prologue_init();
     map_exec(code_gen_prologue, sizeof(code_gen_prologue));
+
+#ifdef COREMU_DEBUG_MODE
+    cm_watch_util_init();
+#endif
 }
 
 void cm_cpu_exec_init_core(void)
@@ -125,6 +131,11 @@ void cm_cpu_exec_init_core(void)
     if (cm_init_local_timer_alarm() < 0) {
         coremu_assert(0, "local alarm initialize failed");
     }
+
+#ifdef COREMU_DEBUG_MODE
+    cpu_single_env->dumpstack_buf = coremu_logbuf_new(50, sizeof(void *),
+            cm_print_dumpstack);
+#endif
 
     /* Wait other core to finish initialization. */
     coremu_wait_init();

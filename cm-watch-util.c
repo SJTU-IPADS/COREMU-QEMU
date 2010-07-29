@@ -25,15 +25,40 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dyngen-exec.h"
-#include "cpu.h"
 #include "exec.h"
-
 #include "coremu-core.h"
+#include "coremu-logbuffer.h"
 #include "cm-mmu.h"
 #include "cm-watch-util.h"
 
+FILE *stack_log;
+
+void cm_watch_util_init(void)
+{
+    stack_log = fopen("stack.log", "w");
+    if (!stack_log)
+        printf("Can't open stack trace log.\n");
+}
+
 /* TODO: what information is needed in each util function. */
+
+void cm_print_dumpstack(void *paddr)
+{
+    static int state = 1;
+    long addr = *(long *)paddr;
+
+    /* state 1 means the start of a new backtrace*/
+    state = (addr == -1);
+
+    switch (state) {
+    case 0:
+        fprintf(stack_log, "\t%p\n", (void *)addr);
+        break;
+    case 1:
+        fprintf(stack_log, "%p\n", (void *)addr);
+        break;
+    }
+}
 
 void cm_dump_stack(int level)
 {
@@ -42,6 +67,9 @@ void cm_dump_stack(int level)
     target_ulong retaddr;
     int i;
 
+    /* Use -1 to mark the start of a backtrace. */
+    COREMU_LOGBUF_LOG(cpu_single_env->dumpstack_buf, pos, { *(long *) pos = -1; });
+    COREMU_LOGBUF_LOG(cpu_single_env->dumpstack_buf, pos, { *(long *) pos = EIP; });
     /*coremu_core_log("Backtrace at rip: %p\n", (void *)env->eip);*/
     for (i = 0; i < level && ebp; i++) {
         /* XXX Are we calling this in helper function? If so, this function
@@ -50,7 +78,9 @@ void cm_dump_stack(int level)
 
         retaddr = *((target_ulong *)(qaddr) + 1);
 
-        /*coremu_core_log("B\t%p\n", (void *)retaddr);*/
+        COREMU_LOGBUF_LOG(cpu_single_env->dumpstack_buf, pos, {
+            *(target_ulong *) pos = retaddr;
+        });
         ebp = *(target_ulong *)qaddr;
     }
 }

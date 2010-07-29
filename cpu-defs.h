@@ -30,6 +30,7 @@
 #include "osdep.h"
 #include "qemu-queue.h"
 #include "targphys.h"
+#include "coremu-config.h"
 
 #ifndef TARGET_LONG_BITS
 #error TARGET_LONG_BITS must be defined before including this header
@@ -147,7 +148,7 @@ typedef struct CPUWatchpoint {
 } CPUWatchpoint;
 
 #define CPU_TEMP_BUF_NLONGS 128
-#define CPU_COMMON                                                      \
+#define CPU_COMMON_OLD                                                  \
     struct TranslationBlock *current_tb; /* currently executing TB  */  \
     /* soft mmu support */                                              \
     /* in order to avoid passing too many arguments to the MMIO         \
@@ -209,5 +210,17 @@ typedef struct CPUWatchpoint {
     struct kvm_run *kvm_run;                                            \
     int kvm_fd;                                                         \
     int kvm_vcpu_dirty;
+
+
+#ifdef COREMU_DEBUG_MODE
+#include "coremu-logbuffer.h"
+#define CPU_COMMON \
+    CPU_COMMON_OLD \
+    CMLogbuf *dumpstack_buf; \
+    CMLogbuf *memtrace_buf; \
+    CMLogbuf *interlev_buf;
+#else
+#define CPU_COMMON CPU_COMMON_OLD
+#endif
 
 #endif
