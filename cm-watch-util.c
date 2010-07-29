@@ -58,7 +58,10 @@ void cm_print_dumpstack(void *paddr)
     long addr = *(long *)paddr;
 
     /* state 1 means the start of a new backtrace*/
-    state = (addr == -1);
+    if (addr == -1) {
+        state = 1;
+        return;
+    }
 
     switch (state) {
     case 0:
@@ -66,6 +69,7 @@ void cm_print_dumpstack(void *paddr)
         break;
     case 1:
         fprintf(stack_log, "%p\n", (void *)addr);
+        state = 0;
         break;
     }
 }

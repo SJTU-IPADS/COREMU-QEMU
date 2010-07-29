@@ -29,6 +29,7 @@
 
 #include <sys/types.h>
 #include <sys/mman.h>
+#include <pthread.h>
 
 #define VERBOSE_COREMU
 #include "sysemu.h"
@@ -138,6 +139,17 @@ void cm_cpu_exec_init_core(void)
             cm_print_dumpstack);
     cpu_single_env->memtrace_buf = coremu_logbuf_new(10 * 1024 * 1024 / 128 , 128,
             cm_print_memtrace);
+
+    /* We need to find a way to free the buffer (which will flush the left log
+     * record) when the core thread exits. This doesn't work. */
+/*
+ *    pthread_cleanup_push(coremu_logbuf_free, (void *)(cpu_single_env->dumpstack_buf));
+ *    pthread_cleanup_push(coremu_logbuf_free, (void *)(cpu_single_env->memtrace_buf));
+ *    goto end;
+ *    pthread_cleanup_pop(0);
+ *    pthread_cleanup_pop(0);
+ *end:
+ */
 #endif
 
     /* Wait other core to finish initialization. */
