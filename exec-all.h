@@ -166,6 +166,15 @@ struct TranslationBlock {
     uint32_t icount;
 #ifdef CONFIG_COREMU
     uint16_t has_invalidate; /* if this TB has been invalidated */
+
+#ifdef COREMU_PROFILE_MODE
+    uint64_t cm_profile_counter;       /* how many times has been executed of this tb */
+    uint8_t *cm_profile_cnt_tc_ptr;    /* pointer to the translated profile code */
+    uint8_t cm_hot_tb;                 /* indicate if the TB is hot */
+    struct TranslationBlock *profile_next_tb;
+    uint8_t *cm_trace_prologue_ptr[2]; /* address of trace prologue for this TB. */
+    uint8_t collect_count;
+#endif
 #endif
 };
 
@@ -355,5 +364,9 @@ CPUDebugExcpHandler *cpu_set_debug_excp_handler(CPUDebugExcpHandler *handler);
 
 /* vl.c */
 extern int singlestep;
+
+#ifdef COREMU_PROFILE_MODE
+int cm_gen_inc_profile_count(TranslationBlock *tb, int *gen_code_size_ptr);
+#endif
 
 #endif

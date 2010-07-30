@@ -2167,6 +2167,7 @@ void cm_code_prologue_init(void)
     tcg_target_qemu_prologue(&tmp_ctx);
 }
 
+#ifdef COREMU_CMC_SUPPORT
 void cm_inject_invalidate_code(TranslationBlock *tb)
 {
     uint16_t ret =  atomic_compare_exchangew(&tb->has_invalidate, 0, 1);
@@ -2182,5 +2183,29 @@ void cm_inject_invalidate_code(TranslationBlock *tb)
     tcg_out8(s, 0xe9); /* jmp tb_ret_addr */
     tcg_out32(s, tb_ret_addr - s->code_ptr - 4);
 }
+#endif
+
+#ifdef COREMU_PROFILE_MODE
+/* Patch the TB to increment the counter tb->cm_profile_counter for every
+ * execution. */
+int cm_tcg_out_inc_profile_count(TranslationBlock *tb, TCGContext *s);
+int cm_tcg_out_inc_profile_count(TranslationBlock *tb, TCGContext *s)
+{
+    /* mov &tb->cm_profile_counter rax */
+    /*
+     *printf("tb->cm_profile_counter %lx\n",(long) (&tb->cm_profile_counter));
+     *printf("tb->pc %p, tb->cm_profile_counter %lu\n", (void*) tb->pc, (long) (tb->cm_profile_counter));
+     */
+    tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_RAX,
+            (long) (&tb->cm_profile_counter));
+
+    /* incq (%rax) : 48 ff 00 */
+    tcg_out8(s, 0x48);
+    tcg_out8(s, 0xff);
+    tcg_out8(s, 0x00);
+
+    return s->code_ptr - s->code_buf;
+}
+#endif
 
 #endif /* CONFIG_COREMU */

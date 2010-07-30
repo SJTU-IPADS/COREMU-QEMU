@@ -79,6 +79,9 @@
 #include "cm-watch.h"
 #include "cm-tbinval.h"
 
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 #if !defined(CONFIG_USER_ONLY)
 /* TB consistency checks only implemented for usermode emulation.  */
 #undef DEBUG_TB_CHECK
@@ -1058,6 +1061,14 @@ TranslationBlock *tb_gen_code(CPUState *env,
         /* Don't forget to invalidate previous TB info.  */
         tb_invalidated_flag = 1;
     }
+
+#ifdef COREMU_PROFILE_MODE
+    tc_ptr = code_gen_ptr;
+    tb->cm_profile_cnt_tc_ptr = tc_ptr;
+    cm_gen_inc_profile_count(tb, &code_gen_size);
+    code_gen_ptr = (void *)((unsigned long)code_gen_ptr + code_gen_size);
+#endif
+
     tc_ptr = code_gen_ptr;
     tb->tc_ptr = tc_ptr;
     tb->cs_base = cs_base;
@@ -1401,6 +1412,25 @@ TranslationBlock *tb_alloc(target_ulong pc)
     tb = &tbs[nb_tbs++];
     tb->pc = pc;
     tb->cflags = 0;
+
+#ifdef CONFIG_COREMU
+    tb->has_invalidate = 0;
+#ifdef COREMU_PROFILE_MODE
+    tb->cm_profile_cnt_tc_ptr = NULL;
+    tb->cm_profile_counter = 0;
+    tb->profile_next_tb = NULL;
+    tb->cm_trace_prologue_ptr[0] = NULL;
+    tb->cm_trace_prologue_ptr[1] = NULL;
+    tb->collect_count = 0;
+    /* Mark this TB as hot if its PC is in hot. */
+    /* XXX */
+    /*tb->cm_hot_tb = is_hot_pc(pc);*/
+    if (tb->cm_hot_tb) {
+        coremu_debug("Marking new allocated TB as hot according to its pc: %p", (void*)pc);
+    }
+#endif /* COREMU_PROFILE_MODE*/
+#endif /* CONFIG_COREMU */
+
     return tb;
 }
 
@@ -4320,4 +4350,44 @@ void dump_exec_info(FILE *f,
 #ifdef CONFIG_COREMU
 #include "cm-init.c"
 #include "cm-tbinval.c"
+
+#ifdef COREMU_PROFILE_MODE
+#include "cm-profile.h"
+void cm_flush_profile_info(void)
+{
+    TranslationBlock *tb;
+    for (tb = tbs; tb < tbs + nb_tbs; tb++) {
+        tb->cm_profile_counter = 0;
+        tb->profile_next_tb = NULL;
+        tb->collect_count = 0;
+    }
+    /* XXX if we want to clear the hot pc table, we need to unlink all the tb. */
+    /*cm_profile_pc_cnt_t_clear_hash(hot_pc_htab);*/
+}
+
+void cm_cpu_unlink_all_tb(void)
+{
+    sigset_t set;
+    int i = 0;
+
+    sigfillset(&set);
+    pthread_sigmask(SIG_BLOCK, &set, NULL);
+
+    for (i = 0; i < nb_tbs; i++) {
+        tbs[i].jmp_first = (TranslationBlock *)((long)&tbs[i] | 2);
+        tbs[i].jmp_next[0] = NULL;
+        tbs[i].jmp_next[1] = NULL;
+
+        /* init original jump addresses */
+        /* some tb have 0 size so we must ignore them */
+        if (tbs[i].tb_next_offset[0] != 0xffff && tbs[i].tb_next_offset[0] != 0)
+            tb_reset_jump(&tbs[i], 0);
+
+        if (tbs[i].tb_next_offset[1] != 0xffff && tbs[i].tb_next_offset[1] != 0)
+            tb_reset_jump(&tbs[i], 1);
+    }
+    pthread_sigmask(SIG_UNBLOCK, &set, NULL);
+}
+#endif
+
 #endif

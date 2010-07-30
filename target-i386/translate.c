@@ -6934,9 +6934,13 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         if (s->vm86 && s->iopl != 3) {
             gen_exception(s, EXCP0D_GPF, pc_start - s->cs_base);
         } else {
-#if defined(CONFIG_COREMU)&&defined(COREMU_DEBUG_MODE)
-            if(val == 0x86)
+#if defined(CONFIG_COREMU) && defined(COREMU_DEBUG_MODE)
+            if (val == 0x86)
                 gen_helper_watch_server();
+#if defined(CONFIG_COREMU) && defined(COREMU_PROFILE_MODE)
+            else if (val == 0x88)
+                gen_helper_profile_hypercall();
+#endif
             else
                 gen_interrupt(s, val, pc_start - s->cs_base, s->pc - s->cs_base);
 

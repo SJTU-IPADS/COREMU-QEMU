@@ -49,3 +49,4 @@ DEF_HELPER_0(fence, void)
 DEF_HELPER_0(pause, void)
 
 DEF_HELPER_0(watch_server, void)
+DEF_HELPER_0(profile_hypercall, void)
