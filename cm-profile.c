@@ -25,6 +25,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <sys/mman.h>
 
 #include "sysemu.h"
 #include "exec-all.h"
@@ -39,7 +40,6 @@
 #define DEBUG_COREMU
 #include "coremu-debug.h"
 
-extern COREMU_THREAD TranslationBlock *tbs;
 extern COREMU_THREAD int nb_tbs;
 
 /*****************************************************************************
@@ -244,10 +244,13 @@ static void tag_hot_tb(void)
     }
 }
 
+static void patch_hot_tb(void);
+
 static void identify_hot_trace(void)
 {
     gather_hot_pc();
     tag_hot_tb();
+    patch_hot_tb();
 }
 
 static void cm_flush_profile_info(void)
@@ -260,6 +263,193 @@ static void cm_flush_profile_info(void)
     }
     /* XXX if we want to clear the hot pc table, we need to unlink all the tb. */
     /*profile_pc_cnt_clear_hash(hot_pc_htab);*/
+}
+
+/*****************************************************************************
+ * TB patching
+ *****************************************************************************/
+
+typedef struct trace_prologue_page {
+    struct trace_prologue_page *next;
+    uint8_t *page;
+} trace_prologue_page;
+#define PAGE_CMP(e1, e2) (e1->page - e2->page)
+
+/* Allocate trace code buffer one page at a time.
+ * code ptr points to the start of the buffer which can be used to put code. */
+int trace_page_size; /* size of a trace prologue page */
+COREMU_THREAD uint8_t *trace_code_ptr;
+COREMU_THREAD unsigned int trace_buffer_left; /* Records how many space is left in the buffer. */
+
+/* This piece code contains calls the helper function to collect trace info. */
+static uint8_t trace_code_template[] = {
+    0x57, /* push %rdi, save this register for argument passing */
+    0xbf, 0x00, 0x00, 0x00, 0x00, /* mov $0x0, %rdi, patch here for arg*/
+    0xe8, 0x00, 0x00, 0x00, 0x00, /* callq <displacement to func>, patch here for func */
+    0x5f, /* pop %rdi */
+    0xe9, 0x00, 0x00, 0x00, 0x00, /* jmp <displacement of next tb>, patch for tb. */
+};
+#define ARG1_ADDR_OFFSET 2
+#define CALL_ADDR_OFFSET 7
+
+int trace_prologue_size = sizeof(trace_code_template);
+
+/* Records pages allocated for trace prologue */
+static __thread trace_prologue_page *trace_pages;
+
+/* This is the same with tb_set_jmp_target1 */
+static inline void cm_patch_trace_call_addr(unsigned long ptr, unsigned long addr)
+{
+    /* patch call addr. relative address to the jmp address. */
+    *(uint32_t *)(ptr + CALL_ADDR_OFFSET) = addr - (ptr + CALL_ADDR_OFFSET + 4);
+}
+static inline void cm_patch_trace_argument(unsigned long ptr, unsigned long arg)
+{
+    *(uint32_t *)(ptr + ARG1_ADDR_OFFSET) = arg;
+}
+
+static void cm_collect_trace_profile(long tbid)
+{
+    coremu_debug("called");
+}
+
+/* Generate a new code segment. Return the start address. */
+uint8_t *cm_gen_trace_prologue(int tbid)
+{
+    coremu_debug("called");
+    if (trace_buffer_left < trace_prologue_size) {
+        coremu_debug("allocating a new page for trace code prologue");
+        uint8_t *newpage;
+        trace_page_size = getpagesize();
+        /* NOTE we don't unmap now since the memory overhead should be too small. */
+        newpage = mmap(NULL, trace_page_size,
+                PROT_WRITE | PROT_READ | PROT_EXEC,
+                MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
+        if (newpage == MAP_FAILED) {
+            perror("[COREMU] mmap could not allocate memory for trace prologue\n");
+            abort();
+        }
+        trace_code_ptr = newpage;
+        trace_buffer_left = trace_page_size;
+        trace_prologue_page *p = coremu_mallocz(sizeof (*p));
+        p->page = newpage;
+        SGLIB_LIST_ADD(trace_prologue_page, trace_pages, p, next);
+    }
+
+    memcpy(trace_code_ptr, trace_code_template, trace_prologue_size);
+    trace_buffer_left -= trace_prologue_size;
+
+    cm_patch_trace_call_addr((unsigned long)trace_code_ptr,
+            (unsigned long) cm_collect_trace_profile);
+    cm_patch_trace_argument((unsigned long)trace_code_ptr, tbid);
+
+    uint8_t *save_ptr = trace_code_ptr;
+    trace_code_ptr += trace_prologue_size;
+    return save_ptr;
+}
+
+void cm_flush_trace_prologue(void)
+{
+    SGLIB_LIST_MAP_ON_ELEMENTS(trace_prologue_page, trace_pages, item, next, {
+        if (munmap(item->page, trace_page_size) != 0)
+            perror("munmap failed");
+        coremu_free(item);
+    });
+    trace_pages = NULL;
+}
+
+/* Check if the target address is in trace prologue */
+static inline int is_addr_in_trace_prologue(uint32_t addr)
+{
+    SGLIB_LIST_MAP_ON_ELEMENTS(trace_prologue_page, trace_pages, item, next, {
+        coremu_debug("page: %p", item->page);
+        if ((unsigned long)item->page <= addr &&
+                addr < (unsigned long)item->page + trace_page_size) {
+            coremu_debug("jmp to trace prologue");
+            return true;
+        }
+    });
+    return false;
+}
+
+/* Note relative address may be negative! Can't use unsigned. */
+static inline int32_t get_jmp_rel_addr(TranslationBlock *tb, int n)
+{
+    return *(int32_t *)(tb->tc_ptr + tb->tb_jmp_offset[n]);
+}
+
+/* Return TB jmp instruction's absolute target address. */
+static inline unsigned long get_jmp_abs_addr(TranslationBlock *tb, int n)
+{
+    uint16_t offset = tb->tb_jmp_offset[n];
+    /*assert(offset != 0xffff);*/
+
+    /* Address of the next instruction to jmp. */
+    unsigned long jmp_next_ins_addr = (unsigned long)(tb->tc_ptr + offset + 4);
+    return jmp_next_ins_addr + get_jmp_rel_addr(tb, n);
+}
+
+static int tb_need_patch(TranslationBlock *tb, int n)
+{
+    assert(tb->cm_hot_tb);
+
+    /* All possible kinds of jmp target.
+     * 1. Not set
+     * 2. Jmp to the next instruction
+     * 3. Jmp to trace prologue
+     * 4. Jmp to TB (possible to itself) */
+
+    uint16_t offset = tb->tb_jmp_offset[n];
+    /* When we don't know the jmp target, don't patch the TB. */
+    if (offset == 0xffff || offset == 0x0) {
+        /*coremu_debug("jmp address not set");*/
+        return true;
+    }
+
+    unsigned long jmp_abs_addr = get_jmp_abs_addr(tb, n);
+    int32_t jmp_rel_addr = get_jmp_rel_addr(tb, n);
+    /* Check for jmp to next instruction. */
+    if (0 == jmp_rel_addr) {
+        /*coremu_debug("jmp addr points to the next instruction");*/
+        return true;
+    }
+
+    /* If TB already jump to prologue, no need to patch. */
+    if (is_addr_in_trace_prologue(jmp_abs_addr))
+        return true;
+
+    tc2tb target;
+    target.tc = jmp_abs_addr;
+    tc2tb *item = sglib_hashed_tc2tb_find_member(tc2tb_htab, &target);
+    return item != NULL;
+}
+
+static void trace_profile_patch_chain(TranslationBlock *tb, int n)
+{
+    if (tb->cm_trace_prologue_ptr[n] == NULL)
+        tb->cm_trace_prologue_ptr[n] = cm_gen_trace_prologue(tb - tbs);
+
+    /* NOTE order is important. */
+    /* 1. Patch the prologue to jump to the original TB. */
+    cm_patch_trace_jmp_addr((unsigned long)tb->cm_trace_prologue_ptr[n],
+            get_jmp_abs_addr(tb, n));
+    /* 2. Patch TB to jump to the trace prologue. */
+    tb_set_jmp_target(tb, n, (unsigned long)tb->cm_trace_prologue_ptr[n]);
+}
+
+static void patch_hot_tb(void)
+{
+    coremu_debug("called");
+    TranslationBlock *it;
+
+    for (it = tbs; it < tbs + nb_tbs; it++) {
+        if (!it->cm_hot_tb)
+            continue;
+        if (!tb_need_patch(it, 0))
+            trace_profile_patch_chain(it, 0);
+        if (!tb_need_patch(it, 1))
+            trace_profile_patch_chain(it, 1);
+    }
 }
 
 /*****************************************************************************
@@ -388,3 +578,7 @@ void helper_profile_hypercall(void)
     }
 }
 
+void cm_profile_init(void)
+{
+    cm_profile_state = CM_PROFILE_STOP;
+}

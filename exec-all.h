@@ -23,6 +23,7 @@
 #include "qemu-common.h"
 
 #include "coremu-config.h"
+#include "cm-profile.h"
 
 /* allow to see translation results - the slowdown should be negligible, so we leave it */
 #define DEBUG_DISAS
@@ -269,13 +270,35 @@ static inline void tb_set_jmp_target(TranslationBlock *tb,
 
 #endif
 
+#ifdef COREMU_PROFILE_MODE
+extern COREMU_THREAD TranslationBlock *tbs;
+#endif
+
 static inline void tb_add_jump(TranslationBlock *tb, int n,
                                TranslationBlock *tb_next)
 {
     /* NOTE: this test is only needed for thread safety */
     if (!tb->jmp_next[n]) {
+#ifdef COREMU_PROFILE_MODE
+        if (cm_profile_state == CM_PROFILE_STOP) {
+            tb_set_jmp_target(tb, n, (unsigned long)tb_next->tc_ptr);
+        } else if (tb->cm_hot_tb && !tb_next->cm_hot_tb) {
+            /* For unlinked TB, this will create new chain. */
+            /*printf("[COREMU] create new TB chain, hot TB ID: %ld\n", tb - tbs);*/
+            if (tb->cm_trace_prologue_ptr[n] == NULL)
+                tb->cm_trace_prologue_ptr[n] = cm_gen_trace_prologue(tb - tbs);
+            /* We know the target address. */
+            cm_patch_trace_jmp_addr((unsigned long)tb->cm_trace_prologue_ptr[n],
+                    (unsigned long)tb_next->cm_profile_cnt_tc_ptr);
+            tb_set_jmp_target(tb, n, (unsigned long)tb->cm_trace_prologue_ptr[n]);
+        } else {
+            tb_set_jmp_target(tb, n, (unsigned long)tb_next->cm_profile_cnt_tc_ptr);
+        }
+
+#else
         /* patch the native jump address */
         tb_set_jmp_target(tb, n, (unsigned long)tb_next->tc_ptr);
+#endif
 
         /* add in TB jmp circular list */
         tb->jmp_next[n] = tb_next->jmp_first;

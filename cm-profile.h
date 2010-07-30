@@ -51,4 +51,17 @@ void cm_cpu_unlink_all_tb(void);
 /* Used in tb_alloc, otherwise we can make it static */
 bool is_hot_pc(target_ulong pc);
 
+/* Called in tb_flush. */
+void cm_flush_trace_prologue(void);
+
+/* Called in tb_add_jump */
+uint8_t *cm_gen_trace_prologue(int tbid);
+
+/* Also used in tb_add_jump */
+#define JMP_ADDR_OFFSET 13
+static inline void cm_patch_trace_jmp_addr(unsigned long ptr, unsigned long jmp_addr)
+{
+    *(uint32_t *)(ptr + JMP_ADDR_OFFSET) = jmp_addr - (ptr + JMP_ADDR_OFFSET + 4);
+}
+
 #endif /* _CM_PROFILE_H */

@@ -770,7 +770,10 @@ void tb_flush(CPUState *env1)
 
     nb_tbs = 0;
 #ifdef CONFIG_COREMU
-    memset (env1->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
+    memset(env1->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
+#ifdef COREMU_PROFILE_MODE
+    cm_flush_trace_prologue();
+#endif
 #else
     for(env = first_cpu; env != NULL; env = env->next_cpu) {
         memset (env->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
