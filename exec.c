@@ -78,6 +78,7 @@
 #include "coremu-hw.h"
 #include "cm-watch.h"
 #include "cm-tbinval.h"
+#include "cm-profile.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
@@ -89,10 +90,16 @@
 
 #define SMC_BITMAP_USE_THRESHOLD 10
 
+#if defined(CONFIG_COREMU) && defined(COREMU_PROFILE_MODE)
+/* XXX We need to use tbs and nb_tbs in cm-profile.c */
+COREMU_THREAD TranslationBlock *tbs;
+COREMU_THREAD int nb_tbs;
+#else
 static COREMU_THREAD TranslationBlock *tbs;
+static COREMU_THREAD int nb_tbs;
+#endif
 int code_gen_max_blocks;
 COREMU_THREAD TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
-static COREMU_THREAD int nb_tbs;
 /* any access to the tbs or the page table must use this lock */
 COREMU_THREAD spinlock_t tb_lock = SPIN_LOCK_UNLOCKED;
 
@@ -1424,7 +1431,7 @@ TranslationBlock *tb_alloc(target_ulong pc)
     tb->collect_count = 0;
     /* Mark this TB as hot if its PC is in hot. */
     /* XXX */
-    /*tb->cm_hot_tb = is_hot_pc(pc);*/
+    tb->cm_hot_tb = is_hot_pc(pc);
     if (tb->cm_hot_tb) {
         coremu_debug("Marking new allocated TB as hot according to its pc: %p", (void*)pc);
     }
@@ -4353,18 +4360,7 @@ void dump_exec_info(FILE *f,
 
 #ifdef COREMU_PROFILE_MODE
 #include "cm-profile.h"
-void cm_flush_profile_info(void)
-{
-    TranslationBlock *tb;
-    for (tb = tbs; tb < tbs + nb_tbs; tb++) {
-        tb->cm_profile_counter = 0;
-        tb->profile_next_tb = NULL;
-        tb->collect_count = 0;
-    }
-    /* XXX if we want to clear the hot pc table, we need to unlink all the tb. */
-    /*cm_profile_pc_cnt_t_clear_hash(hot_pc_htab);*/
-}
-
+/* tb_reset_jump is inlined */
 void cm_cpu_unlink_all_tb(void)
 {
     sigset_t set;
