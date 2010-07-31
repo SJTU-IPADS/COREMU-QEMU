@@ -29,30 +29,12 @@
 #include "coremu-core.h"
 #include "coremu-logbuffer.h"
 #include "cm-mmu.h"
-#include "cm-watch-util.h"
+#include "cm-instrument.h"
 
-FILE *stack_log;
-FILE *memtrace_log;
+#define DEBUG_COREMU
+#include "coremu-debug.h"
 
-void cm_watch_util_init(void)
-{
-    stack_log = fopen("stack.log", "w");
-    if (!stack_log)
-        printf("Can't open stack trace log.\n");
-
-    memtrace_log = fopen("stack.log", "w");
-    if (!memtrace_log)
-        printf("Can't open mem trace log.\n");
-}
-
-/* TODO: what information is needed in each util function. */
-
-void cm_print_memtrace(void *addr)
-{
-    
-}
-
-void cm_print_dumpstack(void *paddr)
+void cm_print_dumpstack(FILE *file, void *paddr)
 {
     static int state = 1;
     long addr = *(long *)paddr;
@@ -65,25 +47,30 @@ void cm_print_dumpstack(void *paddr)
 
     switch (state) {
     case 0:
-        fprintf(stack_log, "\t%p\n", (void *)addr);
+        fprintf(file, "\t%p\n", (void *)addr);
         break;
     case 1:
-        fprintf(stack_log, "%p\n", (void *)addr);
+        fprintf(file, "%p\n", (void *)addr);
         state = 0;
         break;
     }
 }
 
-void cm_dump_stack(int level)
+/* TODO: what information is needed in each util function. */
+
+#define USER_TOP 0x00007fffffffffff
+void cm_dump_stack(int level, CMLogbuf *buf)
 {
     target_ulong ebp = EBP;
     target_ulong qaddr; /* Address in qemu. */
     target_ulong retaddr;
     int i;
 
+    coremu_debug("%p", (void *)ebp);
+
     /* Use -1 to mark the start of a backtrace. */
-    COREMU_LOGBUF_LOG(cpu_single_env->dumpstack_buf, pos, { *(long *) pos = -1; });
-    COREMU_LOGBUF_LOG(cpu_single_env->dumpstack_buf, pos, { *(long *) pos = EIP; });
+    COREMU_LOGBUF_LOG(buf, pos, *(long *) pos = -1);
+    COREMU_LOGBUF_LOG(buf, pos, *(long *) pos = EIP);
     /*coremu_core_log("Backtrace at rip: %p\n", (void *)env->eip);*/
     for (i = 0; i < level && ebp; i++) {
         /* XXX Are we calling this in helper function? If so, this function
@@ -92,15 +79,13 @@ void cm_dump_stack(int level)
 
         retaddr = *((target_ulong *)(qaddr) + 1);
 
-        COREMU_LOGBUF_LOG(cpu_single_env->dumpstack_buf, pos, {
+        COREMU_LOGBUF_LOG(buf, pos, {
             *(target_ulong *) pos = retaddr;
         });
         ebp = *(target_ulong *)qaddr;
+        /* XXX Just handle kernel backtrace now. */
+        if (ebp > USER_TOP)
+            return;
     }
-}
-
-void cm_record_access(target_ulong eip, char type, uint64_t order)
-{
-    /*coremu_core_log("A %c %p %l\n", type, (void *)eip, order);*/
 }
 

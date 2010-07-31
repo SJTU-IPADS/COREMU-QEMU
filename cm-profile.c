@@ -36,10 +36,19 @@
 #include "coremu-sched.h"
 #include "coremu-atomic.h"
 #include "cm-profile.h"
+#include "cm-instrument.h"
+
+int cm_profile_state;
+
+void cm_profile_init(void)
+{
+    cm_profile_state = CM_PROFILE_STOP;
+}
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
 
+/* nb_tbs and tbs are only declared non static if COREMU_PROFILE_MODE is on. */
 extern COREMU_THREAD int nb_tbs;
 
 /*****************************************************************************
@@ -56,7 +65,6 @@ extern COREMU_THREAD int nb_tbs;
 
 #define CM_HOT_SIGMA    32
 
-int cm_profile_state;
 static unsigned int cm_profile_ack;
 
 /* A basic block maybe translated more than once to different TBs,
@@ -64,7 +72,8 @@ static unsigned int cm_profile_ack;
  * profile_pc_cnt is used to record the execution count of a basic block. */
 typedef struct profile_pc_cnt {
     uint64_t exec_count;    /* times the pc has been executed. */
-    uint64_t to_cold_count; /* times the pc corresponding TB jumps to cold TB. */
+    uint64_t to_cold_count; /* times the pc corresponding TB jumps to cold TB.
+                               Is this useful? */
     uint64_t pc;
 
     struct profile_pc_cnt *next; /* Node to the next element. */
@@ -103,7 +112,18 @@ static profile_pc_cnt *profile_pc_cnt_new(uint64_t pc)
  *}
  */
 
+static void cm_flush_profile_info(void)
+{
+    TranslationBlock *tb;
+    for (tb = tbs; tb < tbs + nb_tbs; tb++) {
+        tb->cm_profile_counter = 0;
+    }
+    /* XXX if we want to clear the hot pc table, we need to unlink all the tb. */
+    /*profile_pc_cnt_clear_hash(hot_pc_htab);*/
+}
+
 static __thread profile_pc_cnt *hot_pc_htab[CM_HASH_SIZE];
+double hot_tb_threshold;
 
 static void gather_hot_pc(void)
 {
@@ -157,15 +177,15 @@ static void gather_hot_pc(void)
     /* So we assume the pc counts obey normal distribution. We calculate the
      * deviation, and use the average to get the threshold. */
     double sigma = sqrt(sqr_avg - avg * avg);
-    double threshold = avg + CM_HOT_SIGMA * sigma;
+    hot_tb_threshold = avg + CM_HOT_SIGMA * sigma;
 
     coremu_debug("PC avg exec count %lf", avg);
     coremu_debug("PC sqr_avg %lf", sqr_avg);
-    coremu_debug("Hot TB Threshold %lu", (uint64_t)threshold);
+    coremu_debug("Hot TB Threshold %lu", (uint64_t)hot_tb_threshold);
 
     /* Delete items which are not hot, what left in the hash table is hot pc */
     SGLIB_HASHED_CONTAINER_MAP_ON_ELEMENT(profile_pc_cnt, item, hot_pc_htab, {
-        if (item->exec_count <= threshold) {
+        if (item->exec_count <= hot_tb_threshold) {
             sglib_hashed_profile_pc_cnt_delete(hot_pc_htab, item);
             coremu_free(item);
         }
@@ -175,10 +195,9 @@ static void gather_hot_pc(void)
 /* return true if a specific pc is hot */
 bool is_hot_pc(target_ulong pc)
 {
-    profile_pc_cnt target_item;
+    profile_pc_cnt target_item = { .pc = pc };
     profile_pc_cnt *item;
 
-    target_item.pc = pc;
     item = sglib_hashed_profile_pc_cnt_find_member(hot_pc_htab, &target_item);
     return item != NULL;
 }
@@ -251,18 +270,9 @@ static void identify_hot_trace(void)
     gather_hot_pc();
     tag_hot_tb();
     patch_hot_tb();
-}
-
-static void cm_flush_profile_info(void)
-{
-    TranslationBlock *tb;
-    for (tb = tbs; tb < tbs + nb_tbs; tb++) {
-        tb->cm_profile_counter = 0;
-        tb->profile_next_tb = NULL;
-        tb->collect_count = 0;
-    }
-    /* XXX if we want to clear the hot pc table, we need to unlink all the tb. */
-    /*profile_pc_cnt_clear_hash(hot_pc_htab);*/
+    /* Reset execution count so we will only collect trace when the application
+     * runs for the second time. */
+    cm_flush_profile_info();
 }
 
 /*****************************************************************************
@@ -310,7 +320,16 @@ static inline void cm_patch_trace_argument(unsigned long ptr, unsigned long arg)
 
 static void cm_collect_trace_profile(long tbid)
 {
-    coremu_debug("called");
+    /* Jumping to cold TB means that this vcpu has got the competing resource.
+     * Only when the the jumping happens after the hot TB executes a huge number
+     * of times means that there are contention on the resource. */
+    TranslationBlock *tb = &tbs[tbid];
+
+    if (tb->cm_profile_counter > 100) {
+        coremu_debug("collecting hot trace");
+        cm_dump_stack(cpu_single_env->dumpstack_buf->file, 10);
+    }
+    tb->cm_profile_counter = 0;
 }
 
 /* Generate a new code segment. Return the start address. */
@@ -578,7 +597,3 @@ void helper_profile_hypercall(void)
     }
 }
 
-void cm_profile_init(void)
-{
-    cm_profile_state = CM_PROFILE_STOP;
-}

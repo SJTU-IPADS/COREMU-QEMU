@@ -172,9 +172,7 @@ struct TranslationBlock {
     uint64_t cm_profile_counter;       /* how many times has been executed of this tb */
     uint8_t *cm_profile_cnt_tc_ptr;    /* pointer to the translated profile code */
     uint8_t cm_hot_tb;                 /* indicate if the TB is hot */
-    struct TranslationBlock *profile_next_tb;
     uint8_t *cm_trace_prologue_ptr[2]; /* address of trace prologue for this TB. */
-    uint8_t collect_count;
 #endif
 #endif
 };

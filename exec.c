@@ -1428,10 +1428,8 @@ TranslationBlock *tb_alloc(target_ulong pc)
 #ifdef COREMU_PROFILE_MODE
     tb->cm_profile_cnt_tc_ptr = NULL;
     tb->cm_profile_counter = 0;
-    tb->profile_next_tb = NULL;
     tb->cm_trace_prologue_ptr[0] = NULL;
     tb->cm_trace_prologue_ptr[1] = NULL;
-    tb->collect_count = 0;
     /* Mark this TB as hot if its PC is in hot. */
     /* XXX */
     tb->cm_hot_tb = is_hot_pc(pc);

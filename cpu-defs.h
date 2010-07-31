@@ -212,7 +212,7 @@ typedef struct CPUWatchpoint {
     int kvm_vcpu_dirty;
 
 
-#ifdef COREMU_DEBUG_MODE
+#ifdef COREMU_PROFILE_MODE
 #include "coremu-logbuffer.h"
 #define CPU_COMMON \
     CPU_COMMON_OLD \
