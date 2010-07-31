@@ -18,6 +18,10 @@
  */
 #include "qemu-timer.h"
 
+#ifdef CONFIG_COREMU
+#include "cm-memtrace.h"
+#endif
+
 #if defined(TARGET_ARM)
 #include "coremu-spinlock.h"
 #include "cm-target-intr.h"
@@ -135,6 +139,9 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
+#ifdef CONFIG_COREMU
+            memtrace_logging(addr+addend,0);
+#endif
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -190,6 +197,9 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* unaligned/aligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
+#ifdef CONFIG_COREMU
+            memtrace_logging(addr+addend,0);
+#endif
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -280,6 +290,9 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
+#ifdef CONFIG_COREMU
+            memtrace_logging(addr+addend,1);
+#endif
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -332,6 +345,9 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* aligned/unaligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
+#ifdef CONFIG_COREMU
+            memtrace_logging(addr+addend,1);
+#endif
         }
     } else {
         /* the page is not in the TLB : fill it */

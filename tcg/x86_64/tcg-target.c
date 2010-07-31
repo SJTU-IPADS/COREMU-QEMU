@@ -556,6 +556,10 @@ static void *qemu_st_helpers[4] = {
 };
 #endif
 
+#ifdef CONFIG_COREMU
+#include "cm-memtrace-tcg.h"
+#endif
+
 static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
                             int opc)
 {
@@ -743,6 +747,10 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     default:
         tcg_abort();
     }
+	
+#ifdef CONFIG_COREMU
+	tcg_out_memtrace(s,0);
+#endif
 
 #if defined(CONFIG_SOFTMMU)
     /* label2: */
@@ -898,6 +906,10 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     default:
         tcg_abort();
     }
+
+#ifdef CONFIG_COREMU
+    tcg_out_memtrace(s,1);
+#endif
 
 #if defined(CONFIG_SOFTMMU)
     /* label2: */
