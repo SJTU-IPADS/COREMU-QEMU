@@ -2167,7 +2167,6 @@ void cm_code_prologue_init(void)
     tcg_target_qemu_prologue(&tmp_ctx);
 }
 
-#ifdef COREMU_CMC_SUPPORT
 void cm_inject_invalidate_code(TranslationBlock *tb)
 {
     uint16_t ret =  atomic_compare_exchangew(&tb->has_invalidate, 0, 1);
@@ -2183,7 +2182,6 @@ void cm_inject_invalidate_code(TranslationBlock *tb)
     tcg_out8(s, 0xe9); /* jmp tb_ret_addr */
     tcg_out32(s, tb_ret_addr - s->code_ptr - 4);
 }
-#endif
 
 #ifdef COREMU_PROFILE_MODE
 /* Patch the TB to increment the counter tb->cm_profile_counter for every
