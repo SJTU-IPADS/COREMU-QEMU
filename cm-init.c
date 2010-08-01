@@ -135,10 +135,11 @@ void cm_cpu_exec_init_core(void)
     }
 
 #ifdef COREMU_DEBUG_MODE
-    cpu_single_env->dumpstack_buf = coremu_logbuf_new(100, sizeof(void *),
-            cm_print_dumpstack);
-    cpu_single_env->memtrace_buf = coremu_logbuf_new(10 * 1024 * 1024 / 128 , 128,
-            cm_print_memtrace);
+    cm_wtriger_buf_init();
+//    cpu_single_env->dumpstack_buf = coremu_logbuf_new(100, sizeof(void *),
+//            cm_print_dumpstack);
+//    cpu_single_env->memtrace_buf = coremu_logbuf_new(10 * 1024 * 1024 / 128 , 128,
+//            cm_print_memtrace);
 
     /* We need to find a way to free the buffer (which will flush the left log
      * record) when the core thread exits. This doesn't work. */

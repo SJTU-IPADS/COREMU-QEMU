@@ -99,6 +99,23 @@ void cm_dump_stack(int level)
     }
 }
 
+target_ulong cm_get_cpu_eip(void)
+{
+    if (cpu_single_env->current_tb)
+        return cpu_single_env->current_tb->pc;
+    return cpu_single_env->eip;
+}
+
+int cm_get_cpu_idx(void)
+{
+    return cpu_single_env->cpu_index;
+}
+
+target_ulong cm_get_stack_page_addr(void)
+{
+    return (ESP & (TARGET_PAGE_MASK));
+}
+
 void cm_record_access(target_ulong eip, char type, uint64_t order)
 {
     /*coremu_core_log("A %c %p %l\n", type, (void *)eip, order);*/
