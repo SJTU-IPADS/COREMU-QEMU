@@ -592,6 +592,12 @@ void helper_profile_hypercall(void)
     case CM_PROFILE_START_TRACE:
         cm_start_trace_profile();
         break;
+    case CM_PROFILE_CACHE_START:
+		memtrace_start();
+		break;
+	case CM_PROFILE_CACHE_STOP:
+		memtrace_stop();
+		break;
     default:
         printf("error hypercall command : %ld", req);
     }

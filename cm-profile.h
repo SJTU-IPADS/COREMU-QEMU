@@ -37,6 +37,9 @@ enum {
     CM_PROFILE_FLUSH,
     CM_PROFILE_START_TRACE, /* patches the TB to collect backtrace info. */
     CM_PROFILE_REPORT_TRACE,
+
+	CM_PROFILE_CACHE_START,
+	CM_PROFILE_CACHE_STOP
 };
 
 /* In cpu_exec, we need to know whether we should start execution at the

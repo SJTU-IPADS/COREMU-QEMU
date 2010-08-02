@@ -142,15 +142,18 @@ void cm_cpu_exec_init_core(void)
     }
     cpu_single_env->dumpstack_buf = coremu_logbuf_new(100, sizeof(void *),
             cm_print_dumpstack, stack_log);
-    /*
-     *FILE *memtrace_log = fopen("memtrace.log", "w");
-     *if (!memtrace_log) {
-     *    fprintf(stderr, "Can't open memtrace log\n");
-     *    abort();
-     *}
-     *cpu_single_env->memtrace_buf = coremu_logbuf_new(10 * 1024 * 1024 / 128 , 128,
-     *        cm_print_memtrace, memtrace_log);
-     */
+
+	char filename[255];
+	sprintf(filename,"memtrace-core%d.log",cpu_single_env->cpu_index);
+    FILE *memtrace_log = fopen(filename, "w");
+    if (!memtrace_log) {
+        fprintf(stderr, "Can't open memtrace log\n");
+        abort();
+    }
+	extern void cm_print_memtrace(FILE *file, uint64_t *buf);
+    cpu_single_env->memtrace_buf = coremu_logbuf_new(100 * 1024 * 1024 / 16 , 16,
+            cm_print_memtrace, memtrace_log);
+    
 
     /* We need to find a way to free the buffer (which will flush the left log
      * record) when the core thread exits. This doesn't work. */
