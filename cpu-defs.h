@@ -212,15 +212,18 @@ typedef struct CPUWatchpoint {
     int kvm_vcpu_dirty;
 
 
-#ifdef COREMU_PROFILE_MODE
+#ifdef COREMU_DEBUG_MODE
+
 #include "coremu-logbuffer.h"
 #define CPU_COMMON \
     CPU_COMMON_OLD \
-    CMLogbuf *dumpstack_buf; \
     CMLogbuf *memtrace_buf; \
-    CMLogbuf *interlev_buf;
+
 #else
+
+#error "debug mode enabled"
 #define CPU_COMMON CPU_COMMON_OLD
+
 #endif
 
 #endif

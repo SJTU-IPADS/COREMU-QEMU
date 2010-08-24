@@ -183,22 +183,3 @@ int cpu_restore_state(TranslationBlock *tb,
 #endif
     return 0;
 }
-
-#ifdef COREMU_PROFILE_MODE
-/* XXX declare this in a proper header file. */
-extern int cm_tcg_out_inc_profile_count(TranslationBlock *tb, TCGContext *s);
-
-int cm_gen_inc_profile_count(TranslationBlock *tb, int *gen_code_size_ptr)
-{
-     TCGContext *s = &tcg_ctx;
-
-     s->code_buf = tb->cm_profile_cnt_tc_ptr;
-     s->code_ptr = tb->cm_profile_cnt_tc_ptr;
-     /* patch the profile code for the tb profiling */
-     cm_tcg_out_inc_profile_count(tb, s);
-
-     *gen_code_size_ptr = s->code_ptr - tb->cm_profile_cnt_tc_ptr;
-
-     return 0;
-}
-#endif

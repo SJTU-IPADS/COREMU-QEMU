@@ -139,7 +139,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
-#ifdef CONFIG_COREMU
+#if defined(CONFIG_COREMU) && defined(COREMU_CACHESIM_MODE)
             memtrace_logging(addr+addend,0);
 #endif
         }
@@ -197,7 +197,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* unaligned/aligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
-#ifdef CONFIG_COREMU
+#if defined(CONFIG_COREMU) && defined(COREMU_CACHESIM_MODE)
             memtrace_logging(addr+addend,0);
 #endif
         }
@@ -290,7 +290,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
-#ifdef CONFIG_COREMU
+#if defined(CONFIG_COREMU) && defined(COREMU_CACHESIM_MODE)
             memtrace_logging(addr+addend,1);
 #endif
         }
@@ -345,7 +345,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* aligned/unaligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
-#ifdef CONFIG_COREMU
+#if defined(CONFIG_COREMU) && defined(COREMU_CACHESIM_MODE)
             memtrace_logging(addr+addend,1);
 #endif
         }

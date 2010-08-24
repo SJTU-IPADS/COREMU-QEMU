@@ -6937,9 +6937,9 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
 #if defined(CONFIG_COREMU) && defined(COREMU_DEBUG_MODE)
             if (val == 0x86)
                 gen_helper_watch_server();
-#if defined(CONFIG_COREMU) && defined(COREMU_PROFILE_MODE)
+#ifdef COREMU_CACHESIM_MODE
             else if (val == 0x88)
-                gen_helper_profile_hypercall();
+                gen_helper_memtrace_hypercall();
 #endif
             else
                 gen_interrupt(s, val, pc_start - s->cs_base, s->pc - s->cs_base);

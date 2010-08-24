@@ -39,6 +39,7 @@
 #include "coremu-init.h"
 #include "coremu-logbuffer.h"
 #include "cm-instrument.h"
+#include "cm-memtrace.h"
 #include "cm-timer.h"
 #include "cm-init.h"
 
@@ -105,10 +106,6 @@ void cm_cpu_exec_init(void)
     /* Code prologue initialization. */
     cm_code_prologue_init();
     map_exec(code_gen_prologue, sizeof(code_gen_prologue));
-
-#ifdef COREMU_DEBUG_MODE
-    cm_profile_init();
-#endif
 }
 
 void cm_cpu_exec_init_core(void)
@@ -134,26 +131,8 @@ void cm_cpu_exec_init_core(void)
         coremu_assert(0, "local alarm initialize failed");
     }
 
-#ifdef COREMU_DEBUG_MODE
-    FILE *stack_log = fopen("stack.log", "w");
-    if (!stack_log) {
-        fprintf(stderr, "Can't open stack log\n");
-        abort();
-    }
-    cpu_single_env->dumpstack_buf = coremu_logbuf_new(100, sizeof(void *),
-            cm_print_dumpstack, stack_log);
-
-	char filename[255];
-	sprintf(filename,"memtrace-core%d.log",cpu_single_env->cpu_index);
-    FILE *memtrace_log = fopen(filename, "w");
-    if (!memtrace_log) {
-        fprintf(stderr, "Can't open memtrace log\n");
-        abort();
-    }
-	extern void cm_print_memtrace(FILE *file, uint64_t *buf);
-    cpu_single_env->memtrace_buf = coremu_logbuf_new(100 * 1024 * 1024 / 16 , 16,
-            cm_print_memtrace, memtrace_log);
-    
+#ifdef COREMU_CACHESIM_MODE
+    cm_memtrace_init(cpu_single_env->cpu_index);
 
     /* We need to find a way to free the buffer (which will flush the left log
      * record) when the core thread exits. This doesn't work. */

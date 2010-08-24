@@ -167,13 +167,6 @@ struct TranslationBlock {
     uint32_t icount;
 #ifdef CONFIG_COREMU
     uint16_t has_invalidate; /* if this TB has been invalidated */
-
-#ifdef COREMU_PROFILE_MODE
-    uint64_t cm_profile_counter;       /* how many times has been executed of this tb */
-    uint8_t *cm_profile_cnt_tc_ptr;    /* pointer to the translated profile code */
-    uint8_t cm_hot_tb;                 /* indicate if the TB is hot */
-    uint8_t *cm_trace_prologue_ptr[2]; /* address of trace prologue for this TB. */
-#endif
 #endif
 };
 
@@ -268,35 +261,13 @@ static inline void tb_set_jmp_target(TranslationBlock *tb,
 
 #endif
 
-#ifdef COREMU_PROFILE_MODE
-extern COREMU_THREAD TranslationBlock *tbs;
-#endif
-
 static inline void tb_add_jump(TranslationBlock *tb, int n,
                                TranslationBlock *tb_next)
 {
     /* NOTE: this test is only needed for thread safety */
     if (!tb->jmp_next[n]) {
-#ifdef COREMU_PROFILE_MODE
-        if (cm_profile_state == CM_PROFILE_STOP) {
-            tb_set_jmp_target(tb, n, (unsigned long)tb_next->tc_ptr);
-        } else if (tb->cm_hot_tb && !tb_next->cm_hot_tb) {
-            /* For unlinked TB, this will create new chain. */
-            /*printf("[COREMU] create new TB chain, hot TB ID: %ld\n", tb - tbs);*/
-            if (tb->cm_trace_prologue_ptr[n] == NULL)
-                tb->cm_trace_prologue_ptr[n] = cm_gen_trace_prologue(tb - tbs);
-            /* We know the target address. */
-            cm_patch_trace_jmp_addr((unsigned long)tb->cm_trace_prologue_ptr[n],
-                    (unsigned long)tb_next->cm_profile_cnt_tc_ptr);
-            tb_set_jmp_target(tb, n, (unsigned long)tb->cm_trace_prologue_ptr[n]);
-        } else {
-            tb_set_jmp_target(tb, n, (unsigned long)tb_next->cm_profile_cnt_tc_ptr);
-        }
-
-#else
         /* patch the native jump address */
         tb_set_jmp_target(tb, n, (unsigned long)tb_next->tc_ptr);
-#endif
 
         /* add in TB jmp circular list */
         tb->jmp_next[n] = tb_next->jmp_first;
@@ -385,9 +356,5 @@ CPUDebugExcpHandler *cpu_set_debug_excp_handler(CPUDebugExcpHandler *handler);
 
 /* vl.c */
 extern int singlestep;
-
-#ifdef COREMU_PROFILE_MODE
-int cm_gen_inc_profile_count(TranslationBlock *tb, int *gen_code_size_ptr);
-#endif
 
 #endif

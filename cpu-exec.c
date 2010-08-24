@@ -602,15 +602,7 @@ int cpu_exec(CPUState *env1)
                    starting execution if there is a pending interrupt. */
                 if (!unlikely (env->exit_request)) {
                     env->current_tb = tb;
-#ifdef COREMU_PROFILE_MODE
-                    /* If profiling state is not stop, increase TB count. */
-                    if (cm_profile_state == CM_PROFILE_STOP)
-                        tc_ptr = tb->tc_ptr;
-                    else
-                        tc_ptr = tb->cm_profile_cnt_tc_ptr;
-#else
                     tc_ptr = tb->tc_ptr;
-#endif
                 /* execute the generated code */
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)
 #undef env

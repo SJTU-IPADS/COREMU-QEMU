@@ -90,14 +90,8 @@
 
 #define SMC_BITMAP_USE_THRESHOLD 10
 
-#if defined(CONFIG_COREMU) && defined(COREMU_PROFILE_MODE)
-/* XXX We need to use tbs and nb_tbs in cm-profile.c */
-COREMU_THREAD TranslationBlock *tbs;
-COREMU_THREAD int nb_tbs;
-#else
 static COREMU_THREAD TranslationBlock *tbs;
 static COREMU_THREAD int nb_tbs;
-#endif
 int code_gen_max_blocks;
 COREMU_THREAD TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
 /* any access to the tbs or the page table must use this lock */
@@ -771,9 +765,6 @@ void tb_flush(CPUState *env1)
     nb_tbs = 0;
 #ifdef CONFIG_COREMU
     memset(env1->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
-#ifdef COREMU_PROFILE_MODE
-    cm_flush_trace_prologue();
-#endif
 #else
     for(env = first_cpu; env != NULL; env = env->next_cpu) {
         memset (env->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
@@ -1071,13 +1062,6 @@ TranslationBlock *tb_gen_code(CPUState *env,
         /* Don't forget to invalidate previous TB info.  */
         tb_invalidated_flag = 1;
     }
-
-#ifdef COREMU_PROFILE_MODE
-    tc_ptr = code_gen_ptr;
-    tb->cm_profile_cnt_tc_ptr = tc_ptr;
-    cm_gen_inc_profile_count(tb, &code_gen_size);
-    code_gen_ptr = (void *)((unsigned long)code_gen_ptr + code_gen_size);
-#endif
 
     tc_ptr = code_gen_ptr;
     tb->tc_ptr = tc_ptr;
@@ -1425,18 +1409,6 @@ TranslationBlock *tb_alloc(target_ulong pc)
 
 #ifdef CONFIG_COREMU
     tb->has_invalidate = 0;
-#ifdef COREMU_PROFILE_MODE
-    tb->cm_profile_cnt_tc_ptr = NULL;
-    tb->cm_profile_counter = 0;
-    tb->cm_trace_prologue_ptr[0] = NULL;
-    tb->cm_trace_prologue_ptr[1] = NULL;
-    /* Mark this TB as hot if its PC is in hot. */
-    /* XXX */
-    tb->cm_hot_tb = is_hot_pc(pc);
-    if (tb->cm_hot_tb) {
-        coremu_debug("Marking new allocated TB as hot according to its pc: %p", (void*)pc);
-    }
-#endif /* COREMU_PROFILE_MODE*/
 #endif /* CONFIG_COREMU */
 
     return tb;
@@ -4358,33 +4330,4 @@ void dump_exec_info(FILE *f,
 #ifdef CONFIG_COREMU
 #include "cm-init.c"
 #include "cm-tbinval.c"
-
-#ifdef COREMU_PROFILE_MODE
-#include "cm-profile.h"
-/* tb_reset_jump is inlined */
-void cm_cpu_unlink_all_tb(void)
-{
-    sigset_t set;
-    int i = 0;
-
-    sigfillset(&set);
-    pthread_sigmask(SIG_BLOCK, &set, NULL);
-
-    for (i = 0; i < nb_tbs; i++) {
-        tbs[i].jmp_first = (TranslationBlock *)((long)&tbs[i] | 2);
-        tbs[i].jmp_next[0] = NULL;
-        tbs[i].jmp_next[1] = NULL;
-
-        /* init original jump addresses */
-        /* some tb have 0 size so we must ignore them */
-        if (tbs[i].tb_next_offset[0] != 0xffff && tbs[i].tb_next_offset[0] != 0)
-            tb_reset_jump(&tbs[i], 0);
-
-        if (tbs[i].tb_next_offset[1] != 0xffff && tbs[i].tb_next_offset[1] != 0)
-            tb_reset_jump(&tbs[i], 1);
-    }
-    pthread_sigmask(SIG_UNBLOCK, &set, NULL);
-}
-#endif
-
 #endif

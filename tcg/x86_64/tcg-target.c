@@ -556,7 +556,7 @@ static void *qemu_st_helpers[4] = {
 };
 #endif
 
-#ifdef CONFIG_COREMU
+#if defined(CONFIG_COREMU) && defined(COREMU_CACHESIM_MODE)
 #include "cm-memtrace-tcg.h"
 #endif
 
@@ -748,7 +748,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         tcg_abort();
     }
 	
-#ifdef CONFIG_COREMU
+#if defined(CONFIG_COREMU) && defined(COREMU_CACHESIM_MODE)
 	tcg_out_memtrace(s,0);
 #endif
 
@@ -907,7 +907,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
         tcg_abort();
     }
 
-#ifdef CONFIG_COREMU
+#if defined(CONFIG_COREMU) && defined(COREMU_CACHESIM_MODE)
     tcg_out_memtrace(s,1);
 #endif
 

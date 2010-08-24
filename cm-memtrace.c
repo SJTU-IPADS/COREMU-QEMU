@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include "coremu-logbuffer.h"
 #include "coremu-config.h"
 #include "coremu-atomic.h"
 #include "coremu-intr.h"
 #include "coremu-sched.h"
-
+#include "coremu-debug.h"
 #include "coremu-malloc.h"
 #include "cm-memtrace.h"
 #include "cm-intr.h"
@@ -19,6 +20,9 @@ uint64_t global_mem_event_counter;
 int memtrace_enable=0;
 COREMU_THREAD int flush_cnt;
 
+__thread FILE *memtrace_log;
+__thread CMLogbuf *memtrace_buf;
+
 void memtrace_buf_full(void);
 void memtrace_buf_full(void)
 {	
@@ -30,8 +34,8 @@ void memtrace_buf_full(void)
 	if(!memtrace_enable)
 		flush_cnt=0;
 
-	uint64_t *ptr= cpu_single_env->memtrace_buf->buf;
-	uint64_t *end= cpu_single_env->memtrace_buf->cur;
+	uint64_t *ptr = (uint64_t *)memtrace_buf->buf;
+	uint64_t *end = (uint64_t *)memtrace_buf->cur;
 
 	for(;ptr!=end;ptr+=2){
 		if(ptr[1] == 0) {
@@ -40,13 +44,14 @@ void memtrace_buf_full(void)
 			return;
 		}
 	}
-	
+
     coremu_logbuf_flush(cpu_single_env->memtrace_buf);
 }
 
-void cm_print_memtrace(FILE *file, uint64_t *buf)
+static void cm_print_memtrace(FILE *file, void *bufv)
 {
     //printf("Print Record : %016lx %016lx \n",buf[0],buf[1]);
+    uint64_t *buf = (uint64_t *)bufv;
 	
 	if(buf[1] == 0) {
 		printf("Bad Record : %016lx %016lx \n",buf[0],buf[1]);
@@ -95,14 +100,45 @@ static void broadcast_tb_flush(void)
     }
 }
 
-void memtrace_start(void)
+static void memtrace_start(void)
 {
 	memtrace_enable=1;
 	broadcast_tb_flush();
 }
 
-void memtrace_stop(void)
+static void memtrace_stop(void)
 {
 	memtrace_enable=0;
 	broadcast_tb_flush();
 }
+
+void cm_memtrace_init(int cpuidx)
+{
+	char filename[255];
+
+	sprintf(filename,"memtrace-core%d.log",cpu_single_env->cpu_index);
+    FILE *memtrace_log = fopen(filename, "w");
+    if (!memtrace_log) {
+        fprintf(stderr, "Can't open memtrace log\n");
+        abort();
+    }
+    memtrace_buf = coremu_logbuf_new(100 * 1024 * 1024 / 16 , 16,
+            cm_print_memtrace, memtrace_log);
+}
+
+void helper_memtrace_hypercall(void)
+{
+    target_ulong req = cpu_single_env->regs[R_EAX];
+    coremu_debug("memtrace request %ld", req);
+    switch (req) {
+    case CM_PROFILE_CACHE_START:
+		memtrace_start();
+		break;
+	case CM_PROFILE_CACHE_STOP:
+		memtrace_stop();
+		break;
+    default:
+        printf("error hypercall command : %ld", req);
+    }
+}
+
