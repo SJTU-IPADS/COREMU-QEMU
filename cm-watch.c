@@ -267,6 +267,23 @@ static void cm_send_watch_req(int target, CMWatchAddrRange *range, int flag)
     coremu_send_intr(cm_watch_req_init(range, flag), target);
 }
 
+static CMIntr *cm_end_req_handler(void *opaque)
+{
+    cm_wtriger_buf_flush();
+}
+
+static CMIntr *cm_watch_end_req_init(void)
+{
+    CMWatchEndReq *req = coremu_mallocz(sizeof(*req));
+    ((CMIntr *)req)->handler = cm_end_req_handler;
+    return (CMIntr *)req;
+}
+
+static void cm_send_watch_end_req(int target)
+{
+    coremu_send_intr(cm_watch_end_req_init(), target);
+}
+
 static void cm_insert_watch_point(CMTriggerID id, target_ulong start, target_ulong len)
 {
     CPUState *self;
@@ -275,12 +292,15 @@ static void cm_insert_watch_point(CMTriggerID id, target_ulong start, target_ulo
     target_ulong cnt;
     int cpu_idx;
 
+    if (!cm_watch_cnt)
+        return;
+
     self = cpu_single_env;
     ram_start = cm_get_page_addr(self, start);
     wpage = &cm_watch_p[ram_start >> TARGET_PAGE_BITS];
 
-    printf("%s : id[%ld] start[0x%lx] len[%ld] phys-start[0x%lx]\n",
-                        __FUNCTION__, id, start, len, ram_start);
+    //printf("%s : id[%ld] start[0x%lx] len[%ld] phys-start[0x%lx]\n",
+    //                    __FUNCTION__, id, start, len, ram_start);
 
     if (!wpage->cm_watch_q)
         cm_watch_page_init(wpage);
@@ -289,13 +309,13 @@ static void cm_insert_watch_point(CMTriggerID id, target_ulong start, target_ulo
     cnt = 1;
     atomic_xaddq((uint64_t *)&cnt, (uint64_t *)&wpage->cnt);
     if (cnt == 0) {
-    printf("reset tlb\n");
+    //printf("reset tlb\n");
         cm_tlb_set_watch(start, ram_start);
         tb_flush(cpu_single_env);
         for(cpu_idx = 0; cpu_idx < coremu_get_targetcpu(); cpu_idx++) {
             if(cpu_idx == cpu_single_env->cpu_index)
                 continue;
-        printf("broad cast to cpu[%d] reset tlb\n", cpu_idx);
+        //printf("broad cast to cpu[%d] reset tlb\n", cpu_idx);
             cm_send_watch_req(cpu_idx, &wentry->cm_wrange, 1);
         }
     }
@@ -309,11 +329,16 @@ static void cm_remove_watch_point(CMTriggerID id, target_ulong start, target_ulo
     CMWatchPage *wpage;
     int cpu_idx;
     CMWatchEntry *wentry;
+
+    if (!cm_watch_cnt)
+        return;
     
     self = cpu_single_env;
     ram_start = cm_get_page_addr(self, start);
     wpage = &cm_watch_p[ram_start >> TARGET_PAGE_BITS];
-    assert(wpage->cm_watch_q);
+    //assert(wpage->cm_watch_q);
+    if (!wpage->cm_watch_q)
+        return;
     wentry = cm_invalidate_watch_entry(wpage->cm_watch_q, ram_start, start, len);
     if (wentry != NULL) {
         enqueue(cm_inval_wqueue, (long)wentry);
@@ -341,9 +366,32 @@ static void cm_stop_watch(void)
     assert(cm_watch_cnt >= 0);
     if (cm_watch_cnt == 0) {
         CMWatchEntry *wentry;
+        int cpu_idx;
+        cm_wtriger_buf_flush();
+        for(cpu_idx = 0; cpu_idx < coremu_get_targetcpu(); cpu_idx++) {
+            if(cpu_idx == cpu_single_env->cpu_index)
+                continue;
+            cm_send_watch_end_req(cpu_idx);
+        }
         while (dequeue(cm_inval_wqueue, (uint64_t *)&wentry))
             coremu_free(wentry);
     }
+}
+
+static void cm_stop_all_watch(void)
+{
+    cm_watch_cnt = 0;
+    CMWatchEntry *wentry;
+    int cpu_idx;
+
+    cm_wtriger_buf_flush();
+    for(cpu_idx = 0; cpu_idx < coremu_get_targetcpu(); cpu_idx++) {
+        if(cpu_idx == cpu_single_env->cpu_index)
+            continue;
+        cm_send_watch_end_req(cpu_idx);
+    }
+    while (dequeue(cm_inval_wqueue, (uint64_t *)&wentry))
+        coremu_free(wentry);
 }
 
 void cm_watch_init(ram_addr_t ram_offset, ram_addr_t size)
@@ -395,7 +443,7 @@ void helper_watch_server(void)
     id = self->regs[R_EDI];
     start = self->regs[R_ESI];
     len = self->regs[R_EDX];
-    printf("watch point[%ld] : cmd[%ld] start[0x%lx] len[%ld]\n", id, cmd, start, len);
+    //printf("watch point[%ld] : cmd[%ld] start[0x%lx] len[%ld]\n", id, cmd, start, len);
     switch(cmd) {
         case WATCH_START:
             cm_start_watch();
@@ -408,6 +456,9 @@ void helper_watch_server(void)
             break;
         case WATCH_REMOVE:
             cm_remove_watch_point(id, start, len);
+            break;
+        case WATCH_STOP_ALL:
+            cm_stop_all_watch();
             break;
         default:
             printf("Invalidate watch cmd [%ld]\n", cmd);

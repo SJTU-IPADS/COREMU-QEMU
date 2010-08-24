@@ -65,11 +65,16 @@ typedef struct CMWatchReq {
     int flag;                   // 1: watch 0 unwatch
 } CMWatchReq;
 
+typedef struct CMWatchEndReq {
+    CMIntr *base;
+} CMWatchEndReq;
+
 enum {
     WATCH_START = 0,
     WATCH_STOP,
     WATCH_INSERT,
     WATCH_REMOVE,
+    WATCH_STOP_ALL,
 };
 
 void cm_watch_init(ram_addr_t ram_offset, ram_addr_t size);
@@ -77,4 +82,6 @@ bool cm_is_watch_addr_p(ram_addr_t addr);
 int cm_get_watch_index(void);
 void cm_register_wtrigger_func(CMTriggerID id, CMWatch_Trigger tfunc);
 void cm_wtriger_init(void);
+void cm_wtriger_buf_init(void);
+void cm_wtriger_buf_flush(void);
 #endif

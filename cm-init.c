@@ -131,7 +131,6 @@ void cm_cpu_exec_init_core(void)
         coremu_assert(0, "local alarm initialize failed");
     }
 
-#ifdef COREMU_CACHESIM_MODE
     cm_memtrace_init(cpu_single_env->cpu_index);
 
     /* We need to find a way to free the buffer (which will flush the left log
