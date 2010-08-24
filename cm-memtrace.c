@@ -29,7 +29,7 @@ void memtrace_buf_full(void)
 	flush_cnt++;
 	printf("\033[1;40;32m [COREMU Core %d] Memtrace Buffer Flush %d (%lu Records) \033[0m \n",
 	    cpu_single_env->cpu_index,flush_cnt,
-	    (cpu_single_env->memtrace_buf->cur-cpu_single_env->memtrace_buf->buf)/8);
+	    (memtrace_buf->cur-memtrace_buf->buf)/8);
 	fflush(stdout);
 	if(!memtrace_enable)
 		flush_cnt=0;
@@ -45,7 +45,7 @@ void memtrace_buf_full(void)
 		}
 	}
 
-    coremu_logbuf_flush(cpu_single_env->memtrace_buf);
+    coremu_logbuf_flush(memtrace_buf);
 }
 
 static void cm_print_memtrace(FILE *file, void *bufv)
@@ -72,7 +72,7 @@ void memtrace_logging(uint64_t addr, int write)
 	return;
 	if(!memtrace_enable)
 		return;
-    CMLogbuf *buffer = cpu_single_env->memtrace_buf;
+    CMLogbuf *buffer = memtrace_buf;
 	uint64_t* buf_ptr = ((uint64_t*)buffer->cur);
 	uint64_t cnt = atomic_xadd2(&global_mem_event_counter) | write;
 	buf_ptr[1] = (uint64_t)addr;

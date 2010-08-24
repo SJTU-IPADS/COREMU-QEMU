@@ -9,7 +9,6 @@ inline void tcg_out_memtrace(TCGContext *s, int write)
 	if(!memtrace_enable)
 		return;
 	
-	CMLogbuf *memtrace_buf = cpu_single_env->memtrace_buf;
 	uint8_t *label_finish;
 	int r0,r1,rexw;
 

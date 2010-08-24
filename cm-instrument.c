@@ -30,6 +30,7 @@
 #include "coremu-logbuffer.h"
 #include "cm-mmu.h"
 #include "cm-instrument.h"
+#include "cm-watch-util.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"

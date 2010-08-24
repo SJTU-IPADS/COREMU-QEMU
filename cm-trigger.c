@@ -25,6 +25,7 @@
 #include "cm-watch.h"
 #include "cm-watch-util.h"
 #include "coremu-atomic.h"
+#include "coremu-logbuffer.h"
 
 static void print_wpara(CMWParams *wpara)
 {

@@ -557,6 +557,7 @@ static void *qemu_st_helpers[4] = {
 #endif
 
 #if defined(CONFIG_COREMU) && defined(COREMU_CACHESIM_MODE)
+#include "cm-memtrace.h"
 #include "cm-memtrace-tcg.h"
 #endif
 
