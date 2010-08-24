@@ -80,7 +80,7 @@ static void pipe_bug_trigger(void *opaque)
     }
 }
 
-void cm_wtriger_buf_init(void)
+static void pipe_bug_triger_buf_init(void)
 {
     char pathname[100];
     sprintf(pathname, "pipe_bug_log%d", cpu_single_env->cpu_index);
@@ -89,7 +89,7 @@ void cm_wtriger_buf_init(void)
                                         pipe_bug_record_log, file);
 }
 
-void cm_wtriger_buf_flush(void)
+static void pipe_bug_triger_buf_flush(void)
 {
     printf("cpu[%d] flush buffer\n", cpu_single_env->cpu_index);
     COREMU_LOGBUF_LOG(pipe_bug_buf, record, {
@@ -107,7 +107,83 @@ void cm_wtriger_buf_flush(void)
     printf("cpu[%d] finish flush buffer\n", cpu_single_env->cpu_index);
 }
 
+typedef struct pbzip2_bug_info {
+    target_ulong vnum;
+    target_ulong eip;
+    target_ulong stack;
+    target_ulong vaddr;
+    int write;
+    int cpu;
+} pbzip2_bug_info;
+
+static __thread CMLogbuf *pbzip2_bug_buf;
+static void pbzip2_bug_record_log(FILE * log_file, void *opaque)
+{
+    pbzip2_bug_info *info = (pbzip2_bug_info *)opaque;
+    fprintf(log_file, "[%016ld] WRITE[%d] VADDR[0x%lx] EIP[0x%lx] Process[0x%lx] CPU[%d]\n",
+            info->vnum, info->write , info->vaddr, info->eip, info->stack, info->cpu);
+}
+
+static void pbzip2_bug_trigger(void *opaque)
+{
+    static target_ulong inc = 0;
+    target_ulong version_num = 1;
+    atomic_xaddq((uint64_t *)&version_num, (uint64_t *)&inc);
+    CMWParams *wpara = (CMWParams *)opaque;
+    if (wpara->value == 0) {
+        COREMU_LOGBUF_LOG(pbzip2_bug_buf, record, {
+            pbzip2_bug_info * info = (pbzip2_bug_info *)record;
+            info->vnum = version_num;
+            info->eip = cm_get_cpu_eip();
+            info->cpu = cm_get_cpu_idx();
+            info->stack = cm_get_stack_page_addr();
+            info->vaddr = wpara->vaddr;
+            info->write = wpara->is_write;
+        });
+    }
+}
+
+static void pbzip2_bug_triger_buf_init(void)
+{
+    char pathname[100];
+    sprintf(pathname, "pbzip2_bug_log%d", cpu_single_env->cpu_index);
+    FILE *file = fopen(pathname,"w");
+    pbzip2_bug_buf = coremu_logbuf_new(100, sizeof(pbzip2_bug_info), 
+                                        pbzip2_bug_record_log, file);
+}
+
+static void pbzip2_bug_triger_buf_flush(void)
+{
+    printf("cpu[%d] flush buffer\n", cpu_single_env->cpu_index);
+    COREMU_LOGBUF_LOG(pbzip2_bug_buf, record, {
+            pbzip2_bug_info * info = (pbzip2_bug_info *)record;
+            info->vnum = -1;
+            info->eip = 0;
+            info->cpu = cpu_single_env->cpu_index;
+            info->stack = 0;
+            info->vaddr = 0;
+            info->write = 0;
+        });
+    coremu_logbuf_flush(pbzip2_bug_buf);
+    coremu_logbuf_wait_flush(pbzip2_bug_buf);
+    fflush(pbzip2_bug_buf->file);
+    printf("cpu[%d] finish flush buffer\n", cpu_single_env->cpu_index);
+}
+
+void cm_wtriger_buf_init(void)
+{
+    //pipe_bug_triger_buf_init();
+    pbzip2_bug_triger_buf_init();
+}
+
+void cm_wtriger_buf_flush(void)
+{
+    //pipe_bug_triger_buf_flush();
+    pbzip2_bug_triger_buf_flush();
+}
+
 void cm_wtriger_init(void)
 {
-    cm_register_wtrigger_func(0, pipe_bug_trigger);
+    //cm_register_wtrigger_func(0, pipe_bug_trigger);
+    cm_register_wtrigger_func(1, pbzip2_bug_trigger);
 }
