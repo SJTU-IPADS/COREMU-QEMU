@@ -29,7 +29,7 @@ void memtrace_buf_full(void)
 	flush_cnt++;
 	printf("\033[1;40;32m [COREMU Core %d] Memtrace Buffer Flush %d (%lu Records) \033[0m \n",
 	    cpu_single_env->cpu_index,flush_cnt,
-	    (memtrace_buf->cur-memtrace_buf->buf)/8);
+	    (memtrace_buf->cur-memtrace_buf->buf)/16);
 	fflush(stdout);
 	if(!memtrace_enable)
 		flush_cnt=0;
@@ -86,30 +86,35 @@ void memtrace_logging(uint64_t addr, int write)
 static void tb_flush_handler(void *opaque)
 {
     tb_flush(cpu_single_env);
-	if(!memtrace_enable)
-		memtrace_buf_full();
+    if (!memtrace_enable) {
+        memtrace_buf_full();
+        coremu_logbuf_wait_flush(memtrace_buf);
+        fflush(memtrace_buf->file);
+    	printf("cpu[%d] finish flush buffer\n", cpu_single_env->cpu_index);
+        fflush(stdout);
+    }
 }
 
 static void broadcast_tb_flush(void)
 {
     int cpu_idx;
     for(cpu_idx = 0; cpu_idx < coremu_get_targetcpu(); cpu_idx++) {
-		CMIntr *req = coremu_mallocz(sizeof(*req));
-		req->handler = tb_flush_handler;
+        CMIntr *req = coremu_mallocz(sizeof(*req));
+        req->handler = tb_flush_handler;
         coremu_send_intr(req, cpu_idx);
     }
 }
 
 static void memtrace_start(void)
 {
-	memtrace_enable=1;
-	broadcast_tb_flush();
+    memtrace_enable=1;
+    broadcast_tb_flush();
 }
 
 static void memtrace_stop(void)
 {
-	memtrace_enable=0;
-	broadcast_tb_flush();
+    memtrace_enable=0;
+    broadcast_tb_flush();
 }
 
 void cm_memtrace_init(int cpuidx)
