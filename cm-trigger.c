@@ -80,7 +80,7 @@ static void pipe_bug_trigger(void *opaque)
     }
 }
 
-static void pipe_bug_triger_buf_init(void)
+static void pipe_bug_trigger_buf_init(void)
 {
     char pathname[100];
     sprintf(pathname, "pipe_bug_log%d", cpu_single_env->cpu_index);
@@ -89,7 +89,7 @@ static void pipe_bug_triger_buf_init(void)
                                         pipe_bug_record_log, file);
 }
 
-static void pipe_bug_triger_buf_flush(void)
+static void pipe_bug_trigger_buf_flush(void)
 {
     printf("cpu[%d] flush buffer\n", cpu_single_env->cpu_index);
     COREMU_LOGBUF_LOG(pipe_bug_buf, record, {
@@ -143,7 +143,7 @@ static void pbzip2_bug_trigger(void *opaque)
     }
 }
 
-static void pbzip2_bug_triger_buf_init(void)
+static void pbzip2_bug_trigger_buf_init(void)
 {
     char pathname[100];
     sprintf(pathname, "pbzip2_bug_log%d", cpu_single_env->cpu_index);
@@ -152,7 +152,7 @@ static void pbzip2_bug_triger_buf_init(void)
                                         pbzip2_bug_record_log, file);
 }
 
-static void pbzip2_bug_triger_buf_flush(void)
+static void pbzip2_bug_trigger_buf_flush(void)
 {
     printf("cpu[%d] flush buffer\n", cpu_single_env->cpu_index);
     COREMU_LOGBUF_LOG(pbzip2_bug_buf, record, {
@@ -170,19 +170,19 @@ static void pbzip2_bug_triger_buf_flush(void)
     printf("cpu[%d] finish flush buffer\n", cpu_single_env->cpu_index);
 }
 
-void cm_wtriger_buf_init(void)
+void cm_wtrigger_buf_init(void)
 {
-    //pipe_bug_triger_buf_init();
-    pbzip2_bug_triger_buf_init();
+    //pipe_bug_trigger_buf_init();
+    pbzip2_bug_trigger_buf_init();
 }
 
-void cm_wtriger_buf_flush(void)
+void cm_wtrigger_buf_flush(void)
 {
-    //pipe_bug_triger_buf_flush();
-    pbzip2_bug_triger_buf_flush();
+    //pipe_bug_trigger_buf_flush();
+    pbzip2_bug_trigger_buf_flush();
 }
 
-void cm_wtriger_init(void)
+void cm_wtrigger_init(void)
 {
     //cm_register_wtrigger_func(0, pipe_bug_trigger);
     cm_register_wtrigger_func(1, pbzip2_bug_trigger);
