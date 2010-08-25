@@ -146,6 +146,9 @@ void cm_cpu_exec_init_core(void)
  */
 #endif
 
+#ifdef COREMU_DEBUG_MODE
+    cm_wtrigger_buf_init();
+#endif
     /* Wait other core to finish initialization. */
     coremu_wait_init();
 }

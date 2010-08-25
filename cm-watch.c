@@ -269,7 +269,7 @@ static void cm_send_watch_req(int target, CMWatchAddrRange *range, int flag)
 
 static CMIntr *cm_end_req_handler(void *opaque)
 {
-    cm_wtriger_buf_flush();
+    cm_wtrigger_buf_flush();
 }
 
 static CMIntr *cm_watch_end_req_init(void)
@@ -367,7 +367,7 @@ static void cm_stop_watch(void)
     if (cm_watch_cnt == 0) {
         CMWatchEntry *wentry;
         int cpu_idx;
-        cm_wtriger_buf_flush();
+        cm_wtrigger_buf_flush();
         for(cpu_idx = 0; cpu_idx < coremu_get_targetcpu(); cpu_idx++) {
             if(cpu_idx == cpu_single_env->cpu_index)
                 continue;
@@ -384,7 +384,7 @@ static void cm_stop_all_watch(void)
     CMWatchEntry *wentry;
     int cpu_idx;
 
-    cm_wtriger_buf_flush();
+    cm_wtrigger_buf_flush();
     for(cpu_idx = 0; cpu_idx < coremu_get_targetcpu(); cpu_idx++) {
         if(cpu_idx == cpu_single_env->cpu_index)
             continue;
@@ -407,7 +407,7 @@ void cm_watch_init(ram_addr_t ram_offset, ram_addr_t size)
 
     cm_watch_index = cpu_register_io_memory(cm_watch_mem_read,
                                             cm_watch_mem_write, NULL);
-    cm_wtriger_init();
+    cm_wtrigger_init();
 
     cm_watch_cnt = 0;
 
@@ -427,7 +427,7 @@ int cm_get_watch_index(void)
 void cm_register_wtrigger_func(CMTriggerID id, CMWatch_Trigger tfunc)
 {
     if (id >= MAX_TRIGGER_FUNC_NUM || id < 0) {
-        printf("Register triger function failed: Only %d function support\n", MAX_TRIGGER_FUNC_NUM);
+        printf("Register trigger function failed: Only %d function support\n", MAX_TRIGGER_FUNC_NUM);
         return;
     }
     trigger_func[id] = tfunc;
