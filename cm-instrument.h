@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include "coremu-logbuffer.h"
+#include "cm-logbuffer.h"
 
 target_ulong cm_get_cpu_eip(void);
 int cm_get_cpu_idx(void);

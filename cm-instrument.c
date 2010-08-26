@@ -27,7 +27,7 @@
 
 #include "exec.h"
 #include "coremu-core.h"
-#include "coremu-logbuffer.h"
+#include "cm-logbuffer.h"
 #include "cm-mmu.h"
 #include "cm-instrument.h"
 #include "cm-watch-util.h"

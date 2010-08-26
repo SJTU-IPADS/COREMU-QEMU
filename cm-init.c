@@ -37,7 +37,7 @@
 #include "coremu-sched.h"
 #include "coremu-debug.h"
 #include "coremu-init.h"
-#include "coremu-logbuffer.h"
+#include "cm-logbuffer.h"
 #include "cm-instrument.h"
 #include "cm-memtrace.h"
 #include "cm-timer.h"

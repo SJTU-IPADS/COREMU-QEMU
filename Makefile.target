@@ -50,7 +50,7 @@ libcoremu-util-obj = cm-instrument.o cm-logbuffer.o cm-watch-util.o
 libcoremu-util-header = $(addprefix $(SRC_PATH)/, $(subst .o,.h, $(libcoremu-util-obj)))
 
 $(libcoremu-util-obj): %.o: %.c
-	$(CC) $(QEMU_CFLAGS) -fPIC -c $^
+	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -fPIC -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
 
 libcoremu-util.so: $(libcoremu-util-obj)
 	$(CC) -shared $^ -o $@
