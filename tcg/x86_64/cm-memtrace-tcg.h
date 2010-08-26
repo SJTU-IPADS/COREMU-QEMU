@@ -1,7 +1,7 @@
 extern uint64_t global_mem_event_counter;
 extern int memtrace_enable;
 
-void memtrace_buf_full(void);
+void cm_memtrace_buf_full(void);
 inline void tcg_out_memtrace(TCGContext *s, int write);
 inline void tcg_out_memtrace(TCGContext *s, int write)
 {
@@ -66,7 +66,7 @@ inline void tcg_out_memtrace(TCGContext *s, int write)
     s->code_ptr++;
 
 	/* call buf_full */
-	tcg_out_goto(s, 1, (uint8_t*)memtrace_buf_full);
+	tcg_out_goto(s, 1, (uint8_t*)cm_memtrace_buf_full);
 
 	/* label_finish: */
     *label_finish = s->code_ptr - label_finish - 1;
