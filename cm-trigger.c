@@ -24,8 +24,8 @@
  */
 #include "cm-watch.h"
 #include "cm-watch-util.h"
+#include "cm-logbuffer.h"
 #include "coremu-atomic.h"
-#include "coremu-logbuffer.h"
 
 #if 0
 static void test_trigger(void *opaque)

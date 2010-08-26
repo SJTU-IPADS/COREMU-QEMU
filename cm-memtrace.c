@@ -1,13 +1,13 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "coremu-logbuffer.h"
 #include "coremu-config.h"
 #include "coremu-atomic.h"
 #include "coremu-intr.h"
 #include "coremu-sched.h"
 #include "coremu-debug.h"
 #include "coremu-malloc.h"
+#include "cm-logbuffer.h"
 #include "cm-memtrace.h"
 #include "cm-intr.h"
 #include "exec.h"
