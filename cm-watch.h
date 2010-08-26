@@ -30,23 +30,13 @@
 #include "cpu.h"
 #include "queue.h"
 #include "cm-intr.h"
+#include "cm-watch-util.h"
 
-typedef long CMTriggerID;
 typedef struct CMWatchAddrRange {
     ram_addr_t   ram_addr_offset;
     target_ulong vaddr;
     target_ulong len;
 } CMWatchAddrRange;
-
-typedef struct CMWParams {
-    target_phys_addr_t paddr;
-    target_ulong vaddr;
-    target_ulong value;
-    target_ulong len;
-    int is_write;
-} CMWParams;
-
-typedef void (*CMWatch_Trigger)(void *opaque);
 
 typedef struct CMWatchEntry {
     CMWatchAddrRange cm_wrange;
@@ -80,7 +70,6 @@ enum {
 void cm_watch_init(ram_addr_t ram_offset, ram_addr_t size);
 bool cm_is_watch_addr_p(ram_addr_t addr);
 int cm_get_watch_index(void);
-void cm_register_wtrigger_func(CMTriggerID id, CMWatch_Trigger tfunc);
 void cm_wtrigger_init(void);
 void cm_wtrigger_buf_init(void);
 void cm_wtrigger_buf_flush(void);

@@ -3,17 +3,18 @@
 
 #include <stdint.h>
 
-void cm_watch_util_init(void);
+#define MAX_TRIGGER_FUNC_NUM 128
+typedef long CMTriggerID;
+typedef void (*CMWatch_Trigger)(void *opaque);
+typedef struct CMWParams {
+    uint64_t paddr;
+    uint64_t vaddr;
+    uint64_t value;
+    uint64_t len;
+    int is_write;
+} CMWParams;
 
-void cm_print_memtrace(void *addr);
-
-void cm_print_dumpstack(void *addr);
-void cm_dump_stack(int level);
-
-target_ulong cm_get_cpu_eip(void);
-int cm_get_cpu_idx(void);
-target_ulong cm_get_stack_page_addr(void);
-
-void cm_record_access(target_ulong eip, char type, uint64_t order);
+void cm_register_wtrigger_func(CMTriggerID id, CMWatch_Trigger tfunc);
+void print_wpara(CMWParams *wpara);
 
 #endif /* _CM_WATCH_UTIL_H */
