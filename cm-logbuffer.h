@@ -33,8 +33,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <pthread.h>
-#include "coremu-config.h"
-#include "queue.h"
+
+struct queue_t;
 
 typedef void (*coremu_log_func)(FILE *, void *);
 
@@ -50,7 +50,7 @@ typedef struct {
     int ele_size;   /* Size of each element. */
     coremu_log_func func;
 
-    queue_t *queue;  /* Holding all the allocated buffer. */
+    struct queue_t *queue;  /* Holding all the allocated buffer. */
     bool thread_running; /* Whether log thread is running. */
     pthread_t thread;
 
