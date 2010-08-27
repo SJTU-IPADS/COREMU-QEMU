@@ -45,8 +45,8 @@ all: $(PROGS) libcm-util.a
 
 #########################################################
 # libcm-util.a
-libcm-util-obj = cm-instrument.o
-libcm-util-header = $(addprefix $(SRC_PATH)/cm-lib/,cm-instrument.h cm-logbuffer.h)
+libcm-util-obj = cm-instrument.o cm-logbuffer.o cm-watch-util.o
+libcm-util-header = $(addprefix $(SRC_PATH)/cm-lib/,cm-instrument.h cm-logbuffer.h cm-watch-util.h)
 
 $(libcm-util-obj): %.o: %.c
 	$(CC) -fPIC -c $^

@@ -25,6 +25,7 @@
 
 #include <unistd.h>
 #include <stdint.h>
+#include <stdio.h>
 #include "cm-logbuffer.h"
 
 enum {
@@ -47,7 +48,7 @@ void cm_register_logbuf_func(uint64_t func_id, uint64_t func_p)
 CMLogbuf *cm_logbuf_new(int n, int ele_size, cm_log_func func, FILE *file)
 {
     assert(logbuf_func_pa[LOGBUF_CREATE]);
-    return (((CMLogbuf *)(*)(int, int, cm_log_func, FILE*))logbuf_func_pa[LOGBUF_CREATE])(n, ele_size, func, file);
+    return ((CMLogbuf *(*)(int, int, cm_log_func, FILE*))logbuf_func_pa[LOGBUF_CREATE])(n, ele_size, func, file);
 }
 
 void cm_logbuf_free(CMLogbuf *buf)
