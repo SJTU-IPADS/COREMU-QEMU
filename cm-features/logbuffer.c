@@ -26,7 +26,7 @@
 #include <unistd.h>
 #include <time.h>
 #include "coremu-malloc.h"
-#include "cm-logbuffer.h"
+#include "cm-features/logbuffer.h"
 /*#define DEBUG_COREMU*/
 #include "coremu-debug.h"
 

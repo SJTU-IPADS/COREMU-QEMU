@@ -19,7 +19,7 @@
 #include "qemu-timer.h"
 
 #ifdef CONFIG_COREMU
-#include "cm-memtrace.h"
+#include "cm-features/memtrace.h"
 #endif
 
 #if defined(TARGET_ARM)

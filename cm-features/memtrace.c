@@ -7,8 +7,8 @@
 #include "coremu-sched.h"
 #include "coremu-debug.h"
 #include "coremu-malloc.h"
-#include "cm-logbuffer.h"
-#include "cm-memtrace.h"
+#include "cm-features/logbuffer.h"
+#include "cm-features/memtrace.h"
 #include "cm-intr.h"
 #include "exec.h"
 
@@ -140,15 +140,20 @@ void cm_memtrace_init(int cpuidx)
 		    cm_print_memtrace, memtrace_log);
 }
 
+enum {
+    CM_MEMTRACE_START = 7,
+    CM_MEMTRACE_STOP  = 8,
+};
+
 void helper_memtrace_hypercall(void)
 {
     target_ulong req = cpu_single_env->regs[R_EAX];
     coremu_debug("memtrace request %ld", req);
     switch (req) {
-    case CM_PROFILE_CACHE_START:
+    case CM_MEMTRACE_START:
         cm_memtrace_start();
         break;
-    case CM_PROFILE_CACHE_STOP:
+    case CM_MEMTRACE_STOP:
         cm_memtrace_stop();
         break;
     default:

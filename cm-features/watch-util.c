@@ -23,7 +23,8 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cm-watch-util.h"
+#include <stdio.h>
+#include "cm-features/watch-util.h"
 
 CMWatch_Trigger trigger_func[MAX_TRIGGER_FUNC_NUM];
 
@@ -43,6 +44,6 @@ void print_wpara(CMWParams *wpara)
         printf("Write to ");
     else
         printf("Read from ");
-    printf("vaddr[0x%lx] , paddr[0x%x] with value %ld len %ld\n", 
+    printf("vaddr[0x%lx] , paddr[0x%lx] with value %ld len %ld\n", 
              wpara->vaddr, wpara->paddr, wpara->value, wpara->len);
 }

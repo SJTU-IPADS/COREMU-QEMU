@@ -22,9 +22,9 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
-#include "cm-watch.h"
-#include "cm-watch-util.h"
-#include "cm-logbuffer.h"
+#include "cm-features/watch.h"
+#include "cm-features/watch-util.h"
+#include "cm-features/logbuffer.h"
 #include "coremu-atomic.h"
 
 #if 0

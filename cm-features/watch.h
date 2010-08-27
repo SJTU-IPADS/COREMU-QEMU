@@ -30,7 +30,7 @@
 #include "cpu.h"
 #include "queue.h"
 #include "cm-intr.h"
-#include "cm-watch-util.h"
+#include "cm-features/watch-util.h"
 
 typedef struct CMWatchAddrRange {
     ram_addr_t   ram_addr_offset;

@@ -4,7 +4,7 @@
 void cm_memtrace_init(int cpuidx);
 void cm_memtrace_logging(uint64_t addr, int write);
 
-#include "cm-logbuffer.h"
+#include "cm-features/logbuffer.h"
 extern __thread CMLogbuf *memtrace_buf;
 
 #endif

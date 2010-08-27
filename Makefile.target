@@ -12,7 +12,7 @@ include $(HWDIR)/config.mak
 endif
 
 TARGET_PATH=$(SRC_PATH)/target-$(TARGET_BASE_ARCH)
-$(call set-vpath, $(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw)
+$(call set-vpath, $(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw:$(SRC_PATH)/cm-features)
 QEMU_CFLAGS+= -I.. -I$(TARGET_PATH) -DNEED_CPU_H
 
 include $(SRC_PATH)/Makefile.objs
@@ -59,7 +59,9 @@ libobj-$(TARGET_ARM) += neon_helper.o iwmmxt_helper.o
 libobj-y += disas.o
 
 # coremu related object, we may need to split this later.
-libobj-y += cm-loop.o cm-intr.o cm-target-intr.o cm-watch.o cm-watch-util.o cm-instrument.o cm-trigger.o cm-memtrace.o cm-logbuffer.o
+libobj-y += cm-loop.o cm-intr.o cm-target-intr.o
+# extra features
+libobj-y += watch.o watch-util.o instrument.o trigger.o memtrace.o logbuffer.o
 
 $(libobj-y): $(GENERATED_HEADERS)
 

@@ -76,9 +76,8 @@
 #include "coremu-malloc.h"
 #include "coremu-atomic.h"
 #include "coremu-hw.h"
-#include "cm-watch.h"
+#include "cm-features/watch.h"
 #include "cm-tbinval.h"
-#include "cm-profile.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"

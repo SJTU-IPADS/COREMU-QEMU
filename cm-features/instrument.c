@@ -27,10 +27,10 @@
 
 #include "exec.h"
 #include "coremu-core.h"
-#include "cm-logbuffer.h"
 #include "cm-mmu.h"
-#include "cm-instrument.h"
-#include "cm-watch-util.h"
+#include "cm-features/logbuffer.h"
+#include "cm-features/instrument.h"
+#include "cm-features/watch-util.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
