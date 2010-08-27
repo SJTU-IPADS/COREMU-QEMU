@@ -35,7 +35,18 @@
 #define DEBUG_COREMU
 #include "coremu-debug.h"
 
-void cm_print_dumpstack(FILE *file, void *paddr)
+enum {
+    GETCPUEIP = 0,
+    GETCPUIDX,
+    GETSTACKPAGEADDR,
+    DUMPSTACK,
+    RECORDDUMPSTACK,
+    INSTRUMENT_FUNC_NUM,
+};
+
+static void(* cm_register_instrument_func_p)(uint64_t, uint64_t);
+
+void cm_record_dumpstack(FILE *file, void *paddr)
 {
     static int state = 1;
     long addr = *(long *)paddr;
@@ -107,7 +118,14 @@ target_ulong cm_get_stack_page_addr(void)
     return (ESP & (TARGET_PAGE_MASK));
 }
 
-void cm_record_access(target_ulong eip, char type, uint64_t order)
+void cm_instrument_init(void *handle)
 {
-    /*coremu_core_log("A %c %p %l\n", type, (void *)eip, order);*/
+    cm_register_instrument_func_p = dlsym(handle, "cm_register_instrument_func");
+    cm_register_instrument_func_p(GETCPUEIP, (uint64_t)cm_get_cpu_eip);
+    cm_register_instrument_func_p(GETCPUIDX, (uint64_t)cm_get_cpu_idx);
+    cm_register_instrument_func_p(GETSTACKPAGEADDR, (uint64_t)cm_get_stack_page_addr);
+    cm_register_instrument_func_p(DUMPSTACK, (uint64_t)cm_dump_stack);
+    cm_register_instrument_func_p(RECORDDUMPSTACK, (uint64_t)cm_record_dumpstack);
+
 }
+

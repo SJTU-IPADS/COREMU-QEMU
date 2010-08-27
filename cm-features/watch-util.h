@@ -16,5 +16,5 @@ typedef struct CMWParams {
 
 void cm_register_wtrigger_func(CMTriggerID id, CMWatch_Trigger tfunc);
 void print_wpara(CMWParams *wpara);
-
+void cm_watch_util_init(void *handle);
 #endif /* _CM_WATCH_UTIL_H */

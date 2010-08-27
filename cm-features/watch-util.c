@@ -26,8 +26,15 @@
 #include <stdio.h>
 #include "cm-features/watch-util.h"
 
+enum {
+    REGISTER_WTRIGGER = 0,
+    PRINT_WPARA,
+    TRIGGER_UTIL_NUM,
+};
+
 CMWatch_Trigger trigger_func[MAX_TRIGGER_FUNC_NUM];
 
+static void(* cm_register_wtrigger_util_p)(uint64_t, uint64_t);
 void cm_register_wtrigger_func(CMTriggerID id, CMWatch_Trigger tfunc)
 {
     if (id >= MAX_TRIGGER_FUNC_NUM || id < 0) {
@@ -46,4 +53,11 @@ void print_wpara(CMWParams *wpara)
         printf("Read from ");
     printf("vaddr[0x%lx] , paddr[0x%lx] with value %ld len %ld\n", 
              wpara->vaddr, wpara->paddr, wpara->value, wpara->len);
+}
+
+void cm_watch_util_init(void *handle)
+{
+    cm_register_wtrigger_util_p = dlsym(handle, "cm_register_wtrigger_util");
+    cm_register_wtrigger_util_p(REGISTER_WTRIGGER, (uint64_t)cm_register_wtrigger_func);
+    cm_register_wtrigger_util_p(PRINT_WPARA, (uint64_t)print_wpara);
 }

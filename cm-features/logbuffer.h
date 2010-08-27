@@ -38,8 +38,6 @@ struct queue_t;
 
 typedef void (*cm_log_func)(FILE *, void *);
 
-typedef struct buflst buflst;
-
 /* Each record in the buffer should be of equal size. */
 typedef struct {
     char *buf;
@@ -86,4 +84,5 @@ static inline void cm_logbuf_log(CMLogbuf *buf, void *cont)
     });
 }
 
+void cm_logbuf_init(void *handle);
 #endif /* _COREMU_LOGBUFFER_H */

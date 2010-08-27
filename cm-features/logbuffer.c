@@ -33,6 +33,16 @@
 #include "coremu-config.h"
 #include "queue.h"
 
+enum {
+    LOGBUF_CREATE = 0,
+    LOGBUF_FREE,
+    LOGBUF_FLUSH,
+    LOGBUF_WAIT_FLUSH,
+    LOGBUG_FUNC_NUM,
+};
+
+static void(* cm_register_logbuf_func_p)(uint64_t, uint64_t);
+
 CMLogbuf *cm_logbuf_new(int n, int ele_size, cm_log_func func, FILE *file)
 {
     CMLogbuf *logbuf = coremu_mallocz(sizeof(*logbuf));
@@ -133,3 +143,14 @@ void cm_logbuf_wait_flush(CMLogbuf *buf)
     while (buf->thread_running)
         usleep(1000);
 }
+
+void cm_logbuf_init(void *handle)
+{
+    cm_register_logbuf_func_p = dlsym(handle, "cm_register_logbuf_func");
+    cm_register_logbuf_func_p(LOGBUF_CREATE, (uint64_t)cm_logbuf_new);
+    cm_register_logbuf_func_p(LOGBUF_FREE, (uint64_t)cm_logbuf_free);
+    cm_register_logbuf_func_p(LOGBUF_FLUSH, (uint64_t)cm_logbuf_flush);
+    cm_register_logbuf_func_p(LOGBUF_WAIT_FLUSH, (uint64_t)cm_logbuf_wait_flush);
+
+}
+
