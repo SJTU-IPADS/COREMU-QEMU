@@ -44,20 +44,6 @@ all: $(PROGS)
 	@true
 
 #########################################################
-# instrumentation library
-
-libcoremu-util-obj = cm-instrument.o cm-logbuffer.o cm-watch-util.o
-libcoremu-util-header = $(addprefix $(SRC_PATH)/, $(subst .o,.h, $(libcoremu-util-obj)))
-
-$(libcoremu-util-obj): %.o: %.c
-	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -fPIC -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
-
-libcoremu-util.so: $(libcoremu-util-obj)
-	$(CC) -shared $^ -o $@
-
-cm-watch.o cm-memtrace.o cm-trigger.o: libcoremu-util.so
-
-#########################################################
 # cpu emulator library
 libobj-y = exec.o translate-all.o cpu-exec.o translate.o
 libobj-y += tcg/tcg.o
@@ -73,7 +59,7 @@ libobj-$(TARGET_ARM) += neon_helper.o iwmmxt_helper.o
 libobj-y += disas.o
 
 # coremu related object, we may need to split this later.
-libobj-y += cm-loop.o cm-intr.o cm-target-intr.o cm-watch.o cm-trigger.o cm-memtrace.o
+libobj-y += cm-loop.o cm-intr.o cm-target-intr.o cm-watch.o cm-watch-util.o cm-instrument.o cm-trigger.o cm-memtrace.o cm-logbuffer.o
 
 $(libobj-y): $(GENERATED_HEADERS)
 
@@ -320,8 +306,8 @@ obj-$(CONFIG_GDBSTUB_XML) += gdbstub-xml.o
 # COREMU_LIB is defined in coremu.mk
 include $(SRC_PATH)/coremu.mk
 
-$(QEMU_PROG): $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y) $(COREMU_LIB) libcoremu-util.so
-	$(call LINK,$(obj-y) $(obj-$(TARGET_BASE_ARCH)-y) -ltopology libcoremu-util.so $(COREMU_LIB))
+$(QEMU_PROG): $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y) $(COREMU_LIB)
+	$(call LINK,$(obj-y) $(obj-$(TARGET_BASE_ARCH)-y) -ltopology $(COREMU_LIB))
 
 
 gdbstub-xml.c: $(TARGET_XML_FILES) $(SRC_PATH)/feature_to_c.sh
@@ -335,14 +321,7 @@ clean:
 	rm -f *.d */*.d tcg/*.o ide/*.o
 	rm -f qemu-monitor.h gdbstub-xml.c
 
-# install util header and shared library
-install-util:
-	$(INSTALL_DIR) "$(DESTDIR)$(prefix)/include"
-	$(INSTALL) -m 644 $(libcoremu-util-header) "$(DESTDIR)$(prefix)/include"
-	$(INSTALL_DIR) "$(DESTDIR)$(prefix)/lib"
-	$(INSTALL) -m 644 libcoremu-util.so "$(DESTDIR)$(prefix)/lib"
-
-install: all install-util
+install: all
 ifneq ($(PROGS),)
 	$(INSTALL) -m 755 $(STRIP_OPT) $(PROGS) "$(DESTDIR)$(bindir)"
 endif
