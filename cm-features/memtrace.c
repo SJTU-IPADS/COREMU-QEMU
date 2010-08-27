@@ -52,7 +52,7 @@ void cm_memtrace_buf_full(void)
     }
 #endif
 
-    coremu_logbuf_flush(memtrace_buf);
+    cm_logbuf_flush(memtrace_buf);
 }
 
 static void cm_print_memtrace(FILE *file, void *bufv)
@@ -97,7 +97,7 @@ static void tb_flush_handler(void *opaque)
     tb_flush(cpu_single_env);
     if (!memtrace_enable) {
         cm_memtrace_buf_full();
-        coremu_logbuf_wait_flush(memtrace_buf);
+        cm_logbuf_wait_flush(memtrace_buf);
         fflush(memtrace_buf->file);
     	printf("cpu[%d] finish flush buffer\n", cpu_single_env->cpu_index);
         fflush(stdout);
@@ -136,7 +136,7 @@ void cm_memtrace_init(int cpuidx)
         fprintf(stderr, "Can't open memtrace log\n");
         abort();
     }
-    memtrace_buf = coremu_logbuf_new(100 * 1024 * 1024 / 16 , 16,
+    memtrace_buf = cm_logbuf_new(100 * 1024 * 1024 / 16 , 16,
 		    cm_print_memtrace, memtrace_log);
 }
 

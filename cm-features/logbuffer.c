@@ -33,7 +33,7 @@
 #include "coremu-config.h"
 #include "queue.h"
 
-CMLogbuf *coremu_logbuf_new(int n, int ele_size, coremu_log_func func, FILE *file)
+CMLogbuf *cm_logbuf_new(int n, int ele_size, coremu_log_func func, FILE *file)
 {
     CMLogbuf *logbuf = coremu_mallocz(sizeof(*logbuf));
 
@@ -50,7 +50,7 @@ CMLogbuf *coremu_logbuf_new(int n, int ele_size, coremu_log_func func, FILE *fil
     return logbuf;
 }
 
-void coremu_logbuf_free(CMLogbuf *buf)
+void cm_logbuf_free(CMLogbuf *buf)
 {
     char *pos;
     struct timespec tv = {0, 300000000}; /* 0.3 second */
@@ -108,7 +108,7 @@ static void *log_thr(void *logbuf)
     return NULL;
 }
 
-void coremu_logbuf_flush(CMLogbuf *buf)
+void cm_logbuf_flush(CMLogbuf *buf)
 {
     coremu_debug("called");
 
@@ -128,7 +128,7 @@ void coremu_logbuf_flush(CMLogbuf *buf)
     }
 }
 
-void coremu_logbuf_wait_flush(CMLogbuf *buf)
+void cm_logbuf_wait_flush(CMLogbuf *buf)
 {
     while (buf->thread_running)
         usleep(1000);

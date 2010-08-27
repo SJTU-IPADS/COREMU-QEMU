@@ -57,15 +57,15 @@ typedef struct {
     FILE *file;
 } CMLogbuf;
 
-CMLogbuf *coremu_logbuf_new(int n, int ele_size, coremu_log_func func, FILE *file);
+CMLogbuf *cm_logbuf_new(int n, int ele_size, coremu_log_func func, FILE *file);
 /* Must call this function to write all the content in buffer out. */
-void coremu_logbuf_free(CMLogbuf *buf);
+void cm_logbuf_free(CMLogbuf *buf);
 
 /* Flush the buffer content in a thread. */
-void coremu_logbuf_flush(CMLogbuf *buf);
+void cm_logbuf_flush(CMLogbuf *buf);
 
 /* Wait the flush thread to finish */
-void coremu_logbuf_wait_flush(CMLogbuf *buf);
+void cm_logbuf_wait_flush(CMLogbuf *buf);
 
 /* Assmue that the buffer contains space for at least size space.
  * Use this macro to directly write the content into the buffer, so we can avoid
@@ -76,10 +76,10 @@ void coremu_logbuf_wait_flush(CMLogbuf *buf);
         { command; }; \
         buf->cur += buf->ele_size; \
         if (buf->cur + buf->ele_size > buf->end) \
-            coremu_logbuf_flush(buf); \
+            cm_logbuf_flush(buf); \
     } while (0)
 
-static inline void coremu_logbuf_log(CMLogbuf *buf, void *cont)
+static inline void cm_logbuf_log(CMLogbuf *buf, void *cont)
 {
     COREMU_LOGBUF_LOG(buf, pos, {
         memcpy(pos, cont, buf->ele_size);
