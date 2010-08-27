@@ -33,7 +33,7 @@
 #include "coremu-config.h"
 #include "queue.h"
 
-CMLogbuf *cm_logbuf_new(int n, int ele_size, coremu_log_func func, FILE *file)
+CMLogbuf *cm_logbuf_new(int n, int ele_size, cm_log_func func, FILE *file)
 {
     CMLogbuf *logbuf = coremu_mallocz(sizeof(*logbuf));
 

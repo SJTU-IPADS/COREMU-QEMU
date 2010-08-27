@@ -36,7 +36,7 @@
 
 struct queue_t;
 
-typedef void (*coremu_log_func)(FILE *, void *);
+typedef void (*cm_log_func)(FILE *, void *);
 
 typedef struct buflst buflst;
 
@@ -48,7 +48,7 @@ typedef struct {
 
     int size;
     int ele_size;   /* Size of each element. */
-    coremu_log_func func;
+    cm_log_func func;
 
     struct queue_t *queue;  /* Holding all the allocated buffer. */
     bool thread_running; /* Whether log thread is running. */
@@ -57,7 +57,7 @@ typedef struct {
     FILE *file;
 } CMLogbuf;
 
-CMLogbuf *cm_logbuf_new(int n, int ele_size, coremu_log_func func, FILE *file);
+CMLogbuf *cm_logbuf_new(int n, int ele_size, cm_log_func func, FILE *file);
 /* Must call this function to write all the content in buffer out. */
 void cm_logbuf_free(CMLogbuf *buf);
 
