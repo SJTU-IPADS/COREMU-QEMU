@@ -12,7 +12,7 @@ include $(HWDIR)/config.mak
 endif
 
 TARGET_PATH=$(SRC_PATH)/target-$(TARGET_BASE_ARCH)
-$(call set-vpath, $(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw:$(SRC_PATH)/cm-features)
+$(call set-vpath, $(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw:$(SRC_PATH)/cm-features:$(SRC_PATH)/cm-lib)
 QEMU_CFLAGS+= -I.. -I$(TARGET_PATH) -DNEED_CPU_H
 
 include $(SRC_PATH)/Makefile.objs
@@ -38,10 +38,21 @@ kvm.o kvm-all.o vhost.o vhost_net.o: QEMU_CFLAGS+=$(KVM_CFLAGS)
 config-target.h: config-target.h-timestamp
 config-target.h-timestamp: config-target.mak
 
-all: $(PROGS)
+all: $(PROGS) libcm-util.a
 
 # Dummy command so that make thinks it has done something
 	@true
+
+#########################################################
+# libcm-util.a
+libcm-util-obj = cm-instrument.o
+libcm-util-header = $(addprefix $(SRC_PATH)/cm-lib/,cm-instrument.h cm-logbuffer.h)
+
+$(libcm-util-obj): %.o: %.c
+	$(CC) -fPIC -c $^
+
+libcm-util.a: $(libcm-util-obj)
+	rm -f $@ && $(AR) rcs $@ $^
 
 #########################################################
 # cpu emulator library
@@ -323,7 +334,14 @@ clean:
 	rm -f *.d */*.d tcg/*.o ide/*.o
 	rm -f qemu-monitor.h gdbstub-xml.c
 
-install: all
+# install util header and shared library
+install-libcm-util: libcm-util.a
+	$(INSTALL_DIR) "$(DESTDIR)$(prefix)/include"
+	$(INSTALL) -m 644 $(libcm-util-header) "$(DESTDIR)$(prefix)/include"
+	$(INSTALL_DIR) "$(DESTDIR)$(prefix)/lib"
+	$(INSTALL) -m 644 libcm-util.a "$(DESTDIR)$(prefix)/lib"
+
+install: all install-libcm-util
 ifneq ($(PROGS),)
 	$(INSTALL) -m 755 $(STRIP_OPT) $(PROGS) "$(DESTDIR)$(bindir)"
 endif
