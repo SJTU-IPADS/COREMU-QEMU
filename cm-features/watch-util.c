@@ -24,6 +24,7 @@
  */
 
 #include <stdio.h>
+#include <dlfcn.h>
 #include "cm-features/watch-util.h"
 
 enum {

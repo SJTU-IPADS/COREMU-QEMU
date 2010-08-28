@@ -68,7 +68,7 @@ void cm_logbuf_wait_flush(CMLogbuf *buf);
 /* Assmue that the buffer contains space for at least size space.
  * Use this macro to directly write the content into the buffer, so we can avoid
  * calling memcpy to copy the content. */
-#define COREMU_LOGBUF_LOG(buf, pos, command) \
+#define CM_LOGBUF_LOG(buf, pos, command) \
     do { \
         char *pos = buf->cur; \
         { command; }; \
@@ -79,7 +79,7 @@ void cm_logbuf_wait_flush(CMLogbuf *buf);
 
 static inline void cm_logbuf_log(CMLogbuf *buf, void *cont)
 {
-    COREMU_LOGBUF_LOG(buf, pos, {
+    CM_LOGBUF_LOG(buf, pos, {
         memcpy(pos, cont, buf->ele_size);
     });
 }

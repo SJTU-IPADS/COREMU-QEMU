@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <assert.h>
 #include "cm-logbuffer.h"
 
 enum {
@@ -40,31 +41,31 @@ uint64_t logbuf_func_pa[LOGBUG_FUNC_NUM];
 
 void cm_register_logbuf_func(uint64_t func_id, uint64_t func_p)
 {
-    assert(func_id >= 0);
-    assert(func_id < LOGBUG_FUNC_NUM);
+    //assert(func_id >= 0);
+    //assert(func_id < LOGBUG_FUNC_NUM);
     logbuf_func_pa[func_id] = func_p;
 }
 
 CMLogbuf *cm_logbuf_new(int n, int ele_size, cm_log_func func, FILE *file)
 {
-    assert(logbuf_func_pa[LOGBUF_CREATE]);
+    //assert(logbuf_func_pa[LOGBUF_CREATE]);
     return ((CMLogbuf *(*)(int, int, cm_log_func, FILE*))logbuf_func_pa[LOGBUF_CREATE])(n, ele_size, func, file);
 }
 
 void cm_logbuf_free(CMLogbuf *buf)
 {
-    assert(logbuf_func_pa[LOGBUF_FREE]);
+    //assert(logbuf_func_pa[LOGBUF_FREE]);
     ((void(*)(CMLogbuf*))logbuf_func_pa[LOGBUF_FREE])(buf);
 }
 
 void cm_logbuf_flush(CMLogbuf *buf)
 {
-    assert(logbuf_func_pa[LOGBUF_FLUSH]);
+    //assert(logbuf_func_pa[LOGBUF_FLUSH]);
     ((void(*)(CMLogbuf*))logbuf_func_pa[LOGBUF_FLUSH])(buf);
 }
 
 void cm_logbuf_wait_flush(CMLogbuf *buf)
 {
-    assert(logbuf_func_pa[LOGBUF_WAIT_FLUSH]);
+    //assert(logbuf_func_pa[LOGBUF_WAIT_FLUSH]);
     ((void(*)(CMLogbuf*))logbuf_func_pa[LOGBUF_WAIT_FLUSH])(buf);
 }

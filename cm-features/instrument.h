@@ -12,5 +12,5 @@ target_ulong cm_get_stack_page_addr(void);
 void cm_record_dumpstack(FILE *logfile, void *paddr);
 void cm_dump_stack(int level, CMLogbuf *buf);
 
-void cm_instrument_init(void * handle);
+void cm_instrument_init(void *handle);
 #endif /* _CM_INSTRUMENT_H */

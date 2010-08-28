@@ -55,7 +55,8 @@ void cm_wtrigger_buf_flush(void)
         printf("COREMU WARNING: No trigger dynamic link file is found.\n");
         return;
     }
-    log_buf_flush_p = dlsym(cm_trigger_handle, "log_buffer_flush");
+    log_buf_flush_p = dlsym(cm_trigger_handle, "log_buffer_flush");
+    assert(log_buf_flush_p);
     log_buf_flush_p();
 }
 
@@ -75,8 +76,9 @@ void cm_wtrigger_init(void)
     cm_watch_util_init(cm_trigger_handle);
     cm_instrument_init(cm_trigger_handle);
     cm_logbuf_init(cm_trigger_handle);
-    
     trigger_init_p = dlsym(cm_trigger_handle, "trigger_init");
+    if(!trigger_init_p)
+        printf("trigger_init_p is NULL\n");
     trigger_init_p();
 }
 

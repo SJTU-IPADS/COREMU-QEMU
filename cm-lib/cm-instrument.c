@@ -40,38 +40,38 @@ enum {
 uint64_t instr_func_pa[INSTRUMENT_FUNC_NUM];
 void cm_register_instrument_func(uint32_t func_id, uint64_t func_p)
 {
-   assert(func_id >= 0);
-   assert(func_id < INSTRUMENT_FUNC_NUM);
+   //assert(func_id >= 0);
+   //assert(func_id < INSTRUMENT_FUNC_NUM);
    instr_func_pa[func_id] = func_p;
 }
 
 uint64_t cm_get_cpu_eip(void)
 {
-    assert(instr_func_pa[GETCPUEIP]);
+    //assert(instr_func_pa[GETCPUEIP]);
     return ((uint64_t (*) (void))instr_func_pa[GETCPUEIP])();
 }
 
 int cm_get_cpu_idx(void)
 {
-    assert(instr_func_pa[GETCPUIDX]);
+    //assert(instr_func_pa[GETCPUIDX]);
     return ((int (*) (void))instr_func_pa[GETCPUIDX])();
 }
 
 uint64_t cm_get_stack_page_addr(void)
 {
-    assert(instr_func_pa[GETSTACKPAGEADDR]);
+    //assert(instr_func_pa[GETSTACKPAGEADDR]);
     return ((uint64_t (*) (void))instr_func_pa[GETSTACKPAGEADDR])();
 }
 
 void cm_record_dumpstack(FILE *logfile, void *paddr)
 {
-    assert(instr_func_pa[RECORDDUMPSTACK]);
+    //assert(instr_func_pa[RECORDDUMPSTACK]);
     ((void (*) (FILE *, void *))instr_func_pa[RECORDDUMPSTACK])(logfile, paddr);
 }
 
 void cm_dump_stack(int level, CMLogbuf *buf)
 {
-    assert(instr_func_pa[DUMPSTACK]);
+    //assert(instr_func_pa[DUMPSTACK]);
     ((void (*) (int, CMLogbuf*))instr_func_pa[DUMPSTACK])(level, buf);
 }
 

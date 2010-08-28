@@ -25,6 +25,7 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <dlfcn.h>
 #include "exec.h"
 #include "coremu-core.h"
 #include "cm-mmu.h"
@@ -78,11 +79,9 @@ void cm_dump_stack(int level, CMLogbuf *buf)
     target_ulong retaddr;
     int i;
 
-    coremu_debug("%p", (void *)ebp);
-
     /* Use -1 to mark the start of a backtrace. */
-    COREMU_LOGBUF_LOG(buf, pos, *(long *) pos = -1);
-    COREMU_LOGBUF_LOG(buf, pos, *(long *) pos = EIP);
+    CM_LOGBUF_LOG(buf, pos, *(long *) pos = -1);
+    CM_LOGBUF_LOG(buf, pos, *(long *) pos = EIP);
     /*coremu_core_log("Backtrace at rip: %p\n", (void *)env->eip);*/
     for (i = 0; i < level && ebp; i++) {
         /* XXX Are we calling this in helper function? If so, this function
@@ -91,7 +90,7 @@ void cm_dump_stack(int level, CMLogbuf *buf)
 
         retaddr = *((target_ulong *)(qaddr) + 1);
 
-        COREMU_LOGBUF_LOG(buf, pos, {
+        CM_LOGBUF_LOG(buf, pos, {
             *(target_ulong *) pos = retaddr;
         });
         ebp = *(target_ulong *)qaddr;
@@ -120,7 +119,8 @@ target_ulong cm_get_stack_page_addr(void)
 
 void cm_instrument_init(void *handle)
 {
-    cm_register_instrument_func_p = dlsym(handle, "cm_register_instrument_func");
+    //cm_trigger_handle = dlopen("./usertrigger.so", RTLD_LAZY);
+    cm_register_instrument_func_p = dlsym(handle, "cm_register_instrument_func");
     cm_register_instrument_func_p(GETCPUEIP, (uint64_t)cm_get_cpu_eip);
     cm_register_instrument_func_p(GETCPUIDX, (uint64_t)cm_get_cpu_idx);
     cm_register_instrument_func_p(GETSTACKPAGEADDR, (uint64_t)cm_get_stack_page_addr);

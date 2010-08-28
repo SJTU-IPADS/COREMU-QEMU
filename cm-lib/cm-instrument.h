@@ -1,6 +1,7 @@
 #ifndef _CM_INSTRUMENT_H
 #define _CM_INSTRUMENT_H
 
+#include "stdint.h"
 #include "cm-logbuffer.h"
 
 uint64_t cm_get_cpu_eip(void);
