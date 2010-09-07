@@ -1,14 +1,14 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "coremu-logbuffer.h"
 #include "coremu-config.h"
 #include "coremu-atomic.h"
 #include "coremu-intr.h"
 #include "coremu-sched.h"
 #include "coremu-debug.h"
 #include "coremu-malloc.h"
-#include "cm-memtrace.h"
+#include "cm-features/logbuffer.h"
+#include "cm-features/memtrace.h"
 #include "cm-intr.h"
 #include "exec.h"
 
@@ -55,7 +55,7 @@ void cm_memtrace_buf_full(void)
     }
 #endif
 
-    coremu_logbuf_flush(memtrace_buf);
+    cm_logbuf_flush(memtrace_buf);
 }
 
 static void cm_print_memtrace(FILE *file, void *bufv)
@@ -100,7 +100,7 @@ static void tb_flush_handler(void *opaque)
     tb_flush(cpu_single_env);
     if (!memtrace_enable) {
         cm_memtrace_buf_full();
-        coremu_logbuf_wait_flush(memtrace_buf);
+        cm_logbuf_wait_flush(memtrace_buf);
         fflush(memtrace_buf->file);
     	printf("cpu[%d] finish flush buffer\n", cpu_single_env->cpu_index);
         fflush(stdout);
@@ -140,19 +140,23 @@ void cm_memtrace_init(int cpuidx)
         abort();
     }
     memtrace_buf = coremu_logbuf_new(MEMTRACE_BUF_SIZE / MEMTRACE_RECORD_SIZE , 
-            MEMTRACE_RECORD_SIZE,
-		    cm_print_memtrace, memtrace_log);
+            MEMTRACE_RECORD_SIZE,cm_print_memtrace, memtrace_log);
 }
+
+enum {
+    CM_MEMTRACE_START = 7,
+    CM_MEMTRACE_STOP  = 8,
+};
 
 void helper_memtrace_hypercall(void)
 {
     target_ulong req = cpu_single_env->regs[R_EAX];
     coremu_debug("memtrace request %ld", req);
     switch (req) {
-    case CM_PROFILE_CACHE_START:
+    case CM_MEMTRACE_START:
         cm_memtrace_start();
         break;
-    case CM_PROFILE_CACHE_STOP:
+    case CM_MEMTRACE_STOP:
         cm_memtrace_stop();
         break;
     default:

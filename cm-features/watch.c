@@ -23,7 +23,7 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdbool.h>
-#include "cm-watch.h"
+#include "cm-features/watch.h"
 #include "exec.h"
 #include "coremu-atomic.h"
 #include "coremu-malloc.h"
@@ -33,13 +33,12 @@
 #include "cm-intr.h"
 #include "queue.h"
 
+extern CMWatch_Trigger trigger_func[MAX_TRIGGER_FUNC_NUM];
+
 static int cm_watch_index;
 static CMWatchPage *cm_watch_p;
 static target_ulong cm_watch_cnt;
 static queue_t *cm_inval_wqueue;
-
-#define MAX_TRIGGER_FUNC_NUM 128
-static CMWatch_Trigger trigger_func[MAX_TRIGGER_FUNC_NUM];
 
 #define inline __attribute__ (( always_inline )) __inline__
 static inline queue_t* cm_get_watch_queue(ram_addr_t addr)
@@ -267,7 +266,7 @@ static void cm_send_watch_req(int target, CMWatchAddrRange *range, int flag)
     coremu_send_intr(cm_watch_req_init(range, flag), target);
 }
 
-static CMIntr *cm_end_req_handler(void *opaque)
+static void cm_end_req_handler(void *opaque)
 {
     cm_wtrigger_buf_flush();
 }
@@ -422,15 +421,6 @@ bool cm_is_watch_addr_p(ram_addr_t addr)
 int cm_get_watch_index(void)
 {
     return cm_watch_index;
-}
-
-void cm_register_wtrigger_func(CMTriggerID id, CMWatch_Trigger tfunc)
-{
-    if (id >= MAX_TRIGGER_FUNC_NUM || id < 0) {
-        printf("Register trigger function failed: Only %d function support\n", MAX_TRIGGER_FUNC_NUM);
-        return;
-    }
-    trigger_func[id] = tfunc;
 }
 
 void helper_watch_server(void)

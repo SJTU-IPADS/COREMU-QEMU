@@ -25,17 +25,29 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <dlfcn.h>
 #include "exec.h"
 #include "coremu-core.h"
-#include "coremu-logbuffer.h"
 #include "cm-mmu.h"
-#include "cm-instrument.h"
-#include "cm-watch-util.h"
+#include "cm-features/logbuffer.h"
+#include "cm-features/instrument.h"
+#include "cm-features/watch-util.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
 
-void cm_print_dumpstack(FILE *file, void *paddr)
+enum {
+    GETCPUEIP = 0,
+    GETCPUIDX,
+    GETSTACKPAGEADDR,
+    DUMPSTACK,
+    RECORDDUMPSTACK,
+    INSTRUMENT_FUNC_NUM,
+};
+
+static void(* cm_register_instrument_func_p)(uint64_t, uint64_t);
+
+void cm_record_dumpstack(FILE *file, void *paddr)
 {
     static int state = 1;
     long addr = *(long *)paddr;
@@ -67,11 +79,9 @@ void cm_dump_stack(int level, CMLogbuf *buf)
     target_ulong retaddr;
     int i;
 
-    coremu_debug("%p", (void *)ebp);
-
     /* Use -1 to mark the start of a backtrace. */
-    COREMU_LOGBUF_LOG(buf, pos, *(long *) pos = -1);
-    COREMU_LOGBUF_LOG(buf, pos, *(long *) pos = EIP);
+    CM_LOGBUF_LOG(buf, pos, *(long *) pos = -1);
+    CM_LOGBUF_LOG(buf, pos, *(long *) pos = EIP);
     /*coremu_core_log("Backtrace at rip: %p\n", (void *)env->eip);*/
     for (i = 0; i < level && ebp; i++) {
         /* XXX Are we calling this in helper function? If so, this function
@@ -80,7 +90,7 @@ void cm_dump_stack(int level, CMLogbuf *buf)
 
         retaddr = *((target_ulong *)(qaddr) + 1);
 
-        COREMU_LOGBUF_LOG(buf, pos, {
+        CM_LOGBUF_LOG(buf, pos, {
             *(target_ulong *) pos = retaddr;
         });
         ebp = *(target_ulong *)qaddr;
@@ -107,7 +117,15 @@ target_ulong cm_get_stack_page_addr(void)
     return (ESP & (TARGET_PAGE_MASK));
 }
 
-void cm_record_access(target_ulong eip, char type, uint64_t order)
+void cm_instrument_init(void *handle)
 {
-    /*coremu_core_log("A %c %p %l\n", type, (void *)eip, order);*/
+    //cm_trigger_handle = dlopen("./usertrigger.so", RTLD_LAZY);
+    cm_register_instrument_func_p = dlsym(handle, "cm_register_instrument_func");
+    cm_register_instrument_func_p(GETCPUEIP, (uint64_t)cm_get_cpu_eip);
+    cm_register_instrument_func_p(GETCPUIDX, (uint64_t)cm_get_cpu_idx);
+    cm_register_instrument_func_p(GETSTACKPAGEADDR, (uint64_t)cm_get_stack_page_addr);
+    cm_register_instrument_func_p(DUMPSTACK, (uint64_t)cm_dump_stack);
+    cm_register_instrument_func_p(RECORDDUMPSTACK, (uint64_t)cm_record_dumpstack);
+
 }
+

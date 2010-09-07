@@ -37,9 +37,9 @@
 #include "coremu-sched.h"
 #include "coremu-debug.h"
 #include "coremu-init.h"
-#include "coremu-logbuffer.h"
-#include "cm-instrument.h"
-#include "cm-memtrace.h"
+#include "cm-features/logbuffer.h"
+#include "cm-features/instrument.h"
+#include "cm-features/memtrace.h"
 #include "cm-timer.h"
 #include "cm-init.h"
 
@@ -133,17 +133,6 @@ void cm_cpu_exec_init_core(void)
 
 #ifdef COREMU_CACHESIM_MODE
     cm_memtrace_init(cpu_single_env->cpu_index);
-
-    /* We need to find a way to free the buffer (which will flush the left log
-     * record) when the core thread exits. This doesn't work. */
-/*
- *    pthread_cleanup_push(coremu_logbuf_free, (void *)(cpu_single_env->dumpstack_buf));
- *    pthread_cleanup_push(coremu_logbuf_free, (void *)(cpu_single_env->memtrace_buf));
- *    goto end;
- *    pthread_cleanup_pop(0);
- *    pthread_cleanup_pop(0);
- *end:
- */
 #endif
 
 #ifdef COREMU_DEBUG_MODE

@@ -23,7 +23,6 @@
 #include "qemu-common.h"
 
 #include "coremu-config.h"
-#include "cm-profile.h"
 
 /* allow to see translation results - the slowdown should be negligible, so we leave it */
 #define DEBUG_DISAS

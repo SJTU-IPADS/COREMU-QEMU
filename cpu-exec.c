@@ -24,7 +24,6 @@
 
 #include "coremu-config.h"
 #include "coremu-intr.h"
-#include "cm-profile.h"
 
 #if !defined(CONFIG_SOFTMMU)
 #undef EAX
