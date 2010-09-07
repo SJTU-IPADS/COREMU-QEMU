@@ -23,6 +23,9 @@ COREMU_THREAD int flush_cnt;
 __thread FILE *memtrace_log;
 __thread CMLogbuf *memtrace_buf;
 
+#define MEMTRACE_RECORD_SIZE (16)
+#define MEMTRACE_BUF_SIZE (100 * 1024 * 1024)
+
 void cm_memtrace_buf_full(void);
 void cm_memtrace_buf_full(void)
 {	
@@ -32,7 +35,7 @@ void cm_memtrace_buf_full(void)
     flush_cnt++;
     printf("\033[1;40;32m [COREMU Core %d] Memtrace Buffer Flush %d (%lu Records) \033[0m \n",
             cpu_single_env->cpu_index,flush_cnt,
-	    (memtrace_buf->cur-memtrace_buf->buf)/16);
+	    (memtrace_buf->cur-memtrace_buf->buf)/MEMTRACE_RECORD_SIZE);
     fflush(stdout);
     if(!memtrace_enable)
         flush_cnt=0;
@@ -86,7 +89,7 @@ void cm_memtrace_logging(uint64_t addr, int write)
     uint64_t cnt = atomic_xadd2(&global_mem_event_counter) | write;
     buf_ptr[1] = (uint64_t)addr;
     buf_ptr[0] = cnt;
-    buffer->cur += 16;
+    buffer->cur += MEMTRACE_RECORD_SIZE;
     if (buffer->cur == buffer->end){
         cm_memtrace_buf_full();
     }
@@ -136,7 +139,8 @@ void cm_memtrace_init(int cpuidx)
         fprintf(stderr, "Can't open memtrace log\n");
         abort();
     }
-    memtrace_buf = coremu_logbuf_new(100 * 1024 * 1024 / 16 , 16,
+    memtrace_buf = coremu_logbuf_new(MEMTRACE_BUF_SIZE / MEMTRACE_RECORD_SIZE , 
+            MEMTRACE_RECORD_SIZE,
 		    cm_print_memtrace, memtrace_log);
 }
 
