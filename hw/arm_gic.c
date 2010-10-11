@@ -224,10 +224,6 @@ static void gic_set_running_irq(gic_state *s, int cpu, int irq)
 
 static uint32_t gic_acknowledge_irq(gic_state *s, int cpu)
 {
-#ifdef CONFIG_COREMU
-    if(coremu_hw_thr_p())
-        coremu_spin_lock(&cm_hw_lock);
-#endif
     int new_irq;
     int cm = 1 << cpu;
     new_irq = s->current_pending[cpu];
@@ -242,10 +238,6 @@ static uint32_t gic_acknowledge_irq(gic_state *s, int cpu)
     GIC_CLEAR_PENDING(new_irq, GIC_TEST_MODEL(new_irq) ? ALL_CPU_MASK : cm);
     gic_set_running_irq(s, cpu, new_irq);
     DPRINTF("ACK %d\n", new_irq);
-#ifdef CONFIG_COREMU
-    if(coremu_hw_thr_p())
-        coremu_spin_unlock(&cm_hw_lock);
-#endif
     return new_irq;
 }
 

@@ -6703,7 +6703,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         } else {
                             rm = insn & 0xf;
 #ifdef CONFIG_COREMU
-							cm_tmp = tcg_const_i32(rd);
+			    cm_tmp = tcg_const_i32(rd);
                             cm_tmp1 = tcg_const_i32(rm);
 #endif
                             switch (op1) {
@@ -6744,6 +6744,17 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         /* SWP instruction */
                         rm = (insn) & 0xf;
 
+#ifdef CONFIG_COREMU
+                        if (insn & (1 << 22)) {
+			    gen_helper_swpb(tcg_const_i32(rd),
+					    tcg_const_i32(rm),
+					    tcg_const_i32(rn));
+			} else {
+			    gen_helper_swp(tcg_const_i32(rd),
+					   tcg_const_i32(rm),
+					   tcg_const_i32(rn));
+			}
+#else
                         /* ??? This is not really atomic.  However we know
                            we never have multiple CPUs running in parallel,
                            so it is good enough.  */
@@ -6758,6 +6769,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         }
                         dead_tmp(addr);
                         store_reg(s, rd, tmp2);
+#endif
                     }
                 }
             } else {

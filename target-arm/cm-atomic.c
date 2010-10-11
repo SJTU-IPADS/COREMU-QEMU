@@ -131,7 +131,29 @@ done:
     return;
 }
 
-void HELPER(clear_exclusive)()
+void HELPER(clear_exclusive)(void)
 {
     cm_exclusive_addr = -1;
+}
+
+void HELPER(swpb)(uint32_t dst, uint32_t src, uint32_t addr)
+{
+    uint8_t old, val;
+    ram_addr_t q_addr;
+    CM_GET_QEMU_ADDR(q_addr,cpu_single_env->regs[addr]);
+    val = (uint8_t)cpu_single_env->regs[src];
+    old = atomic_exchangeb((uint8_t *)q_addr, (uint8_t)val);
+    cpu_single_env->regs[dst] = old;
+    //printf("SWPB\n");
+}
+
+void HELPER(swp)(uint32_t dst, uint32_t src, uint32_t addr)
+{
+    uint32_t old, val;
+    ram_addr_t q_addr;
+    CM_GET_QEMU_ADDR(q_addr,cpu_single_env->regs[addr]);
+    val = cpu_single_env->regs[src];
+    old = atomic_exchangel((uint32_t *)q_addr, val);
+    cpu_single_env->regs[dst] = old;
+    //printf("SWP\n");
 }
