@@ -23,6 +23,8 @@
  * THE SOFTWARE.
  */
 
+#include <pthread.h>
+
 #include "net/tap.h"
 
 #include "config-host.h"
@@ -51,6 +53,7 @@
 
 typedef struct TAPState {
     VLANClientState nc;
+    pthread_mutex_t lock;
     int fd;
     char down_script[1024];
     char down_script_arg[128];
@@ -71,11 +74,13 @@ static void tap_writable(void *opaque);
 
 static void tap_update_fd_handler(TAPState *s)
 {
+    pthread_mutex_lock(&s->lock);
     qemu_set_fd_handler2(s->fd,
                          s->read_poll  ? tap_can_send : NULL,
                          s->read_poll  ? tap_send     : NULL,
                          s->write_poll ? tap_writable : NULL,
                          s);
+    pthread_mutex_unlock(&s->lock);
 }
 
 static void tap_read_poll(TAPState *s, int enable)
@@ -309,6 +314,7 @@ static TAPState *net_tap_fd_init(VLANState *vlan,
 
     s = DO_UPCAST(TAPState, nc, nc);
 
+    pthread_mutex_init(&s->lock, 0);
     s->fd = fd;
     s->has_vnet_hdr = vnet_hdr != 0;
     s->using_vnet_hdr = 0;
