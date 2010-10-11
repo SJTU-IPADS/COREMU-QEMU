@@ -1414,6 +1414,8 @@ void tb_free(TranslationBlock *tb)
     }
 }
 
+static spinlock_t interrupt_lock = SPIN_LOCK_UNLOCKED;
+
 /* add a new TB and link it to the physical page tables. phys_page2 is
    (-1) to indicate that only one page contains the TB. */
 void tb_link_page(TranslationBlock *tb,
@@ -1438,6 +1440,8 @@ void tb_link_page(TranslationBlock *tb,
     else
         tb->page_addr[1] = -1;
 
+    //spin_lock(&interrupt_lock);
+    spin_lock(&tb_lock);
     tb->jmp_first = (TranslationBlock *)((long)tb | 2);
     tb->jmp_next[0] = NULL;
     tb->jmp_next[1] = NULL;
@@ -1447,6 +1451,8 @@ void tb_link_page(TranslationBlock *tb,
         tb_reset_jump(tb, 0);
     if (tb->tb_next_offset[1] != 0xffff)
         tb_reset_jump(tb, 1);
+    //spin_unlock(&interrupt_lock);
+    spin_unlock(&tb_lock);
 
 #ifdef DEBUG_TB_CHECK
     tb_page_check();
@@ -1780,9 +1786,9 @@ static void cpu_unlink_tb(CPUState *env)
        emulation this often isn't actually as bad as it sounds.  Often
        signals are used primarily to interrupt blocking syscalls.  */
     TranslationBlock *tb;
-    static COREMU_THREAD spinlock_t interrupt_lock = SPIN_LOCK_UNLOCKED;
 
-    spin_lock(&interrupt_lock);
+    //spin_lock(&interrupt_lock);
+    spin_lock(&tb_lock);
     tb = env->current_tb;
     /* if the cpu is currently executing code, we must unlink it and
        all the potentially executing TB */
@@ -1790,7 +1796,8 @@ static void cpu_unlink_tb(CPUState *env)
         env->current_tb = NULL;
         tb_reset_jump_recursive(tb);
     }
-    spin_unlock(&interrupt_lock);
+    //spin_unlock(&interrupt_lock);
+    spin_unlock(&tb_lock);
 }
 
 /* mask must never be zero, except for A20 change call */
