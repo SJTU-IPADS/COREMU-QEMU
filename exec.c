@@ -90,7 +90,7 @@ int code_gen_max_blocks;
 COREMU_THREAD TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
 static COREMU_THREAD int nb_tbs;
 /* any access to the tbs or the page table must use this lock */
-COREMU_THREAD spinlock_t tb_lock = SPIN_LOCK_UNLOCKED;
+spinlock_t tb_lock = SPIN_LOCK_UNLOCKED;
 
 #if defined(__arm__) || defined(__sparc_v9__)
 /* The prologue must be reachable with a direct jump. ARM and Sparc64
