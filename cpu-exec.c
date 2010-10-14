@@ -600,6 +600,10 @@ int cpu_exec(CPUState *env1)
                    infinite loop and becomes env->current_tb. Avoid
                    starting execution if there is a pending interrupt. */
                 if (!unlikely (env->exit_request)) {
+
+#ifdef CONFIG_COREMU
+                    coremu_receive_intr();
+#endif
                     env->current_tb = tb;
                     tc_ptr = tb->tc_ptr;
                 /* execute the generated code */
@@ -609,10 +613,9 @@ int cpu_exec(CPUState *env1)
 #define env cpu_single_env
 #endif
 
-#ifdef CONFIG_COREMU
-                    coremu_receive_intr();
-#endif
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
+
+                    env->current_tb = NULL;
 
 #ifdef CONFIG_COREMU
                     coremu_receive_intr();
@@ -629,7 +632,6 @@ int cpu_exec(CPUState *env1)
 #endif
 #endif
 
-                    env->current_tb = NULL;
                     if ((next_tb & 3) == 2) {
                         /* Instruction counter expired.  */
                         int insns_left;
