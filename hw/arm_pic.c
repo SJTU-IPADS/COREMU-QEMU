@@ -49,8 +49,8 @@ static void arm_pic_cpu_handler(void *opaque, int irq, int level)
 qemu_irq *arm_pic_init_cpu(CPUState *env)
 {
 #ifdef CONFIG_COREMU
-    return qemu_allocate_irqs(arm_pic_cpu_handler, env, 2);
-#else
     return qemu_allocate_irqs(cm_arm_pic_cpu_handler, env, 2);
+#else
+    return qemu_allocate_irqs(arm_pic_cpu_handler, env, 2);
 #endif
 }
