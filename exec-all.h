@@ -278,7 +278,7 @@ TranslationBlock *tb_find_pc(unsigned long pc_ptr);
 
 #include "qemu-lock.h"
 
-extern COREMU_THREAD spinlock_t tb_lock;
+extern spinlock_t tb_lock;
 
 extern COREMU_THREAD int tb_invalidated_flag;
 

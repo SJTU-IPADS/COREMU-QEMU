@@ -115,7 +115,13 @@ void cm_tlb_reset_dirty_range(CPUTLBEntry *tlb_entry,
         if ((addr - start) < length) {
             uint64_t newv = (tlb_entry->addr_write & TARGET_PAGE_MASK) |
                 TLB_NOTDIRTY;
+#if TARGET_LONG_SIZE == 4
+            atomic_compare_exchangel(&tlb_entry->addr_write, old, newv);
+#elif TARGET_LONG_SIZE == 8
             atomic_compare_exchangeq(&tlb_entry->addr_write, old, newv);
+#else
+#error TARGET_LONG_SIZE undefined
+#endif
         }
     }
 }

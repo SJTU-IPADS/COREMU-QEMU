@@ -21,6 +21,7 @@
  * THE SOFTWARE.
  */
 
+#include <pthread.h>
 #include "net/queue.h"
 #include "qemu-queue.h"
 
@@ -48,6 +49,7 @@ struct NetPacket {
 };
 
 struct NetQueue {
+    pthread_mutex_t lock;
     NetPacketDeliver *deliver;
     NetPacketDeliverIOV *deliver_iov;
     void *opaque;
@@ -64,7 +66,7 @@ NetQueue *qemu_new_net_queue(NetPacketDeliver *deliver,
     NetQueue *queue;
 
     queue = qemu_mallocz(sizeof(NetQueue));
-
+    pthread_mutex_init(&queue->lock, 0);
     queue->deliver = deliver;
     queue->deliver_iov = deliver_iov;
     queue->opaque = opaque;
@@ -80,10 +82,12 @@ void qemu_del_net_queue(NetQueue *queue)
 {
     NetPacket *packet, *next;
 
+    pthread_mutex_lock(&queue->lock);
     QTAILQ_FOREACH_SAFE(packet, &queue->packets, entry, next) {
         QTAILQ_REMOVE(&queue->packets, packet, entry);
         qemu_free(packet);
     }
+    pthread_mutex_unlock(&queue->lock);
 
     qemu_free(queue);
 }
@@ -104,7 +108,9 @@ static ssize_t qemu_net_queue_append(NetQueue *queue,
     packet->sent_cb = sent_cb;
     memcpy(packet->data, buf, size);
 
+    pthread_mutex_lock(&queue->lock);
     QTAILQ_INSERT_TAIL(&queue->packets, packet, entry);
+    pthread_mutex_unlock(&queue->lock);
 
     return size;
 }
@@ -137,7 +143,9 @@ static ssize_t qemu_net_queue_append_iov(NetQueue *queue,
         packet->size += len;
     }
 
+    pthread_mutex_lock(&queue->lock);
     QTAILQ_INSERT_TAIL(&queue->packets, packet, entry);
+    pthread_mutex_unlock(&queue->lock);
 
     return packet->size;
 }
@@ -224,37 +232,54 @@ void qemu_net_queue_purge(NetQueue *queue, VLANClientState *from)
 {
     NetPacket *packet, *next;
 
+    pthread_mutex_lock(&queue->lock);
     QTAILQ_FOREACH_SAFE(packet, &queue->packets, entry, next) {
         if (packet->sender == from) {
             QTAILQ_REMOVE(&queue->packets, packet, entry);
             qemu_free(packet);
         }
     }
+    pthread_mutex_unlock(&queue->lock);
 }
 
 void qemu_net_queue_flush(NetQueue *queue)
 {
-    while (!QTAILQ_EMPTY(&queue->packets)) {
+    while (42) {
         NetPacket *packet;
         int ret;
+	int empty;
 
-        packet = QTAILQ_FIRST(&queue->packets);
-        QTAILQ_REMOVE(&queue->packets, packet, entry);
+	pthread_mutex_lock(&queue->lock);
+	empty = QTAILQ_EMPTY(&queue->packets);
+	if (!empty) {
+	    packet = QTAILQ_FIRST(&queue->packets);
+	    QTAILQ_REMOVE(&queue->packets, packet, entry);
+	}
+	pthread_mutex_unlock(&queue->lock);
 
-        ret = qemu_net_queue_deliver(queue,
-                                     packet->sender,
-                                     packet->flags,
-                                     packet->data,
-                                     packet->size);
-        if (ret == 0) {
-            QTAILQ_INSERT_HEAD(&queue->packets, packet, entry);
-            break;
-        }
+	if (empty)
+	{
+	    break;
+	}
+	else
+	{
+	    ret = qemu_net_queue_deliver(queue,
+					 packet->sender,
+					 packet->flags,
+					 packet->data,
+					 packet->size);
+	    if (ret == 0) {
+		pthread_mutex_lock(&queue->lock);
+		QTAILQ_INSERT_HEAD(&queue->packets, packet, entry);
+		pthread_mutex_unlock(&queue->lock);
+		break;
+	    }
 
-        if (packet->sent_cb) {
-            packet->sent_cb(packet->sender, ret);
-        }
+	    if (packet->sent_cb) {
+		packet->sent_cb(packet->sender, ret);
+	    }
 
-        qemu_free(packet);
+	    qemu_free(packet);
+	}
     }
 }
