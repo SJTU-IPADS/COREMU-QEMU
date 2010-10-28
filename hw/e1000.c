@@ -501,9 +501,11 @@ txdesc_writeback(target_phys_addr_t base, struct e1000_tx_desc *dp)
     return E1000_ICR_TXDW;
 }
 
+
 static void
 start_xmit(E1000State *s)
 {
+
     target_phys_addr_t base;
     struct e1000_tx_desc desc;
     uint32_t tdh_start = s->mac_reg[TDH], cause = E1000_ICS_TXQE;
@@ -759,12 +761,17 @@ set_dlen(E1000State *s, int index, uint32_t val)
     s->mac_reg[index] = val & 0xfff80;
 }
 
+static int cm_xmit_flag=0;
+
 static void
 set_tctl(E1000State *s, int index, uint32_t val)
 {
+    assert(!cm_xmit_flag);
+    cm_xmit_flag = 1;
     s->mac_reg[index] = val;
     s->mac_reg[TDT] &= 0xffff;
     start_xmit(s);
+    cm_xmit_flag = 0;
 }
 
 static void

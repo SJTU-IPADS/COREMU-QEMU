@@ -1979,6 +1979,13 @@ static int vm_can_run(void)
 
 qemu_irq qemu_system_powerdown;
 
+void cm_sigfault_handler(int signum)
+{
+    assert(signum == SIGSEGV);
+    printf("sigfault in vcpu %d\n", coremu_gettid());
+    while(1);
+}
+
 static void main_loop(void)
 {
     int r;
@@ -1998,6 +2005,12 @@ static void main_loop(void)
     extern void cm_local_host_alarm_handler(int host_signum);
     act.sa_handler = cm_local_host_alarm_handler;
     sigaction(COREMU_CORE_ALARM, &act, NULL);
+
+    /* for debug */
+    sigfillset(&act.sa_mask);
+    act.sa_flags = 0;
+    act.sa_handler = cm_sigfault_handler;
+    sigaction(SIGSEGV, &act, NULL);
 
     /* 4. Create cpu thread body*/
     coremu_run_all_cores(cm_cpu_loop);
