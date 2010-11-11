@@ -18,6 +18,7 @@ typedef struct CMMemtraceReq {
 
 uint64_t global_mem_event_counter;
 int memtrace_enable=0;
+int cachesim_enable=1;
 COREMU_THREAD int flush_cnt;
 
 __thread FILE *memtrace_log;
@@ -28,7 +29,7 @@ __thread CMLogbuf *memtrace_buf;
 
 void cm_memtrace_buf_full(void);
 void cm_memtrace_buf_full(void)
-{	
+{
 
 #if defined(VERBOSE_COREMU)
     /* Report when any buffer gets full */
@@ -81,7 +82,7 @@ static void cm_print_memtrace(FILE *file, void *bufv)
 }
 
 void cm_memtrace_logging(uint64_t addr, int write)
-{	
+{
     if (!memtrace_enable)
         return;
     CMLogbuf *buffer = memtrace_buf;
@@ -139,7 +140,7 @@ void cm_memtrace_init(int cpuidx)
         fprintf(stderr, "Can't open memtrace log\n");
         abort();
     }
-    memtrace_buf = coremu_logbuf_new(MEMTRACE_BUF_SIZE / MEMTRACE_RECORD_SIZE , 
+    memtrace_buf = cm_logbuf_new(MEMTRACE_BUF_SIZE / MEMTRACE_RECORD_SIZE ,
             MEMTRACE_RECORD_SIZE,cm_print_memtrace, memtrace_log);
 }
 
@@ -163,4 +164,48 @@ void helper_memtrace_hypercall(void)
         printf("error hypercall command : %ld", req);
     }
 }
+
+/*Online Cache simulation module*/
+
+int memcnt;
+
+#define MEM_DATA_LOAD_TRIGGER(SUFFIX)                       \
+void glue(cm_trigger_Dld,SUFFIX)(unsigned long addr) {       \
+    if(memcnt++%1000000!=0)return;\
+    addr = qemu_ram_addr_from_host((void*)addr);            \
+    printf("%08lx LD %s\n" ,addr,""#SUFFIX);                 \
+}
+
+#define MEM_DATA_STORE_TRIGGER(SUFFIX)                      \
+void glue(cm_trigger_Dst,SUFFIX)(unsigned long addr) {       \
+    if(memcnt++%1000000!=0)return;\
+    addr = qemu_ram_addr_from_host((void*)addr);            \
+    printf("%08lx ST %s\n" ,addr,""#SUFFIX);                \
+}
+
+
+MEM_DATA_LOAD_TRIGGER(b);
+MEM_DATA_LOAD_TRIGGER(w);
+MEM_DATA_LOAD_TRIGGER(l);
+MEM_DATA_LOAD_TRIGGER(q);
+
+MEM_DATA_STORE_TRIGGER(b);
+MEM_DATA_STORE_TRIGGER(w);
+MEM_DATA_STORE_TRIGGER(l);
+MEM_DATA_STORE_TRIGGER(q);
+
+void *_cm_trigger_Dld[4] = {
+    cm_trigger_Dldb,
+    cm_trigger_Dldw,
+    cm_trigger_Dldl,
+    cm_trigger_Dldq,
+};
+
+void *_cm_trigger_Dst[4] = {
+    cm_trigger_Dstb,
+    cm_trigger_Dstw,
+    cm_trigger_Dstl,
+    cm_trigger_Dstq,
+};
+
 

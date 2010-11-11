@@ -141,6 +141,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
 #if defined(CONFIG_COREMU) && defined(COREMU_CACHESIM_MODE)
             cm_memtrace_logging(addr+addend,0);
+            if(cachesim_enable)glue(cm_trigger_Dld,SUFFIX)(addr+addend);
 #endif
         }
     } else {
@@ -199,6 +200,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
 #if defined(CONFIG_COREMU) && defined(COREMU_CACHESIM_MODE)
             cm_memtrace_logging(addr+addend,0);
+            if(cachesim_enable)glue(cm_trigger_Dld,SUFFIX)(addr+addend);
 #endif
         }
     } else {
@@ -292,6 +294,8 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
 #if defined(CONFIG_COREMU) && defined(COREMU_CACHESIM_MODE)
             cm_memtrace_logging(addr+addend,1);
+            if(cachesim_enable)glue(cm_trigger_Dst,SUFFIX)(addr+addend);
+
 #endif
         }
     } else {
@@ -347,6 +351,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
 #if defined(CONFIG_COREMU) && defined(COREMU_CACHESIM_MODE)
             cm_memtrace_logging(addr+addend,1);
+            if(cachesim_enable)glue(cm_trigger_Dst,SUFFIX)(addr+addend);
 #endif
         }
     } else {
