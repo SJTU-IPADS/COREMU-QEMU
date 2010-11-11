@@ -18,7 +18,7 @@ typedef struct CMMemtraceReq {
 
 uint64_t global_mem_event_counter;
 int memtrace_enable=0;
-int cachesim_enable=1;
+int cachesim_enable=0;
 COREMU_THREAD int flush_cnt;
 
 __thread FILE *memtrace_log;
