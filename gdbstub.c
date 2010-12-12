@@ -37,6 +37,7 @@
 
 #define MAX_PACKET_LENGTH 4096
 
+#include "exec-all.h"
 #include "qemu_socket.h"
 #include "kvm.h"
 
@@ -1503,7 +1504,6 @@ static int memtox(char *buf, const char *mem, int len)
 
 static const char *get_feature_xml(const char *p, const char **newp)
 {
-    extern const char *const xml_builtin[][2];
     size_t len;
     int i;
     const char *name;
@@ -2373,6 +2373,26 @@ static void gdb_read_byte(GDBState *s, int ch)
     }
 }
 
+/* Tell the remote gdb that the process has exited.  */
+void gdb_exit(CPUState *env, int code)
+{
+  GDBState *s;
+  char buf[4];
+
+  s = gdbserver_state;
+  if (!s) {
+      return;
+  }
+#ifdef CONFIG_USER_ONLY
+  if (gdbserver_fd < 0 || s->fd < 0) {
+      return;
+  }
+#endif
+
+  snprintf(buf, sizeof(buf), "W%02x", (uint8_t)code);
+  put_packet(s, buf);
+}
+
 #ifdef CONFIG_USER_ONLY
 int
 gdb_queuesig (void)
@@ -2434,20 +2454,6 @@ gdb_handlesig (CPUState *env, int sig)
   sig = s->signal;
   s->signal = 0;
   return sig;
-}
-
-/* Tell the remote gdb that the process has exited.  */
-void gdb_exit(CPUState *env, int code)
-{
-  GDBState *s;
-  char buf[4];
-
-  s = gdbserver_state;
-  if (gdbserver_fd < 0 || s->fd < 0)
-    return;
-
-  snprintf(buf, sizeof(buf), "W%02x", code);
-  put_packet(s, buf);
 }
 
 /* Tell the remote gdb that the process has exited due to SIG.  */

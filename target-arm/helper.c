@@ -203,11 +203,16 @@ void cpu_reset(CPUARMState *env)
         cpu_reset_model_id(env, id);
 #if defined (CONFIG_USER_ONLY)
     env->uncached_cpsr = ARM_CPU_MODE_USR;
+    /* For user mode we must enable access to coprocessors */
     env->vfp.xregs[ARM_VFP_FPEXC] = 1 << 30;
+    if (arm_feature(env, ARM_FEATURE_IWMMXT)) {
+        env->cp15.c15_cpar = 3;
+    } else if (arm_feature(env, ARM_FEATURE_XSCALE)) {
+        env->cp15.c15_cpar = 1;
+    }
 #else
     /* SVC mode with interrupts disabled.  */
     env->uncached_cpsr = ARM_CPU_MODE_SVC | CPSR_A | CPSR_F | CPSR_I;
-    env->regs[15] = 0;
     /* On ARMv7-M the CPSR_I is the value of the PRIMASK register, and is
        clear at reset.  Initial SP and PC are loaded from ROM.  */
     if (IS_M(env)) {
@@ -356,7 +361,7 @@ static const struct arm_cpu_t arm_cpu_names[] = {
     { 0, NULL}
 };
 
-void arm_cpu_list(FILE *f, int (*cpu_fprintf)(FILE *f, const char *fmt, ...))
+void arm_cpu_list(FILE *f, fprintf_function cpu_fprintf)
 {
     int i;
 
@@ -2055,7 +2060,7 @@ static inline uint16_t add16_usat(uint16_t a, uint16_t b)
 
 static inline uint16_t sub16_usat(uint16_t a, uint16_t b)
 {
-    if (a < b)
+    if (a > b)
         return a - b;
     else
         return 0;
@@ -2072,7 +2077,7 @@ static inline uint8_t add8_usat(uint8_t a, uint8_t b)
 
 static inline uint8_t sub8_usat(uint8_t a, uint8_t b)
 {
-    if (a < b)
+    if (a > b)
         return a - b;
     else
         return 0;
@@ -2253,6 +2258,11 @@ uint32_t HELPER(vfp_get_fpscr)(CPUState *env)
     return fpscr;
 }
 
+uint32_t vfp_get_fpscr(CPUState *env)
+{
+    return HELPER(vfp_get_fpscr)(env);
+}
+
 /* Convert vfp exception flags to target form.  */
 static inline int vfp_exceptbits_to_host(int target_bits)
 {
@@ -2307,6 +2317,11 @@ void HELPER(vfp_set_fpscr)(CPUState *env, uint32_t val)
 
     i = vfp_exceptbits_to_host((val >> 8) & 0x1f);
     set_float_exception_flags(i, &env->vfp.fp_status);
+}
+
+void vfp_set_fpscr(CPUState *env, uint32_t val)
+{
+    HELPER(vfp_set_fpscr)(env, val);
 }
 
 #define VFP_HELPER(name, p) HELPER(glue(glue(vfp_,name),p))

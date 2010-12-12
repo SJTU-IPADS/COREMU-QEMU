@@ -2,6 +2,7 @@
 #define CPU_SPARC_H
 
 #include "config.h"
+#include "qemu-common.h"
 
 #if !defined(TARGET_SPARC64)
 #define TARGET_LONG_BITS 32
@@ -79,7 +80,7 @@
 #define TT_DPROT    0x6c
 #define TT_SPILL    0x80
 #define TT_FILL     0xc0
-#define TT_WOTHER   0x10
+#define TT_WOTHER   (1 << 5)
 #define TT_TRAP     0x100
 #endif
 
@@ -92,12 +93,14 @@
 #define PSR_CARRY_SHIFT 20
 #define PSR_CARRY (1 << PSR_CARRY_SHIFT)
 #define PSR_ICC   (PSR_NEG|PSR_ZERO|PSR_OVF|PSR_CARRY)
+#if !defined(TARGET_SPARC64)
 #define PSR_EF    (1<<12)
 #define PSR_PIL   0xf00
 #define PSR_S     (1<<7)
 #define PSR_PS    (1<<6)
 #define PSR_ET    (1<<5)
 #define PSR_CWP   0x1f
+#endif
 
 #define CC_SRC (env->cc_src)
 #define CC_SRC2 (env->cc_src2)
@@ -341,14 +344,16 @@ typedef struct CPUSPARCState {
     uint32_t wim;      /* window invalid mask */
 #endif
     target_ulong tbr;  /* trap base register */
+#if !defined(TARGET_SPARC64)
     int      psrs;     /* supervisor mode (extracted from PSR) */
     int      psrps;    /* previous supervisor mode */
-#if !defined(TARGET_SPARC64)
     int      psret;    /* enable traps */
 #endif
     uint32_t psrpil;   /* interrupt blocking level */
     uint32_t pil_in;   /* incoming interrupt level bitmap */
+#if !defined(TARGET_SPARC64)
     int      psref;    /* enable fpu */
+#endif
     target_ulong version;
     int interrupt_index;
     uint32_t nwindows;
@@ -438,10 +443,7 @@ typedef struct CPUSPARCState {
 /* helper.c */
 CPUSPARCState *cpu_sparc_init(const char *cpu_model);
 void cpu_sparc_set_id(CPUSPARCState *env, unsigned int cpu);
-void sparc_cpu_list (FILE *f, int (*cpu_fprintf)(FILE *f, const char *fmt,
-                                                 ...));
-void cpu_lock(void);
-void cpu_unlock(void);
+void sparc_cpu_list(FILE *f, fprintf_function cpu_fprintf);
 int cpu_sparc_handle_mmu_fault(CPUSPARCState *env1, target_ulong address, int rw,
                                int mmu_idx, int is_softmmu);
 #define cpu_handle_mmu_fault cpu_sparc_handle_mmu_fault
@@ -508,21 +510,41 @@ int cpu_sparc_signal_handler(int host_signum, void *pinfo, void *puc);
 #define CPU_SAVE_VERSION 6
 
 /* MMU modes definitions */
-#define MMU_MODE0_SUFFIX _user
-#define MMU_MODE1_SUFFIX _kernel
-#ifdef TARGET_SPARC64
-#define MMU_MODE2_SUFFIX _hypv
-#define MMU_MODE3_SUFFIX _nucleus
-#define MMU_MODE4_SUFFIX _user_secondary
-#define MMU_MODE5_SUFFIX _kernel_secondary
-#endif
+#if defined (TARGET_SPARC64)
 #define MMU_USER_IDX   0
+#define MMU_MODE0_SUFFIX _user
+#define MMU_USER_SECONDARY_IDX   1
+#define MMU_MODE1_SUFFIX _user_secondary
+#define MMU_KERNEL_IDX 2
+#define MMU_MODE2_SUFFIX _kernel
+#define MMU_KERNEL_SECONDARY_IDX 3
+#define MMU_MODE3_SUFFIX _kernel_secondary
+#define MMU_NUCLEUS_IDX 4
+#define MMU_MODE4_SUFFIX _nucleus
+#define MMU_HYPV_IDX   5
+#define MMU_MODE5_SUFFIX _hypv
+#else
+#define MMU_USER_IDX   0
+#define MMU_MODE0_SUFFIX _user
 #define MMU_KERNEL_IDX 1
-#define MMU_HYPV_IDX   2
-#ifdef TARGET_SPARC64
-#define MMU_NUCLEUS_IDX 3
-#define MMU_USER_SECONDARY_IDX   4
-#define MMU_KERNEL_SECONDARY_IDX 5
+#define MMU_MODE1_SUFFIX _kernel
+#endif
+
+#if defined (TARGET_SPARC64)
+static inline int cpu_has_hypervisor(CPUState *env1)
+{
+    return env1->def->features & CPU_FEATURE_HYPV;
+}
+
+static inline int cpu_hypervisor_mode(CPUState *env1)
+{
+    return cpu_has_hypervisor(env1) && (env1->hpstate & HS_PRIV);
+}
+
+static inline int cpu_supervisor_mode(CPUState *env1)
+{
+    return env1->pstate & PS_PRIV;
+}
 #endif
 
 static inline int cpu_mmu_index(CPUState *env1)
@@ -532,12 +554,15 @@ static inline int cpu_mmu_index(CPUState *env1)
 #elif !defined(TARGET_SPARC64)
     return env1->psrs;
 #else
-    if (!env1->psrs)
-        return MMU_USER_IDX;
-    else if ((env1->hpstate & HS_PRIV) == 0)
-        return MMU_KERNEL_IDX;
-    else
+    if (env1->tl > 0) {
+        return MMU_NUCLEUS_IDX;
+    } else if (cpu_hypervisor_mode(env1)) {
         return MMU_HYPV_IDX;
+    } else if (cpu_supervisor_mode(env1)) {
+        return MMU_KERNEL_IDX;
+    } else {
+        return MMU_USER_IDX;
+    }
 #endif
 }
 
@@ -588,7 +613,6 @@ static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 #endif
 
 #include "cpu-all.h"
-#include "exec-all.h"
 
 #ifdef TARGET_SPARC64
 /* sun4u.c */
@@ -598,12 +622,6 @@ void cpu_tick_set_limit(CPUTimer *timer, uint64_t limit);
 trap_state* cpu_tsptr(CPUState* env);
 #endif
 
-static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock *tb)
-{
-    env->pc = tb->pc;
-    env->npc = tb->cs_base;
-}
-
 static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
                                         target_ulong *cs_base, int *flags)
 {
@@ -611,9 +629,13 @@ static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
     *cs_base = env->npc;
 #ifdef TARGET_SPARC64
     // AM . Combined FPU enable bits . PRIV . DMMU enabled . IMMU enabled
-    *flags = ((env->pstate & PS_AM) << 2)
-        | (((env->pstate & PS_PEF) >> 1) | ((env->fprs & FPRS_FEF) << 2))
-        | (env->pstate & PS_PRIV) | ((env->lsu & (DMMU_E | IMMU_E)) >> 2);
+    *flags = ((env->pstate & PS_AM) << 2)          /* 5 */
+        | (((env->pstate & PS_PEF) >> 1)           /* 3 */
+        | ((env->fprs & FPRS_FEF) << 2))           /* 4 */
+        | (env->pstate & PS_PRIV)                  /* 2 */
+        | ((env->lsu & (DMMU_E | IMMU_E)) >> 2)    /* 1, 0 */
+        | ((env->tl & 0xff) << 8)
+        | (env->dmmu.mmu_primary_context << 16);   /* 16... */
 #else
     // FPU enable . Supervisor
     *flags = (env->psref << 4) | env->psrs;

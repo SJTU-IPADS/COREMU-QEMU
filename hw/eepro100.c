@@ -41,7 +41,6 @@
  *      * Wake-on-LAN is not implemented.
  */
 
-#include <stdbool.h>            /* bool */
 #include <stddef.h>             /* offsetof */
 #include "hw.h"
 #include "pci.h"
@@ -220,7 +219,8 @@ typedef enum {
 
 typedef struct {
     PCIDevice dev;
-    uint8_t mult[8];            /* multicast mask array */
+    /* Hash register (multicast mask array, multiple individual addresses). */
+    uint8_t mult[8];
     int mmio_index;
     NICState *nic;
     NICConf conf;
@@ -540,8 +540,8 @@ static void e100_pci_reset(EEPRO100State * s, E100PCIDeviceInfo *e100_device)
     if (e100_device->power_management) {
         /* Power Management Capabilities */
         int cfg_offset = 0xdc;
-        int r = pci_add_capability_at_offset(&s->dev, PCI_CAP_ID_PM,
-                                             cfg_offset, PCI_PM_SIZEOF);
+        int r = pci_add_capability(&s->dev, PCI_CAP_ID_PM,
+                                   cfg_offset, PCI_PM_SIZEOF);
         assert(r >= 0);
         pci_set_word(pci_conf + cfg_offset + PCI_PM_PMC, 0x7e21);
 #if 0 /* TODO: replace dummy code for power management emulation. */
@@ -600,7 +600,7 @@ static void nic_reset(void *opaque)
 {
     EEPRO100State *s = opaque;
     TRACE(OTHER, logout("%p\n", s));
-    /* TODO: Clearing of multicast table for selective reset, too? */
+    /* TODO: Clearing of hash register for selective reset, too? */
     memset(&s->mult[0], 0, sizeof(s->mult));
     nic_selective_reset(s);
 }
@@ -852,7 +852,14 @@ static void action_command(EEPRO100State *s)
         case CmdConfigure:
             cpu_physical_memory_read(s->cb_address + 8, &s->configuration[0],
                                      sizeof(s->configuration));
-            TRACE(OTHER, logout("configuration: %s\n", nic_dump(&s->configuration[0], 16)));
+            TRACE(OTHER, logout("configuration: %s\n",
+                                nic_dump(&s->configuration[0], 16)));
+            TRACE(OTHER, logout("configuration: %s\n",
+                                nic_dump(&s->configuration[16],
+                                ARRAY_SIZE(s->configuration) - 16)));
+            if (s->configuration[20] & BIT(6)) {
+                TRACE(OTHER, logout("Multiple IA bit\n"));
+            }
             break;
         case CmdMulticastList:
             set_multicast_list(s);
@@ -1283,7 +1290,7 @@ static void eepro100_write_port(EEPRO100State * s, uint32_t val)
 
 static uint8_t eepro100_read1(EEPRO100State * s, uint32_t addr)
 {
-    uint8_t val;
+    uint8_t val = 0;
     if (addr <= sizeof(s->mem) - sizeof(val)) {
         memcpy(&val, &s->mem[addr], sizeof(val));
     }
@@ -1326,7 +1333,7 @@ static uint8_t eepro100_read1(EEPRO100State * s, uint32_t addr)
 
 static uint16_t eepro100_read2(EEPRO100State * s, uint32_t addr)
 {
-    uint16_t val;
+    uint16_t val = 0;
     if (addr <= sizeof(s->mem) - sizeof(val)) {
         memcpy(&val, &s->mem[addr], sizeof(val));
     }
@@ -1349,7 +1356,7 @@ static uint16_t eepro100_read2(EEPRO100State * s, uint32_t addr)
 
 static uint32_t eepro100_read4(EEPRO100State * s, uint32_t addr)
 {
-    uint32_t val;
+    uint32_t val = 0;
     if (addr <= sizeof(s->mem) - sizeof(val)) {
         memcpy(&val, &s->mem[addr], sizeof(val));
     }
@@ -1648,12 +1655,6 @@ static ssize_t nic_receive(VLANClientState *nc, const uint8_t * buf, size_t size
     static const uint8_t broadcast_macaddr[6] =
         { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
-    /* TODO: check multiple IA bit. */
-    if (s->configuration[20] & BIT(6)) {
-        missing("Multiple IA bit");
-        return -1;
-    }
-
     if (s->configuration[8] & 0x80) {
         /* CSMA is disabled. */
         logout("%p received while CSMA is disabled\n", s);
@@ -1703,6 +1704,16 @@ static ssize_t nic_receive(VLANClientState *nc, const uint8_t * buf, size_t size
         /* Promiscuous: receive all. */
         TRACE(RXTX, logout("%p received frame in promiscuous mode, len=%zu\n", s, size));
         rfd_status |= 0x0004;
+    } else if (s->configuration[20] & BIT(6)) {
+        /* Multiple IA bit set. */
+        unsigned mcast_idx = compute_mcast_idx(buf);
+        assert(mcast_idx < 64);
+        if (s->mult[mcast_idx >> 3] & (1 << (mcast_idx & 7))) {
+            TRACE(RXTX, logout("%p accepted, multiple IA bit set\n", s));
+        } else {
+            TRACE(RXTX, logout("%p frame ignored, multiple IA bit set\n", s));
+            return -1;
+        }
     } else {
         TRACE(RXTX, logout("%p received frame, ignored, len=%zu,%s\n", s, size,
               nic_dump(buf, size)));
@@ -1835,8 +1846,8 @@ static int pci_nic_uninit(PCIDevice *pci_dev)
     EEPRO100State *s = DO_UPCAST(EEPRO100State, dev, pci_dev);
 
     cpu_unregister_io_memory(s->mmio_index);
-    vmstate_unregister(s->vmstate, s);
-    eeprom93xx_free(s->eeprom);
+    vmstate_unregister(&pci_dev->qdev, s->vmstate, s);
+    eeprom93xx_free(&pci_dev->qdev, s->eeprom);
     qemu_del_vlan_client(&s->nic->nc);
     return 0;
 }
@@ -1863,7 +1874,7 @@ static int e100_nic_init(PCIDevice *pci_dev)
 
     /* Add 64 * 2 EEPROM. i82557 and i82558 support a 64 word EEPROM,
      * i82559 and later support 64 or 256 word EEPROM. */
-    s->eeprom = eeprom93xx_new(EEPROM_SIZE);
+    s->eeprom = eeprom93xx_new(&pci_dev->qdev, EEPROM_SIZE);
 
     /* Handler for memory-mapped I/O */
     s->mmio_index =
@@ -1894,7 +1905,7 @@ static int e100_nic_init(PCIDevice *pci_dev)
     s->vmstate = qemu_malloc(sizeof(vmstate_eepro100));
     memcpy(s->vmstate, &vmstate_eepro100, sizeof(vmstate_eepro100));
     s->vmstate->name = s->nic->nc.model;
-    vmstate_register(-1, s->vmstate, s);
+    vmstate_register(&pci_dev->qdev, -1, s->vmstate, s);
 
     return 0;
 }
@@ -2037,17 +2048,9 @@ static void eepro100_register_devices(void)
     size_t i;
     for (i = 0; i < ARRAY_SIZE(e100_devices); i++) {
         PCIDeviceInfo *pci_dev = &e100_devices[i].pci;
-        switch (e100_devices[i].device_id) {
-            case PCI_DEVICE_ID_INTEL_82551IT:
-                pci_dev->romfile = "gpxe-eepro100-80861209.rom";
-                break;
-            case PCI_DEVICE_ID_INTEL_82557:
-                pci_dev->romfile = "gpxe-eepro100-80861229.rom";
-                break;
-            case 0x2449:
-                pci_dev->romfile = "gpxe-eepro100-80862449.rom";
-                break;
-        }
+        /* We use the same rom file for all device ids.
+           QEMU fixes the device id during rom load. */
+        pci_dev->romfile = "gpxe-eepro100-80861209.rom";
         pci_dev->init = e100_nic_init;
         pci_dev->exit = pci_nic_uninit;
         pci_dev->qdev.props = e100_properties;

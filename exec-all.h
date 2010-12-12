@@ -82,16 +82,12 @@ void gen_intermediate_code_pc(CPUState *env, struct TranslationBlock *tb);
 void gen_pc_load(CPUState *env, struct TranslationBlock *tb,
                  unsigned long searched_pc, int pc_pos, void *puc);
 
-unsigned long code_gen_max_block_size(void);
 void cpu_gen_init(void);
 int cpu_gen_code(CPUState *env, struct TranslationBlock *tb,
                  int *gen_code_size_ptr);
 int cpu_restore_state(struct TranslationBlock *tb,
                       CPUState *env, unsigned long searched_pc,
                       void *puc);
-int cpu_restore_state_copy(struct TranslationBlock *tb,
-                           CPUState *env, unsigned long searched_pc,
-                           void *puc);
 void cpu_resume_from_signal(CPUState *env1, void *puc);
 void cpu_io_recompile(CPUState *env, void *retaddr);
 TranslationBlock *tb_gen_code(CPUState *env, 
@@ -197,8 +193,6 @@ void tb_link_page(TranslationBlock *tb,
 void tb_phys_invalidate(TranslationBlock *tb, tb_page_addr_t page_addr);
 
 extern COREMU_THREAD TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
-extern COREMU_THREAD uint8_t *code_gen_ptr;
-extern int code_gen_max_blocks;
 
 #if defined(USE_DIRECT_JUMP)
 
@@ -345,7 +339,7 @@ static inline tb_page_addr_t get_page_addr_code(CPUState *env1, target_ulong add
     }
     p = (void *)(unsigned long)addr
         + env1->tlb_table[mmu_idx][page_index].addend;
-    return qemu_ram_addr_from_host(p);
+    return qemu_ram_addr_from_host_nofail(p);
 }
 #endif
 
@@ -355,5 +349,8 @@ CPUDebugExcpHandler *cpu_set_debug_excp_handler(CPUDebugExcpHandler *handler);
 
 /* vl.c */
 extern int singlestep;
+
+/* cpu-exec.c */
+extern volatile sig_atomic_t exit_request;
 
 #endif

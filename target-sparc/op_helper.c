@@ -44,6 +44,11 @@
 #endif
 #endif
 
+#define DT0 (env->dt0)
+#define DT1 (env->dt1)
+#define QT0 (env->qt0)
+#define QT1 (env->qt1)
+
 #if defined(CONFIG_USER_ONLY) && defined(TARGET_SPARC64)
 static void do_unassigned_access(target_ulong addr, int is_write, int is_exec,
                           int is_asi, int size);
@@ -240,6 +245,42 @@ static inline target_ulong address_mask(CPUState *env1, target_ulong addr)
         addr &= 0xffffffffULL;
 #endif
     return addr;
+}
+
+/* returns true if access using this ASI is to have address translated by MMU
+   otherwise access is to raw physical address */
+static inline int is_translating_asi(int asi)
+{
+#ifdef TARGET_SPARC64
+    /* Ultrasparc IIi translating asi
+       - note this list is defined by cpu implementation
+     */
+    switch (asi) {
+    case 0x04 ... 0x11:
+    case 0x18 ... 0x19:
+    case 0x24 ... 0x2C:
+    case 0x70 ... 0x73:
+    case 0x78 ... 0x79:
+    case 0x80 ... 0xFF:
+        return 1;
+
+    default:
+        return 0;
+    }
+#else
+    /* TODO: check sparc32 bits */
+    return 0;
+#endif
+}
+
+static inline target_ulong asi_address_mask(CPUState *env1,
+                                            int asi, target_ulong addr)
+{
+    if (is_translating_asi(asi)) {
+        return address_mask(env, addr);
+    } else {
+        return addr;
+    }
 }
 
 static void raise_exception(int tt)
@@ -896,14 +937,15 @@ static uint32_t compute_C_flags(void)
     return env->psr & PSR_CARRY;
 }
 
-static inline uint32_t get_NZ_icc(target_ulong dst)
+static inline uint32_t get_NZ_icc(int32_t dst)
 {
     uint32_t ret = 0;
 
-    if (!(dst & 0xffffffffULL))
-        ret |= PSR_ZERO;
-    if ((int32_t) (dst & 0xffffffffULL) < 0)
-        ret |= PSR_NEG;
+    if (dst == 0) {
+        ret = PSR_ZERO;
+    } else if (dst < 0) {
+        ret = PSR_NEG;
+    }
     return ret;
 }
 
@@ -918,14 +960,15 @@ static uint32_t compute_C_flags_xcc(void)
     return env->xcc & PSR_CARRY;
 }
 
-static inline uint32_t get_NZ_xcc(target_ulong dst)
+static inline uint32_t get_NZ_xcc(target_long dst)
 {
     uint32_t ret = 0;
 
-    if (!dst)
-        ret |= PSR_ZERO;
-    if ((int64_t)dst < 0)
-        ret |= PSR_NEG;
+    if (!dst) {
+        ret = PSR_ZERO;
+    } else if (dst < 0) {
+        ret = PSR_NEG;
+    }
     return ret;
 }
 #endif
@@ -934,8 +977,9 @@ static inline uint32_t get_V_div_icc(target_ulong src2)
 {
     uint32_t ret = 0;
 
-    if (src2 != 0)
-        ret |= PSR_OVF;
+    if (src2 != 0) {
+        ret = PSR_OVF;
+    }
     return ret;
 }
 
@@ -953,26 +997,35 @@ static uint32_t compute_C_div(void)
     return 0;
 }
 
-/* carry = (src1[31] & src2[31]) | ( ~dst[31] & (src1[31] | src2[31])) */
-static inline uint32_t get_C_add_icc(target_ulong dst, target_ulong src1,
-                                     target_ulong src2)
+static inline uint32_t get_C_add_icc(uint32_t dst, uint32_t src1)
 {
     uint32_t ret = 0;
 
-    if (((src1 & (1ULL << 31)) & (src2 & (1ULL << 31)))
-        | ((~(dst & (1ULL << 31)))
-           & ((src1 & (1ULL << 31)) | (src2 & (1ULL << 31)))))
-        ret |= PSR_CARRY;
+    if (dst < src1) {
+        ret = PSR_CARRY;
+    }
     return ret;
 }
 
-static inline uint32_t get_V_add_icc(target_ulong dst, target_ulong src1,
-                                         target_ulong src2)
+static inline uint32_t get_C_addx_icc(uint32_t dst, uint32_t src1,
+                                      uint32_t src2)
 {
     uint32_t ret = 0;
 
-    if (((src1 ^ src2 ^ -1) & (src1 ^ dst)) & (1ULL << 31))
-        ret |= PSR_OVF;
+    if (((src1 & src2) | (~dst & (src1 | src2))) & (1U << 31)) {
+        ret = PSR_CARRY;
+    }
+    return ret;
+}
+
+static inline uint32_t get_V_add_icc(uint32_t dst, uint32_t src1,
+                                     uint32_t src2)
+{
+    uint32_t ret = 0;
+
+    if (((src1 ^ src2 ^ -1) & (src1 ^ dst)) & (1U << 31)) {
+        ret = PSR_OVF;
+    }
     return ret;
 }
 
@@ -981,8 +1034,20 @@ static inline uint32_t get_C_add_xcc(target_ulong dst, target_ulong src1)
 {
     uint32_t ret = 0;
 
-    if (dst < src1)
-        ret |= PSR_CARRY;
+    if (dst < src1) {
+        ret = PSR_CARRY;
+    }
+    return ret;
+}
+
+static inline uint32_t get_C_addx_xcc(target_ulong dst, target_ulong src1,
+                                      target_ulong src2)
+{
+    uint32_t ret = 0;
+
+    if (((src1 & src2) | (~dst & (src1 | src2))) & (1ULL << 63)) {
+        ret = PSR_CARRY;
+    }
     return ret;
 }
 
@@ -991,8 +1056,9 @@ static inline uint32_t get_V_add_xcc(target_ulong dst, target_ulong src1,
 {
     uint32_t ret = 0;
 
-    if (((src1 ^ src2 ^ -1) & (src1 ^ dst)) & (1ULL << 63))
-        ret |= PSR_OVF;
+    if (((src1 ^ src2 ^ -1) & (src1 ^ dst)) & (1ULL << 63)) {
+        ret = PSR_OVF;
+    }
     return ret;
 }
 
@@ -1017,14 +1083,14 @@ static uint32_t compute_all_add(void)
     uint32_t ret;
 
     ret = get_NZ_icc(CC_DST);
-    ret |= get_C_add_icc(CC_DST, CC_SRC, CC_SRC2);
+    ret |= get_C_add_icc(CC_DST, CC_SRC);
     ret |= get_V_add_icc(CC_DST, CC_SRC, CC_SRC2);
     return ret;
 }
 
 static uint32_t compute_C_add(void)
 {
-    return get_C_add_icc(CC_DST, CC_SRC, CC_SRC2);
+    return get_C_add_icc(CC_DST, CC_SRC);
 }
 
 #ifdef TARGET_SPARC64
@@ -1033,8 +1099,7 @@ static uint32_t compute_all_addx_xcc(void)
     uint32_t ret;
 
     ret = get_NZ_xcc(CC_DST);
-    ret |= get_C_add_xcc(CC_DST - CC_SRC2, CC_SRC);
-    ret |= get_C_add_xcc(CC_DST, CC_SRC);
+    ret |= get_C_addx_xcc(CC_DST, CC_SRC, CC_SRC2);
     ret |= get_V_add_xcc(CC_DST, CC_SRC, CC_SRC2);
     return ret;
 }
@@ -1043,18 +1108,36 @@ static uint32_t compute_C_addx_xcc(void)
 {
     uint32_t ret;
 
-    ret = get_C_add_xcc(CC_DST - CC_SRC2, CC_SRC);
-    ret |= get_C_add_xcc(CC_DST, CC_SRC);
+    ret = get_C_addx_xcc(CC_DST, CC_SRC, CC_SRC2);
     return ret;
 }
 #endif
+
+static uint32_t compute_all_addx(void)
+{
+    uint32_t ret;
+
+    ret = get_NZ_icc(CC_DST);
+    ret |= get_C_addx_icc(CC_DST, CC_SRC, CC_SRC2);
+    ret |= get_V_add_icc(CC_DST, CC_SRC, CC_SRC2);
+    return ret;
+}
+
+static uint32_t compute_C_addx(void)
+{
+    uint32_t ret;
+
+    ret = get_C_addx_icc(CC_DST, CC_SRC, CC_SRC2);
+    return ret;
+}
 
 static inline uint32_t get_V_tag_icc(target_ulong src1, target_ulong src2)
 {
     uint32_t ret = 0;
 
-    if ((src1 | src2) & 0x3)
-        ret |= PSR_OVF;
+    if ((src1 | src2) & 0x3) {
+        ret = PSR_OVF;
+    }
     return ret;
 }
 
@@ -1063,15 +1146,10 @@ static uint32_t compute_all_tadd(void)
     uint32_t ret;
 
     ret = get_NZ_icc(CC_DST);
-    ret |= get_C_add_icc(CC_DST, CC_SRC, CC_SRC2);
+    ret |= get_C_add_icc(CC_DST, CC_SRC);
     ret |= get_V_add_icc(CC_DST, CC_SRC, CC_SRC2);
     ret |= get_V_tag_icc(CC_SRC, CC_SRC2);
     return ret;
-}
-
-static uint32_t compute_C_tadd(void)
-{
-    return get_C_add_icc(CC_DST, CC_SRC, CC_SRC2);
 }
 
 static uint32_t compute_all_taddtv(void)
@@ -1079,35 +1157,39 @@ static uint32_t compute_all_taddtv(void)
     uint32_t ret;
 
     ret = get_NZ_icc(CC_DST);
-    ret |= get_C_add_icc(CC_DST, CC_SRC, CC_SRC2);
+    ret |= get_C_add_icc(CC_DST, CC_SRC);
     return ret;
 }
 
-static uint32_t compute_C_taddtv(void)
-{
-    return get_C_add_icc(CC_DST, CC_SRC, CC_SRC2);
-}
-
-/* carry = (~src1[31] & src2[31]) | ( dst[31]  & (~src1[31] | src2[31])) */
-static inline uint32_t get_C_sub_icc(target_ulong dst, target_ulong src1,
-                                     target_ulong src2)
+static inline uint32_t get_C_sub_icc(uint32_t src1, uint32_t src2)
 {
     uint32_t ret = 0;
 
-    if (((~(src1 & (1ULL << 31))) & (src2 & (1ULL << 31)))
-        | ((dst & (1ULL << 31)) & (( ~(src1 & (1ULL << 31)))
-                                   | (src2 & (1ULL << 31)))))
-        ret |= PSR_CARRY;
+    if (src1 < src2) {
+        ret = PSR_CARRY;
+    }
     return ret;
 }
 
-static inline uint32_t get_V_sub_icc(target_ulong dst, target_ulong src1,
-                                     target_ulong src2)
+static inline uint32_t get_C_subx_icc(uint32_t dst, uint32_t src1,
+                                      uint32_t src2)
 {
     uint32_t ret = 0;
 
-    if (((src1 ^ src2) & (src1 ^ dst)) & (1ULL << 31))
-        ret |= PSR_OVF;
+    if (((~src1 & src2) | (dst & (~src1 | src2))) & (1U << 31)) {
+        ret = PSR_CARRY;
+    }
+    return ret;
+}
+
+static inline uint32_t get_V_sub_icc(uint32_t dst, uint32_t src1,
+                                     uint32_t src2)
+{
+    uint32_t ret = 0;
+
+    if (((src1 ^ src2) & (src1 ^ dst)) & (1U << 31)) {
+        ret = PSR_OVF;
+    }
     return ret;
 }
 
@@ -1117,8 +1199,20 @@ static inline uint32_t get_C_sub_xcc(target_ulong src1, target_ulong src2)
 {
     uint32_t ret = 0;
 
-    if (src1 < src2)
-        ret |= PSR_CARRY;
+    if (src1 < src2) {
+        ret = PSR_CARRY;
+    }
+    return ret;
+}
+
+static inline uint32_t get_C_subx_xcc(target_ulong dst, target_ulong src1,
+                                      target_ulong src2)
+{
+    uint32_t ret = 0;
+
+    if (((~src1 & src2) | (dst & (~src1 | src2))) & (1ULL << 63)) {
+        ret = PSR_CARRY;
+    }
     return ret;
 }
 
@@ -1127,8 +1221,9 @@ static inline uint32_t get_V_sub_xcc(target_ulong dst, target_ulong src1,
 {
     uint32_t ret = 0;
 
-    if (((src1 ^ src2) & (src1 ^ dst)) & (1ULL << 63))
-        ret |= PSR_OVF;
+    if (((src1 ^ src2) & (src1 ^ dst)) & (1ULL << 63)) {
+        ret = PSR_OVF;
+    }
     return ret;
 }
 
@@ -1153,14 +1248,14 @@ static uint32_t compute_all_sub(void)
     uint32_t ret;
 
     ret = get_NZ_icc(CC_DST);
-    ret |= get_C_sub_icc(CC_DST, CC_SRC, CC_SRC2);
+    ret |= get_C_sub_icc(CC_SRC, CC_SRC2);
     ret |= get_V_sub_icc(CC_DST, CC_SRC, CC_SRC2);
     return ret;
 }
 
 static uint32_t compute_C_sub(void)
 {
-    return get_C_sub_icc(CC_DST, CC_SRC, CC_SRC2);
+    return get_C_sub_icc(CC_SRC, CC_SRC2);
 }
 
 #ifdef TARGET_SPARC64
@@ -1169,8 +1264,7 @@ static uint32_t compute_all_subx_xcc(void)
     uint32_t ret;
 
     ret = get_NZ_xcc(CC_DST);
-    ret |= get_C_sub_xcc(CC_DST - CC_SRC2, CC_SRC);
-    ret |= get_C_sub_xcc(CC_DST, CC_SRC2);
+    ret |= get_C_subx_xcc(CC_DST, CC_SRC, CC_SRC2);
     ret |= get_V_sub_xcc(CC_DST, CC_SRC, CC_SRC2);
     return ret;
 }
@@ -1179,26 +1273,38 @@ static uint32_t compute_C_subx_xcc(void)
 {
     uint32_t ret;
 
-    ret = get_C_sub_xcc(CC_DST - CC_SRC2, CC_SRC);
-    ret |= get_C_sub_xcc(CC_DST, CC_SRC2);
+    ret = get_C_subx_xcc(CC_DST, CC_SRC, CC_SRC2);
     return ret;
 }
 #endif
+
+static uint32_t compute_all_subx(void)
+{
+    uint32_t ret;
+
+    ret = get_NZ_icc(CC_DST);
+    ret |= get_C_subx_icc(CC_DST, CC_SRC, CC_SRC2);
+    ret |= get_V_sub_icc(CC_DST, CC_SRC, CC_SRC2);
+    return ret;
+}
+
+static uint32_t compute_C_subx(void)
+{
+    uint32_t ret;
+
+    ret = get_C_subx_icc(CC_DST, CC_SRC, CC_SRC2);
+    return ret;
+}
 
 static uint32_t compute_all_tsub(void)
 {
     uint32_t ret;
 
     ret = get_NZ_icc(CC_DST);
-    ret |= get_C_sub_icc(CC_DST, CC_SRC, CC_SRC2);
+    ret |= get_C_sub_icc(CC_SRC, CC_SRC2);
     ret |= get_V_sub_icc(CC_DST, CC_SRC, CC_SRC2);
     ret |= get_V_tag_icc(CC_SRC, CC_SRC2);
     return ret;
-}
-
-static uint32_t compute_C_tsub(void)
-{
-    return get_C_sub_icc(CC_DST, CC_SRC, CC_SRC2);
 }
 
 static uint32_t compute_all_tsubtv(void)
@@ -1206,13 +1312,8 @@ static uint32_t compute_all_tsubtv(void)
     uint32_t ret;
 
     ret = get_NZ_icc(CC_DST);
-    ret |= get_C_sub_icc(CC_DST, CC_SRC, CC_SRC2);
+    ret |= get_C_sub_icc(CC_SRC, CC_SRC2);
     return ret;
-}
-
-static uint32_t compute_C_tsubtv(void)
-{
-    return get_C_sub_icc(CC_DST, CC_SRC, CC_SRC2);
 }
 
 static uint32_t compute_all_logic(void)
@@ -1242,13 +1343,13 @@ static const CCTable icc_table[CC_OP_NB] = {
     [CC_OP_FLAGS] = { compute_all_flags, compute_C_flags },
     [CC_OP_DIV] = { compute_all_div, compute_C_div },
     [CC_OP_ADD] = { compute_all_add, compute_C_add },
-    [CC_OP_ADDX] = { compute_all_add, compute_C_add },
-    [CC_OP_TADD] = { compute_all_tadd, compute_C_tadd },
-    [CC_OP_TADDTV] = { compute_all_taddtv, compute_C_taddtv },
+    [CC_OP_ADDX] = { compute_all_addx, compute_C_addx },
+    [CC_OP_TADD] = { compute_all_tadd, compute_C_add },
+    [CC_OP_TADDTV] = { compute_all_taddtv, compute_C_add },
     [CC_OP_SUB] = { compute_all_sub, compute_C_sub },
-    [CC_OP_SUBX] = { compute_all_sub, compute_C_sub },
-    [CC_OP_TSUB] = { compute_all_tsub, compute_C_tsub },
-    [CC_OP_TSUBTV] = { compute_all_tsubtv, compute_C_tsubtv },
+    [CC_OP_SUBX] = { compute_all_subx, compute_C_subx },
+    [CC_OP_TSUB] = { compute_all_tsub, compute_C_sub },
+    [CC_OP_TSUBTV] = { compute_all_tsubtv, compute_C_sub },
     [CC_OP_LOGIC] = { compute_all_logic, compute_C_logic },
 };
 
@@ -1339,11 +1440,7 @@ static target_ulong get_psr(void)
         (env->psrps? PSR_PS : 0) |
         (env->psret? PSR_ET : 0) | env->cwp;
 #else
-    return env->version | (env->psr & PSR_ICC) |
-        (env->psref? PSR_EF : 0) |
-        (env->psrpil << 8) |
-        (env->psrs? PSR_S : 0) |
-        (env->psrps? PSR_PS : 0) | env->cwp;
+    return env->psr & PSR_ICC;
 #endif
 }
 
@@ -1362,17 +1459,19 @@ target_ulong cpu_get_psr(CPUState *env1)
 static void put_psr(target_ulong val)
 {
     env->psr = val & PSR_ICC;
+#if !defined (TARGET_SPARC64)
     env->psref = (val & PSR_EF)? 1 : 0;
     env->psrpil = (val & PSR_PIL) >> 8;
+#endif
 #if ((!defined (TARGET_SPARC64)) && !defined(CONFIG_USER_ONLY))
     cpu_check_irqs(env);
 #endif
+#if !defined (TARGET_SPARC64)
     env->psrs = (val & PSR_S)? 1 : 0;
     env->psrps = (val & PSR_PS)? 1 : 0;
-#if !defined (TARGET_SPARC64)
     env->psret = (val & PSR_ET)? 1 : 0;
-#endif
     set_cwp(val & PSR_CWP);
+#endif
     env->cc_op = CC_OP_FLAGS;
 }
 
@@ -1682,6 +1781,7 @@ uint64_t helper_ld_asi(target_ulong addr, int asi, int size, int sign)
     case 0x31: // Turbosparc RAM snoop
     case 0x32: // Turbosparc page table descriptor diagnostic
     case 0x39: /* data cache diagnostic register */
+    case 0x4c: /* SuperSPARC MMU Breakpoint Action register */
         ret = 0;
         break;
     case 0x38: /* SuperSPARC MMU Breakpoint Control Registers */
@@ -2087,7 +2187,7 @@ uint64_t helper_ld_asi(target_ulong addr, int asi, int size, int sign)
         raise_exception(TT_PRIV_ACT);
 
     helper_check_align(addr, size - 1);
-    addr = address_mask(env, addr);
+    addr = asi_address_mask(env, asi, addr);
 
     switch (asi) {
     case 0x82: // Primary no-fault
@@ -2190,7 +2290,7 @@ void helper_st_asi(target_ulong addr, target_ulong val, int asi, int size)
         raise_exception(TT_PRIV_ACT);
 
     helper_check_align(addr, size - 1);
-    addr = address_mask(env, addr);
+    addr = asi_address_mask(env, asi, addr);
 
     /* Convert to little endian */
     switch (asi) {
@@ -2261,12 +2361,14 @@ uint64_t helper_ld_asi(target_ulong addr, int asi, int size, int sign)
     asi &= 0xff;
 
     if ((asi < 0x80 && (env->pstate & PS_PRIV) == 0)
-        || ((env->def->features & CPU_FEATURE_HYPV)
+        || (cpu_has_hypervisor(env)
             && asi >= 0x30 && asi < 0x80
             && !(env->hpstate & HS_PRIV)))
         raise_exception(TT_PRIV_ACT);
 
     helper_check_align(addr, size - 1);
+    addr = asi_address_mask(env, asi, addr);
+
     switch (asi) {
     case 0x82: // Primary no-fault
     case 0x8a: // Primary no-fault LE
@@ -2296,8 +2398,7 @@ uint64_t helper_ld_asi(target_ulong addr, int asi, int size, int sign)
     case 0xe2: // UA2007 Primary block init
     case 0xe3: // UA2007 Secondary block init
         if ((asi & 0x80) && (env->pstate & PS_PRIV)) {
-            if ((env->def->features & CPU_FEATURE_HYPV)
-                && env->hpstate & HS_PRIV) {
+            if (cpu_hypervisor_mode(env)) {
                 switch(size) {
                 case 1:
                     ret = ldub_hypv(addr);
@@ -2613,12 +2714,14 @@ void helper_st_asi(target_ulong addr, target_ulong val, int asi, int size)
     asi &= 0xff;
 
     if ((asi < 0x80 && (env->pstate & PS_PRIV) == 0)
-        || ((env->def->features & CPU_FEATURE_HYPV)
+        || (cpu_has_hypervisor(env)
             && asi >= 0x30 && asi < 0x80
             && !(env->hpstate & HS_PRIV)))
         raise_exception(TT_PRIV_ACT);
 
     helper_check_align(addr, size - 1);
+    addr = asi_address_mask(env, asi, addr);
+
     /* Convert to little endian */
     switch (asi) {
     case 0x0c: // Nucleus Little Endian (LE)
@@ -2657,8 +2760,7 @@ void helper_st_asi(target_ulong addr, target_ulong val, int asi, int size)
     case 0xe2: // UA2007 Primary block init
     case 0xe3: // UA2007 Secondary block init
         if ((asi & 0x80) && (env->pstate & PS_PRIV)) {
-            if ((env->def->features & CPU_FEATURE_HYPV)
-                && env->hpstate & HS_PRIV) {
+            if (cpu_hypervisor_mode(env)) {
                 switch(size) {
                 case 1:
                     stb_hypv(addr, val);
@@ -2877,7 +2979,7 @@ void helper_st_asi(target_ulong addr, target_ulong val, int asi, int size)
             return;
         }
     case 0x57: // I-MMU demap
-        demap_tlb(env->itlb, val, "immu", env);
+        demap_tlb(env->itlb, addr, "immu", env);
         return;
     case 0x58: // D-MMU regs
         {
@@ -2898,9 +3000,15 @@ void helper_st_asi(target_ulong addr, target_ulong val, int asi, int size)
                 break;
             case 1: // Primary context
                 env->dmmu.mmu_primary_context = val;
+                /* can be optimized to only flush MMU_USER_IDX
+                   and MMU_KERNEL_IDX entries */
+                tlb_flush(env, 1);
                 break;
             case 2: // Secondary context
                 env->dmmu.mmu_secondary_context = val;
+                /* can be optimized to only flush MMU_USER_SECONDARY_IDX
+                   and MMU_KERNEL_SECONDARY_IDX entries */
+                tlb_flush(env, 1);
                 break;
             case 5: // TSB access
                 DPRINTF_MMU("dmmu TSB write: 0x%016" PRIx64 " -> 0x%016"
@@ -2942,7 +3050,7 @@ void helper_st_asi(target_ulong addr, target_ulong val, int asi, int size)
             return;
         }
     case 0x5f: // D-MMU demap
-        demap_tlb(env->dtlb, val, "dmmu", env);
+        demap_tlb(env->dtlb, addr, "dmmu", env);
         return;
     case 0x49: // Interrupt data receive
         // XXX
@@ -2983,35 +3091,39 @@ void helper_st_asi(target_ulong addr, target_ulong val, int asi, int size)
 void helper_ldda_asi(target_ulong addr, int asi, int rd)
 {
     if ((asi < 0x80 && (env->pstate & PS_PRIV) == 0)
-        || ((env->def->features & CPU_FEATURE_HYPV)
+        || (cpu_has_hypervisor(env)
             && asi >= 0x30 && asi < 0x80
             && !(env->hpstate & HS_PRIV)))
         raise_exception(TT_PRIV_ACT);
 
+    addr = asi_address_mask(env, asi, addr);
+
     switch (asi) {
+#if !defined(CONFIG_USER_ONLY)
     case 0x24: // Nucleus quad LDD 128 bit atomic
     case 0x2c: // Nucleus quad LDD 128 bit atomic LE
         helper_check_align(addr, 0xf);
         if (rd == 0) {
-            env->gregs[1] = ldq_kernel(addr + 8);
+            env->gregs[1] = ldq_nucleus(addr + 8);
             if (asi == 0x2c)
                 bswap64s(&env->gregs[1]);
         } else if (rd < 8) {
-            env->gregs[rd] = ldq_kernel(addr);
-            env->gregs[rd + 1] = ldq_kernel(addr + 8);
+            env->gregs[rd] = ldq_nucleus(addr);
+            env->gregs[rd + 1] = ldq_nucleus(addr + 8);
             if (asi == 0x2c) {
                 bswap64s(&env->gregs[rd]);
                 bswap64s(&env->gregs[rd + 1]);
             }
         } else {
-            env->regwptr[rd] = ldq_kernel(addr);
-            env->regwptr[rd + 1] = ldq_kernel(addr + 8);
+            env->regwptr[rd] = ldq_nucleus(addr);
+            env->regwptr[rd + 1] = ldq_nucleus(addr + 8);
             if (asi == 0x2c) {
                 bswap64s(&env->regwptr[rd]);
                 bswap64s(&env->regwptr[rd + 1]);
             }
         }
         break;
+#endif
     default:
         helper_check_align(addr, 0x3);
         if (rd == 0)
@@ -3033,6 +3145,8 @@ void helper_ldf_asi(target_ulong addr, int asi, int size, int rd)
     target_ulong val;
 
     helper_check_align(addr, 3);
+    addr = asi_address_mask(env, asi, addr);
+
     switch (asi) {
     case 0xf0: // Block load primary
     case 0xf1: // Block load secondary
@@ -3045,6 +3159,20 @@ void helper_ldf_asi(target_ulong addr, int asi, int size, int rd)
         helper_check_align(addr, 0x3f);
         for (i = 0; i < 16; i++) {
             *(uint32_t *)&env->fpr[rd++] = helper_ld_asi(addr, asi & 0x8f, 4,
+                                                         0);
+            addr += 4;
+        }
+
+        return;
+    case 0x70: // Block load primary, user privilege
+    case 0x71: // Block load secondary, user privilege
+        if (rd & 7) {
+            raise_exception(TT_ILL_INSN);
+            return;
+        }
+        helper_check_align(addr, 0x3f);
+        for (i = 0; i < 16; i++) {
+            *(uint32_t *)&env->fpr[rd++] = helper_ld_asi(addr, asi & 0x1f, 4,
                                                          0);
             addr += 4;
         }
@@ -3075,6 +3203,8 @@ void helper_stf_asi(target_ulong addr, int asi, int size, int rd)
     target_ulong val = 0;
 
     helper_check_align(addr, 3);
+    addr = asi_address_mask(env, asi, addr);
+
     switch (asi) {
     case 0xe0: // UA2007 Block commit store primary (cache flush)
     case 0xe1: // UA2007 Block commit store secondary (cache flush)
@@ -3090,6 +3220,20 @@ void helper_stf_asi(target_ulong addr, int asi, int size, int rd)
         for (i = 0; i < 16; i++) {
             val = *(uint32_t *)&env->fpr[rd++];
             helper_st_asi(addr, val, asi & 0x8f, 4);
+            addr += 4;
+        }
+
+        return;
+    case 0x70: // Block store primary, user privilege
+    case 0x71: // Block store secondary, user privilege
+        if (rd & 7) {
+            raise_exception(TT_ILL_INSN);
+            return;
+        }
+        helper_check_align(addr, 0x3f);
+        for (i = 0; i < 16; i++) {
+            val = *(uint32_t *)&env->fpr[rd++];
+            helper_st_asi(addr, val, asi & 0x1f, 4);
             addr += 4;
         }
 
@@ -3162,7 +3306,7 @@ target_ulong helper_udiv(target_ulong a, target_ulong b)
     uint32_t x1;
 
     x0 = (a & 0xffffffff) | ((int64_t) (env->y) << 32);
-    x1 = b;
+    x1 = (b & 0xffffffff);
 
     if (x1 == 0) {
         raise_exception(TT_DIV_ZERO);
@@ -3184,7 +3328,7 @@ target_ulong helper_sdiv(target_ulong a, target_ulong b)
     int32_t x1;
 
     x0 = (a & 0xffffffff) | ((int64_t) (env->y) << 32);
-    x1 = b;
+    x1 = (b & 0xffffffff);
 
     if (x1 == 0) {
         raise_exception(TT_DIV_ZERO);
@@ -3205,18 +3349,19 @@ void helper_stdf(target_ulong addr, int mem_idx)
     helper_check_align(addr, 7);
 #if !defined(CONFIG_USER_ONLY)
     switch (mem_idx) {
-    case 0:
+    case MMU_USER_IDX:
         stfq_user(addr, DT0);
         break;
-    case 1:
+    case MMU_KERNEL_IDX:
         stfq_kernel(addr, DT0);
         break;
 #ifdef TARGET_SPARC64
-    case 2:
+    case MMU_HYPV_IDX:
         stfq_hypv(addr, DT0);
         break;
 #endif
     default:
+        DPRINTF_MMU("helper_stdf: need to check MMU idx %d\n", mem_idx);
         break;
     }
 #else
@@ -3229,18 +3374,19 @@ void helper_lddf(target_ulong addr, int mem_idx)
     helper_check_align(addr, 7);
 #if !defined(CONFIG_USER_ONLY)
     switch (mem_idx) {
-    case 0:
+    case MMU_USER_IDX:
         DT0 = ldfq_user(addr);
         break;
-    case 1:
+    case MMU_KERNEL_IDX:
         DT0 = ldfq_kernel(addr);
         break;
 #ifdef TARGET_SPARC64
-    case 2:
+    case MMU_HYPV_IDX:
         DT0 = ldfq_hypv(addr);
         break;
 #endif
     default:
+        DPRINTF_MMU("helper_lddf: need to check MMU idx %d\n", mem_idx);
         break;
     }
 #else
@@ -3256,24 +3402,25 @@ void helper_ldqf(target_ulong addr, int mem_idx)
     helper_check_align(addr, 7);
 #if !defined(CONFIG_USER_ONLY)
     switch (mem_idx) {
-    case 0:
+    case MMU_USER_IDX:
         u.ll.upper = ldq_user(addr);
         u.ll.lower = ldq_user(addr + 8);
         QT0 = u.q;
         break;
-    case 1:
+    case MMU_KERNEL_IDX:
         u.ll.upper = ldq_kernel(addr);
         u.ll.lower = ldq_kernel(addr + 8);
         QT0 = u.q;
         break;
 #ifdef TARGET_SPARC64
-    case 2:
+    case MMU_HYPV_IDX:
         u.ll.upper = ldq_hypv(addr);
         u.ll.lower = ldq_hypv(addr + 8);
         QT0 = u.q;
         break;
 #endif
     default:
+        DPRINTF_MMU("helper_ldqf: need to check MMU idx %d\n", mem_idx);
         break;
     }
 #else
@@ -3291,24 +3438,25 @@ void helper_stqf(target_ulong addr, int mem_idx)
     helper_check_align(addr, 7);
 #if !defined(CONFIG_USER_ONLY)
     switch (mem_idx) {
-    case 0:
+    case MMU_USER_IDX:
         u.q = QT0;
         stq_user(addr, u.ll.upper);
         stq_user(addr + 8, u.ll.lower);
         break;
-    case 1:
+    case MMU_KERNEL_IDX:
         u.q = QT0;
         stq_kernel(addr, u.ll.upper);
         stq_kernel(addr + 8, u.ll.lower);
         break;
 #ifdef TARGET_SPARC64
-    case 2:
+    case MMU_HYPV_IDX:
         u.q = QT0;
         stq_hypv(addr, u.ll.upper);
         stq_hypv(addr + 8, u.ll.lower);
         break;
 #endif
     default:
+        DPRINTF_MMU("helper_stqf: need to check MMU idx %d\n", mem_idx);
         break;
     }
 #else

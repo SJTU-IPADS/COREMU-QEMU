@@ -29,6 +29,7 @@
 #include "qdev.h"
 #include "sysemu.h"
 #include "monitor.h"
+#include "blockdev.h"
 
 static int qdev_hotplug = 0;
 
@@ -93,6 +94,7 @@ static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info)
         assert(bus->allow_hotplug);
         dev->hotplugged = 1;
     }
+    dev->instance_id_alias = -1;
     dev->state = DEV_STATE_CREATED;
     return dev;
 }
@@ -255,13 +257,6 @@ DeviceState *qdev_device_add(QemuOpts *opts)
     return qdev;
 }
 
-static void qdev_reset(void *opaque)
-{
-    DeviceState *dev = opaque;
-    if (dev->info->reset)
-        dev->info->reset(dev);
-}
-
 /* Initialize a device.  Device properties should be set before calling
    this function.  IRQs and MMIO regions should be connected/mapped after
    calling this function.
@@ -277,11 +272,21 @@ int qdev_init(DeviceState *dev)
         qdev_free(dev);
         return rc;
     }
-    qemu_register_reset(qdev_reset, dev);
-    if (dev->info->vmsd)
-        vmstate_register(-1, dev->info->vmsd, dev);
+    if (dev->info->vmsd) {
+        vmstate_register_with_alias_id(dev, -1, dev->info->vmsd, dev,
+                                       dev->instance_id_alias,
+                                       dev->alias_required_for_version);
+    }
     dev->state = DEV_STATE_INITIALIZED;
     return 0;
+}
+
+void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
+                                 int required_for_version)
+{
+    assert(dev->state == DEV_STATE_CREATED);
+    dev->instance_id_alias = alias_id;
+    dev->alias_required_for_version = required_for_version;
 }
 
 int qdev_unplug(DeviceState *dev)
@@ -293,6 +298,38 @@ int qdev_unplug(DeviceState *dev)
     assert(dev->info->unplug != NULL);
 
     return dev->info->unplug(dev);
+}
+
+static int qdev_reset_one(DeviceState *dev, void *opaque)
+{
+    if (dev->info->reset) {
+        dev->info->reset(dev);
+    }
+
+    return 0;
+}
+
+BusState *sysbus_get_default(void)
+{
+    return main_system_bus;
+}
+
+static int qbus_reset_one(BusState *bus, void *opaque)
+{
+    if (bus->info->reset) {
+        return bus->info->reset(bus);
+    }
+    return 0;
+}
+
+void qdev_reset_all(DeviceState *dev)
+{
+    qdev_walk_children(dev, qdev_reset_one, qbus_reset_one, NULL);
+}
+
+void qbus_reset_all(BusState *bus)
+{
+    qbus_walk_children(bus, qdev_reset_one, qbus_reset_one, NULL);
 }
 
 /* can be used as ->unplug() callback for the simple cases */
@@ -314,14 +351,17 @@ void qdev_init_nofail(DeviceState *dev)
 {
     DeviceInfo *info = dev->info;
 
-    if (qdev_init(dev) < 0)
-        hw_error("Initialization of device %s failed\n", info->name);
+    if (qdev_init(dev) < 0) {
+        error_report("Initialization of device %s failed\n", info->name);
+        exit(1);
+    }
 }
 
 /* Unlink device from bus and free the structure.  */
 void qdev_free(DeviceState *dev)
 {
     BusState *bus;
+    Property *prop;
 
     if (dev->state == DEV_STATE_INITIALIZED) {
         while (dev->num_child_bus) {
@@ -329,14 +369,18 @@ void qdev_free(DeviceState *dev)
             qbus_free(bus);
         }
         if (dev->info->vmsd)
-            vmstate_unregister(dev->info->vmsd, dev);
+            vmstate_unregister(dev, dev->info->vmsd, dev);
         if (dev->info->exit)
             dev->info->exit(dev);
         if (dev->opts)
             qemu_opts_del(dev->opts);
     }
-    qemu_unregister_reset(qdev_reset, dev);
     QLIST_REMOVE(dev, sibling);
+    for (prop = dev->info->props; prop && prop->name; prop++) {
+        if (prop->info->free) {
+            prop->info->free(dev, prop);
+        }
+    }
     qemu_free(dev);
 }
 
@@ -426,6 +470,52 @@ BusState *qdev_get_child_bus(DeviceState *dev, const char *name)
         }
     }
     return NULL;
+}
+
+int qbus_walk_children(BusState *bus, qdev_walkerfn *devfn,
+                       qbus_walkerfn *busfn, void *opaque)
+{
+    DeviceState *dev;
+    int err;
+
+    if (busfn) {
+        err = busfn(bus, opaque);
+        if (err) {
+            return err;
+        }
+    }
+
+    QLIST_FOREACH(dev, &bus->children, sibling) {
+        err = qdev_walk_children(dev, devfn, busfn, opaque);
+        if (err < 0) {
+            return err;
+        }
+    }
+
+    return 0;
+}
+
+int qdev_walk_children(DeviceState *dev, qdev_walkerfn *devfn,
+                       qbus_walkerfn *busfn, void *opaque)
+{
+    BusState *bus;
+    int err;
+
+    if (devfn) {
+        err = devfn(dev, opaque);
+        if (err) {
+            return err;
+        }
+    }
+
+    QLIST_FOREACH(bus, &dev->child_bus, sibling) {
+        err = qbus_walk_children(bus, devfn, busfn, opaque);
+        if (err < 0) {
+            return err;
+        }
+    }
+
+    return 0;
 }
 
 static BusState *qbus_find_recursive(BusState *bus, const char *name,
@@ -688,6 +778,7 @@ void qbus_free(BusState *bus)
         QLIST_REMOVE(bus, sibling);
         bus->parent->num_child_bus--;
     }
+    qemu_free((void*)bus->name);
     if (bus->qdev_allocated) {
         qemu_free(bus);
     }
@@ -767,24 +858,11 @@ void do_info_qdm(Monitor *mon)
     }
 }
 
-/**
- * do_device_add(): Add a device
- *
- * Argument qdict contains
- * - "driver": the name of the new device's driver
- * - "bus": the device's parent bus (device tree path)
- * - "id": the device's ID (must be unique)
- * - device properties
- *
- * Example:
- *
- * { "driver": "usb-net", "id": "eth1", "netdev": "netdev1" }
- */
 int do_device_add(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     QemuOpts *opts;
 
-    opts = qemu_opts_from_qdict(&qemu_device_opts, qdict);
+    opts = qemu_opts_from_qdict(qemu_find_opts("device"), qdict);
     if (!opts) {
         return -1;
     }

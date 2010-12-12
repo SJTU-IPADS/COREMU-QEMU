@@ -1,5 +1,5 @@
 /*
- * QError header file.
+ * QError Module
  *
  * Copyright (C) 2009 Red Hat Inc.
  *
@@ -34,12 +34,11 @@ typedef struct QError {
 
 QError *qerror_new(void);
 QError *qerror_from_info(const char *file, int linenr, const char *func,
-                         const char *fmt, va_list *va);
+                         const char *fmt, va_list *va) GCC_FMT_ATTR(4, 0);
 QString *qerror_human(const QError *qerror);
 void qerror_print(QError *qerror);
 void qerror_report_internal(const char *file, int linenr, const char *func,
-                            const char *fmt, ...)
-    __attribute__ ((format(printf, 4, 5)));
+                            const char *fmt, ...) GCC_FMT_ATTR(4, 5);
 #define qerror_report(fmt, ...) \
     qerror_report_internal(__FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 QError *qobject_to_qerror(const QObject *obj);
@@ -121,6 +120,9 @@ QError *qobject_to_qerror(const QObject *obj);
 #define QERR_KVM_MISSING_CAP \
     "{ 'class': 'KVMMissingCap', 'data': { 'capability': %s, 'feature': %s } }"
 
+#define QERR_MIGRATION_EXPECTED \
+    "{ 'class': 'MigrationExpected', 'data': {} }"
+
 #define QERR_MISSING_PARAMETER \
     "{ 'class': 'MissingParameter', 'data': { 'name': %s } }"
 
@@ -147,6 +149,9 @@ QError *qobject_to_qerror(const QObject *obj);
 
 #define QERR_QMP_BAD_INPUT_OBJECT_MEMBER \
     "{ 'class': 'QMPBadInputObjectMember', 'data': { 'member': %s, 'expected': %s } }"
+
+#define QERR_QMP_EXTRA_MEMBER \
+    "{ 'class': 'QMPExtraInputObjectMember', 'data': { 'member': %s } }"
 
 #define QERR_SET_PASSWD_FAILED \
     "{ 'class': 'SetPasswdFailed', 'data': {} }"

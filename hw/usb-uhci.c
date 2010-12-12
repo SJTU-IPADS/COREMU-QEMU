@@ -375,7 +375,7 @@ static const VMStateDescription vmstate_uhci_port = {
 
 static const VMStateDescription vmstate_uhci = {
     .name = "uhci",
-    .version_id = 1,
+    .version_id = 2,
     .minimum_version_id = 1,
     .minimum_version_id_old = 1,
     .pre_save = uhci_pre_save,
@@ -392,6 +392,7 @@ static const VMStateDescription vmstate_uhci = {
         VMSTATE_UINT8(sof_timing, UHCIState),
         VMSTATE_UINT8(status2, UHCIState),
         VMSTATE_TIMER(frame_timer, UHCIState),
+        VMSTATE_INT64_V(expire_time, UHCIState, 2),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -1108,7 +1109,6 @@ static int usb_uhci_common_initfn(UHCIState *s)
     pci_conf[PCI_REVISION_ID] = 0x01; // revision number
     pci_conf[PCI_CLASS_PROG] = 0x00;
     pci_config_set_class(pci_conf, PCI_CLASS_SERIAL_USB);
-    pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
     /* TODO: reset value should be 0. */
     pci_conf[PCI_INTERRUPT_PIN] = 4; // interrupt pin 3
     pci_conf[0x60] = 0x10; // release number
@@ -1152,6 +1152,24 @@ static int usb_uhci_piix4_initfn(PCIDevice *dev)
     return usb_uhci_common_initfn(s);
 }
 
+static int usb_uhci_vt82c686b_initfn(PCIDevice *dev)
+{
+    UHCIState *s = DO_UPCAST(UHCIState, dev, dev);
+    uint8_t *pci_conf = s->dev.config;
+
+    pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_VIA);
+    pci_config_set_device_id(pci_conf, PCI_DEVICE_ID_VIA_UHCI);
+
+    /* USB misc control 1/2 */
+    pci_set_long(pci_conf + 0x40,0x00001000);
+    /* PM capability */
+    pci_set_long(pci_conf + 0x80,0x00020001);
+    /* USB legacy support  */
+    pci_set_long(pci_conf + 0xc0,0x00002000);
+
+    return usb_uhci_common_initfn(s);
+}
+
 static PCIDeviceInfo uhci_info[] = {
     {
         .qdev.name    = "piix3-usb-uhci",
@@ -1163,6 +1181,11 @@ static PCIDeviceInfo uhci_info[] = {
         .qdev.size    = sizeof(UHCIState),
         .qdev.vmsd    = &vmstate_uhci,
         .init         = usb_uhci_piix4_initfn,
+    },{
+        .qdev.name    = "vt82c686b-usb-uhci",
+        .qdev.size    = sizeof(UHCIState),
+        .qdev.vmsd    = &vmstate_uhci,
+        .init         = usb_uhci_vt82c686b_initfn,
     },{
         /* end of list */
     }
@@ -1182,4 +1205,9 @@ void usb_uhci_piix3_init(PCIBus *bus, int devfn)
 void usb_uhci_piix4_init(PCIBus *bus, int devfn)
 {
     pci_create_simple(bus, devfn, "piix4-usb-uhci");
+}
+
+void usb_uhci_vt82c686b_init(PCIBus *bus, int devfn)
+{
+    pci_create_simple(bus, devfn, "vt82c686b-usb-uhci");
 }

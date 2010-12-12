@@ -66,15 +66,15 @@
 #error GUEST_BASE not supported on this host.
 #endif
 
+static void tcg_target_init(TCGContext *s);
+static void tcg_target_qemu_prologue(TCGContext *s);
 static void patch_reloc(uint8_t *code_ptr, int type, 
                         tcg_target_long value, tcg_target_long addend);
 
 static COREMU_THREAD TCGOpDef tcg_op_defs[] = {
-#define DEF(s, n, copy_size) { #s, 0, 0, n, n, 0, copy_size },
-#define DEF2(s, oargs, iargs, cargs, flags) { #s, oargs, iargs, cargs, iargs + oargs + cargs, flags, 0 },
+#define DEF(s, oargs, iargs, cargs, flags) { #s, oargs, iargs, cargs, iargs + oargs + cargs, flags },
 #include "tcg-opc.h"
 #undef DEF
-#undef DEF2
 };
 
 static COREMU_THREAD TCGRegSet tcg_target_available_regs[2];
@@ -243,7 +243,10 @@ void tcg_context_init(TCGContext *s)
     }
     
     tcg_target_init(s);
+}
 
+void tcg_prologue_init(TCGContext *s)
+{
     /* init global prologue and epilogue */
 #ifndef CONFIG_COREMU
     /* For coremu, we only need one piece code prologue. We initialize it in the
@@ -564,6 +567,24 @@ void tcg_gen_callN(TCGContext *s, TCGv_ptr func, unsigned int flags,
     int real_args;
     int nb_rets;
     TCGArg *nparam;
+
+#if defined(TCG_TARGET_EXTEND_ARGS) && TCG_TARGET_REG_BITS == 64
+    for (i = 0; i < nargs; ++i) {
+        int is_64bit = sizemask & (1 << (i+1)*2);
+        int is_signed = sizemask & (2 << (i+1)*2);
+        if (!is_64bit) {
+            TCGv_i64 temp = tcg_temp_new_i64();
+            TCGv_i64 orig = MAKE_TCGV_I64(args[i]);
+            if (is_signed) {
+                tcg_gen_ext32s_i64(temp, orig);
+            } else {
+                tcg_gen_ext32u_i64(temp, orig);
+            }
+            args[i] = GET_TCGV_I64(temp);
+        }
+    }
+#endif /* TCG_TARGET_EXTEND_ARGS */
+
     *gen_opc_ptr++ = INDEX_op_call;
     nparam = gen_opparam_ptr++;
 #ifdef TCG_TARGET_I386
@@ -592,7 +613,8 @@ void tcg_gen_callN(TCGContext *s, TCGv_ptr func, unsigned int flags,
     real_args = 0;
     for (i = 0; i < nargs; i++) {
 #if TCG_TARGET_REG_BITS < 64
-        if (sizemask & (2 << i)) {
+        int is_64bit = sizemask & (1 << (i+1)*2);
+        if (is_64bit) {
 #ifdef TCG_TARGET_I386
             /* REGPARM case: if the third parameter is 64 bit, it is
                allocated on the stack */
@@ -626,12 +648,12 @@ void tcg_gen_callN(TCGContext *s, TCGv_ptr func, unsigned int flags,
             *gen_opparam_ptr++ = args[i] + 1;
 #endif
             real_args += 2;
-        } else
-#endif
-        {
-            *gen_opparam_ptr++ = args[i];
-            real_args++;
+            continue;
         }
+#endif /* TCG_TARGET_REG_BITS < 64 */
+
+        *gen_opparam_ptr++ = args[i];
+        real_args++;
     }
     *gen_opparam_ptr++ = GET_TCGV_PTR(func);
 
@@ -641,6 +663,16 @@ void tcg_gen_callN(TCGContext *s, TCGv_ptr func, unsigned int flags,
 
     /* total parameters, needed to go backward in the instruction stream */
     *gen_opparam_ptr++ = 1 + nb_rets + real_args + 3;
+
+#if defined(TCG_TARGET_EXTEND_ARGS) && TCG_TARGET_REG_BITS == 64
+    for (i = 0; i < nargs; ++i) {
+        int is_64bit = sizemask & (1 << (i+1)*2);
+        if (!is_64bit) {
+            TCGv_i64 temp = MAKE_TCGV_I64(args[i]);
+            tcg_temp_free_i64(temp);
+        }
+    }
+#endif /* TCG_TARGET_EXTEND_ARGS */
 }
 
 #if TCG_TARGET_REG_BITS == 32
@@ -1002,7 +1034,7 @@ void tcg_add_target_add_op_defs(const TCGTargetOpDef *tdefs)
         if (tdefs->op == (TCGOpcode)-1)
             break;
         op = tdefs->op;
-        assert(op >= 0 && op < NB_OPS);
+        assert((unsigned)op < NB_OPS);
         def = &tcg_op_defs[op];
 #if defined(CONFIG_DEBUG_TCG)
         /* Duplicate entry in op definitions? */
@@ -1551,7 +1583,7 @@ static void tcg_reg_alloc_mov(TCGContext *s, const TCGOpDef *def,
                 reg = tcg_reg_alloc(s, arg_ct->u.regs, s->reserved_regs);
             }
             if (ts->reg != reg) {
-                tcg_out_mov(s, reg, ts->reg);
+                tcg_out_mov(s, ots->type, reg, ts->reg);
             }
         }
     } else if (ts->val_type == TEMP_VAL_MEM) {
@@ -1656,7 +1688,7 @@ static void tcg_reg_alloc_op(TCGContext *s,
             /* allocate a new register matching the constraint 
                and move the temporary register into it */
             reg = tcg_reg_alloc(s, arg_ct->u.regs, allocated_regs);
-            tcg_out_mov(s, reg, ts->reg);
+            tcg_out_mov(s, ts->type, reg, ts->reg);
         }
         new_args[i] = reg;
         const_args[i] = 0;
@@ -1738,7 +1770,7 @@ static void tcg_reg_alloc_op(TCGContext *s,
         ts = &s->temps[args[i]];
         reg = new_args[i];
         if (ts->fixed_reg && ts->reg != reg) {
-            tcg_out_mov(s, ts->reg, reg);
+            tcg_out_mov(s, ts->type, ts->reg, reg);
         }
     }
 }
@@ -1824,7 +1856,7 @@ static int tcg_reg_alloc_call(TCGContext *s, const TCGOpDef *def,
             tcg_reg_free(s, reg);
             if (ts->val_type == TEMP_VAL_REG) {
                 if (ts->reg != reg) {
-                    tcg_out_mov(s, reg, ts->reg);
+                    tcg_out_mov(s, ts->type, reg, ts->reg);
                 }
             } else if (ts->val_type == TEMP_VAL_MEM) {
                 tcg_out_ld(s, ts->type, reg, ts->mem_reg, ts->mem_offset);
@@ -1853,7 +1885,7 @@ static int tcg_reg_alloc_call(TCGContext *s, const TCGOpDef *def,
         reg = ts->reg;
         if (!tcg_regset_test_reg(arg_ct->u.regs, reg)) {
             reg = tcg_reg_alloc(s, arg_ct->u.regs, allocated_regs);
-            tcg_out_mov(s, reg, ts->reg);
+            tcg_out_mov(s, ts->type, reg, ts->reg);
         }
         func_arg = reg;
         tcg_regset_set_reg(allocated_regs, reg);
@@ -1912,7 +1944,7 @@ static int tcg_reg_alloc_call(TCGContext *s, const TCGOpDef *def,
         assert(s->reg_to_temp[reg] == -1);
         if (ts->fixed_reg) {
             if (ts->reg != reg) {
-                tcg_out_mov(s, ts->reg, reg);
+                tcg_out_mov(s, ts->type, ts->reg, reg);
             }
         } else {
             if (ts->val_type == TEMP_VAL_REG)
@@ -2099,8 +2131,7 @@ int tcg_gen_code_search_pc(TCGContext *s, uint8_t *gen_code_buf, long offset)
 }
 
 #ifdef CONFIG_PROFILER
-void tcg_dump_info(FILE *f,
-                   int (*cpu_fprintf)(FILE *f, const char *fmt, ...))
+void tcg_dump_info(FILE *f, fprintf_function cpu_fprintf)
 {
     TCGContext *s = &tcg_ctx;
     int64_t tot;
@@ -2144,8 +2175,7 @@ void tcg_dump_info(FILE *f,
     dump_op_count();
 }
 #else
-void tcg_dump_info(FILE *f,
-                   int (*cpu_fprintf)(FILE *f, const char *fmt, ...))
+void tcg_dump_info(FILE *f, fprintf_function cpu_fprintf)
 {
     cpu_fprintf(f, "[TCG profiler not compiled]\n");
 }
@@ -2156,6 +2186,8 @@ void tcg_dump_info(FILE *f,
 #include <sys/types.h>
 #include <sys/mman.h>
 #include "cm-init.h"
+#include "cm-tbinval.h"
+
 void cm_code_prologue_init(void)
 {
     TCGContext tmp_ctx;

@@ -38,6 +38,7 @@
 #include "sysemu.h"
 #include "devices.h"
 #include "boards.h"
+#include "blockdev.h"
 
 static const int sector_len = 128 * 1024;
 
@@ -67,14 +68,13 @@ static void connex_init(ram_addr_t ram_size,
 #else
     be = 0;
 #endif
-    if (!pflash_cfi01_register(0x00000000, qemu_ram_alloc(connex_rom),
+    if (!pflash_cfi01_register(0x00000000, qemu_ram_alloc(NULL, "connext.rom",
+                                                          connex_rom),
                                dinfo->bdrv, sector_len, connex_rom / sector_len,
                                2, 0, 0, 0, 0, be)) {
         fprintf(stderr, "qemu: Error registering flash memory.\n");
         exit(1);
     }
-
-    cpu->env->regs[15] = 0x00000000;
 
     /* Interrupt line of NIC is connected to GPIO line 36 */
     smc91c111_init(&nd_table[0], 0x04000300,
@@ -107,14 +107,13 @@ static void verdex_init(ram_addr_t ram_size,
 #else
     be = 0;
 #endif
-    if (!pflash_cfi01_register(0x00000000, qemu_ram_alloc(verdex_rom),
+    if (!pflash_cfi01_register(0x00000000, qemu_ram_alloc(NULL, "verdex.rom",
+                                                          verdex_rom),
                                dinfo->bdrv, sector_len, verdex_rom / sector_len,
                                2, 0, 0, 0, 0, be)) {
         fprintf(stderr, "qemu: Error registering flash memory.\n");
         exit(1);
     }
-
-    cpu->env->regs[15] = 0x00000000;
 
     /* Interrupt line of NIC is connected to GPIO line 99 */
     smc91c111_init(&nd_table[0], 0x04000300,

@@ -186,7 +186,6 @@ typedef struct {
 } VdiHeader;
 
 typedef struct {
-    BlockDriverState *hd;
     /* The block map entries are little endian (even in memory). */
     uint32_t *bmap;
     /* Size of block (bytes). */
@@ -291,11 +290,10 @@ static void vdi_header_print(VdiHeader *header)
 }
 #endif
 
-static int vdi_check(BlockDriverState *bs)
+static int vdi_check(BlockDriverState *bs, BdrvCheckResult *res)
 {
     /* TODO: additional checks possible. */
     BDRVVdiState *s = (BDRVVdiState *)bs->opaque;
-    int n_errors = 0;
     uint32_t blocks_allocated = 0;
     uint32_t block;
     uint32_t *bmap;
@@ -315,11 +313,12 @@ static int vdi_check(BlockDriverState *bs)
                 } else {
                     fprintf(stderr, "ERROR: block index %" PRIu32
                             " also used by %" PRIu32 "\n", bmap[bmap_entry], bmap_entry);
+                    res->corruptions++;
                 }
             } else {
                 fprintf(stderr, "ERROR: block index %" PRIu32
                         " too large, is %" PRIu32 "\n", block, bmap_entry);
-                n_errors++;
+                res->corruptions++;
             }
         }
     }
@@ -327,12 +326,12 @@ static int vdi_check(BlockDriverState *bs)
         fprintf(stderr, "ERROR: allocated blocks mismatch, is %" PRIu32
                ", should be %" PRIu32 "\n",
                blocks_allocated, s->header.blocks_allocated);
-        n_errors++;
+        res->corruptions++;
     }
 
     qemu_free(bmap);
 
-    return n_errors;
+    return 0;
 }
 
 static int vdi_get_info(BlockDriverState *bs, BlockDriverInfo *bdi)
@@ -393,6 +392,15 @@ static int vdi_open(BlockDriverState *bs, int flags)
     vdi_header_print(&header);
 #endif
 
+    if (header.disk_size % SECTOR_SIZE != 0) {
+        /* 'VBoxManage convertfromraw' can create images with odd disk sizes.
+           We accept them but round the disk size to the next multiple of
+           SECTOR_SIZE. */
+        logout("odd disk size %" PRIu64 " B, round up\n", header.disk_size);
+        header.disk_size += SECTOR_SIZE - 1;
+        header.disk_size &= ~(SECTOR_SIZE - 1);
+    }
+
     if (header.version != VDI_VERSION_1_1) {
         logout("unsupported version %u.%u\n",
                header.version >> 16, header.version & 0xffff);
@@ -405,18 +413,15 @@ static int vdi_open(BlockDriverState *bs, int flags)
         /* We only support data blocks which start on a sector boundary. */
         logout("unsupported data offset 0x%x B\n", header.offset_data);
         goto fail;
-    } else if (header.disk_size % SECTOR_SIZE != 0) {
-        logout("unsupported disk size %" PRIu64 " B\n", header.disk_size);
-        goto fail;
     } else if (header.sector_size != SECTOR_SIZE) {
         logout("unsupported sector size %u B\n", header.sector_size);
         goto fail;
     } else if (header.block_size != 1 * MiB) {
         logout("unsupported block size %u B\n", header.block_size);
         goto fail;
-    } else if ((header.disk_size + header.block_size - 1) / header.block_size !=
-               (uint64_t)header.blocks_in_image) {
-        logout("unexpected block number %u B\n", header.blocks_in_image);
+    } else if (header.disk_size >
+               (uint64_t)header.blocks_in_image * header.block_size) {
+        logout("unsupported disk size %" PRIu64 " B\n", header.disk_size);
         goto fail;
     } else if (!uuid_is_null(header.uuid_link)) {
         logout("link uuid != 0, unsupported\n");
@@ -435,7 +440,9 @@ static int vdi_open(BlockDriverState *bs, int flags)
 
     bmap_size = header.blocks_in_image * sizeof(uint32_t);
     bmap_size = (bmap_size + SECTOR_SIZE - 1) / SECTOR_SIZE;
-    s->bmap = qemu_malloc(bmap_size * SECTOR_SIZE);
+    if (bmap_size > 0) {
+        s->bmap = qemu_malloc(bmap_size * SECTOR_SIZE);
+    }
     if (bdrv_read(bs->file, s->bmap_sector, (uint8_t *)s->bmap, bmap_size) < 0) {
         goto fail_free_bmap;
     }
@@ -469,7 +476,7 @@ static int vdi_is_allocated(BlockDriverState *bs, int64_t sector_num,
 static void vdi_aio_cancel(BlockDriverAIOCB *blockacb)
 {
     /* TODO: This code is untested. How can I get it executed? */
-    VdiAIOCB *acb = (VdiAIOCB *)blockacb;
+    VdiAIOCB *acb = container_of(blockacb, VdiAIOCB, common);
     logout("\n");
     if (acb->hd_aiocb) {
         bdrv_aio_cancel(acb->hd_aiocb);
@@ -827,7 +834,10 @@ static int vdi_create(const char *filename, QEMUOptionParameter *options)
         return -errno;
     }
 
-    blocks = bytes / block_size;
+    /* We need enough blocks to store the given disk size,
+       so always round up. */
+    blocks = (bytes + block_size - 1) / block_size;
+
     bmap_size = blocks * sizeof(uint32_t);
     bmap_size = ((bmap_size + SECTOR_SIZE - 1) & ~(SECTOR_SIZE -1));
 
@@ -857,7 +867,10 @@ static int vdi_create(const char *filename, QEMUOptionParameter *options)
         result = -errno;
     }
 
-    bmap = (uint32_t *)qemu_mallocz(bmap_size);
+    bmap = NULL;
+    if (bmap_size > 0) {
+        bmap = (uint32_t *)qemu_mallocz(bmap_size);
+    }
     for (i = 0; i < blocks; i++) {
         if (image_type == VDI_TYPE_STATIC) {
             bmap[i] = i;
@@ -886,10 +899,10 @@ static void vdi_close(BlockDriverState *bs)
 {
 }
 
-static void vdi_flush(BlockDriverState *bs)
+static int vdi_flush(BlockDriverState *bs)
 {
     logout("\n");
-    bdrv_flush(bs->file);
+    return bdrv_flush(bs->file);
 }
 
 

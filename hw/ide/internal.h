@@ -8,6 +8,7 @@
  */
 #include <hw/ide.h>
 #include "block_int.h"
+#include "iorange.h"
 
 /* debug IDE devices */
 //#define DEBUG_IDE
@@ -362,6 +363,8 @@ typedef struct BMDMAState BMDMAState;
 #define SMART_DISABLE         0xd9
 #define SMART_STATUS          0xda
 
+typedef enum { IDE_HD, IDE_CD, IDE_CFATA } IDEDriveKind;
+
 typedef void EndTransferFunc(IDEState *);
 
 /* NOTE: IDEState represents in fact one drive */
@@ -369,8 +372,7 @@ struct IDEState {
     IDEBus *bus;
     uint8_t unit;
     /* ide config */
-    int is_cdrom;
-    int is_cf;
+    IDEDriveKind drive_kind;
     int cylinders, heads, sectors;
     int64_t nb_sectors;
     int mult_sectors;
@@ -398,7 +400,6 @@ struct IDEState {
     /* set for lba48 access */
     uint8_t lba48;
     BlockDriverState *bs;
-    BlockConf *conf;
     char version[9];
     /* ATAPI specific */
     uint8_t sense_key;
@@ -458,14 +459,13 @@ struct IDEDevice {
     uint32_t unit;
     BlockConf conf;
     char *version;
+    char *serial;
 };
 
 typedef int (*ide_qdev_initfn)(IDEDevice *dev);
 struct IDEDeviceInfo {
     DeviceInfo qdev;
     ide_qdev_initfn init;
-    uint32_t unit;
-    DriveInfo *drive;
 };
 
 #define BM_STATUS_DMAING 0x01
@@ -473,7 +473,8 @@ struct IDEDeviceInfo {
 #define BM_STATUS_INT    0x04
 #define BM_STATUS_DMA_RETRY  0x08
 #define BM_STATUS_PIO_RETRY  0x10
-#define BM_STATUS_RETRY_READ 0x20
+#define BM_STATUS_RETRY_READ  0x20
+#define BM_STATUS_RETRY_FLUSH 0x40
 
 #define BM_CMD_START     0x01
 #define BM_CMD_READ      0x08
@@ -496,6 +497,7 @@ struct BMDMAState {
     QEMUIOVector qiov;
     int64_t sector_num;
     uint32_t nsector;
+    IORange addr_ioport;
     QEMUBH *bh;
 };
 
@@ -557,10 +559,11 @@ uint32_t ide_data_readw(void *opaque, uint32_t addr);
 void ide_data_writel(void *opaque, uint32_t addr, uint32_t val);
 uint32_t ide_data_readl(void *opaque, uint32_t addr);
 
-void ide_init_drive(IDEState *s, DriveInfo *dinfo, BlockConf *conf,
-    const char *version);
-void ide_init2(IDEBus *bus, DriveInfo *hd0, DriveInfo *hd1,
-               qemu_irq irq);
+int ide_init_drive(IDEState *s, BlockDriverState *bs,
+                   const char *version, const char *serial);
+void ide_init2(IDEBus *bus, qemu_irq irq);
+void ide_init2_with_non_qdev_drives(IDEBus *bus, DriveInfo *hd0,
+                                    DriveInfo *hd1, qemu_irq irq);
 void ide_init_ioport(IDEBus *bus, int iobase, int iobase2);
 
 /* hw/ide/qdev.c */

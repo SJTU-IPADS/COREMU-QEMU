@@ -20,7 +20,7 @@
 #define __CPU_PPC_H__
 
 #include "config.h"
-#include <inttypes.h>
+#include "qemu-common.h"
 
 //#define PPC_EMULATE_32BITS_HYPV
 
@@ -453,6 +453,9 @@ struct ppc_slb_t {
 #endif
 #endif
 
+/* Exception state register bits definition                                  */
+#define ESR_ST    23    /* Exception was caused by a store type access.      */
+
 enum {
     POWERPC_FLAG_NONE     = 0x00000000,
     /* Flag for MSR bit 25 signification (VRE/SPE)                           */
@@ -697,8 +700,9 @@ struct CPUPPCState {
     int power_mode;
     int (*check_pow)(CPUPPCState *env);
 
-    /* temporary hack to handle OSI calls (only used if non NULL) */
-    int (*osi_call)(struct CPUPPCState *env);
+#if !defined(CONFIG_USER_ONLY)
+    void *load_info;    /* Holds boot loading state.  */
+#endif
 };
 
 #if !defined(CONFIG_USER_ONLY)
@@ -757,7 +761,7 @@ void ppc_store_sr (CPUPPCState *env, int srnum, target_ulong value);
 #endif /* !defined(CONFIG_USER_ONLY) */
 void ppc_store_msr (CPUPPCState *env, target_ulong value);
 
-void ppc_cpu_list (FILE *f, int (*cpu_fprintf)(FILE *f, const char *fmt, ...));
+void ppc_cpu_list (FILE *f, fprintf_function cpu_fprintf);
 
 const ppc_def_t *cpu_ppc_find_by_name (const char *name);
 int cpu_ppc_register_internal (CPUPPCState *env, const ppc_def_t *def);
@@ -849,7 +853,6 @@ static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 #endif
 
 #include "cpu-all.h"
-#include "exec-all.h"
 
 /*****************************************************************************/
 /* CRF definitions */
@@ -1600,11 +1603,6 @@ enum {
 };
 
 /*****************************************************************************/
-
-static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock *tb)
-{
-    env->nip = tb->pc;
-}
 
 static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
                                         target_ulong *cs_base, int *flags)

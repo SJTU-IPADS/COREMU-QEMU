@@ -27,6 +27,7 @@
 #include "isa.h"
 #include "pc.h"
 #include "qemu-timer.h"
+#include "sysemu.h"
 
 //#define DEBUG_SERIAL
 
@@ -97,6 +98,14 @@
 #define XMIT_FIFO           0
 #define RECV_FIFO           1
 #define MAX_XMIT_RETRY      4
+
+#ifdef DEBUG_SERIAL
+#define DPRINTF(fmt, ...) \
+do { fprintf(stderr, "serial: " fmt , ## __VA_ARGS__); } while (0)
+#else
+#define DPRINTF(fmt, ...) \
+do {} while (0)
+#endif
 
 typedef struct SerialFIFO {
     uint8_t data[UART_FIFO_LENGTH];
@@ -266,10 +275,9 @@ static void serial_update_parameters(SerialState *s)
     ssp.stop_bits = stop_bits;
     s->char_transmit_time =  (get_ticks_per_sec() / speed) * frame_size;
     qemu_chr_ioctl(s->chr, CHR_IOCTL_SERIAL_SET_PARAMS, &ssp);
-#if 0
-    printf("speed=%d parity=%c data=%d stop=%d\n",
+
+    DPRINTF("speed=%d parity=%c data=%d stop=%d\n",
            speed, parity, data_bits, stop_bits);
-#endif
 }
 
 static void serial_update_msl(SerialState *s)
@@ -359,9 +367,7 @@ static void serial_ioport_write(void *opaque, uint32_t addr, uint32_t val)
     SerialState *s = opaque;
 
     addr &= 7;
-#ifdef DEBUG_SERIAL
-    printf("serial: write addr=0x%02x val=0x%02x\n", addr, val);
-#endif
+    DPRINTF("write addr=0x%02x val=0x%02x\n", addr, val);
     switch(addr) {
     default:
     case 0:
@@ -582,9 +588,7 @@ static uint32_t serial_ioport_read(void *opaque, uint32_t addr)
         ret = s->scr;
         break;
     }
-#ifdef DEBUG_SERIAL
-    printf("serial: read addr=0x%02x val=0x%02x\n", addr, ret);
-#endif
+    DPRINTF("read addr=0x%02x val=0x%02x\n", addr, ret);
     return ret;
 }
 
@@ -650,9 +654,7 @@ static void serial_receive1(void *opaque, const uint8_t *buf, int size)
 static void serial_event(void *opaque, int event)
 {
     SerialState *s = opaque;
-#ifdef DEBUG_SERIAL
-    printf("serial: event %x\n", event);
-#endif
+    DPRINTF("event %x\n", event);
     if (event == CHR_EVENT_BREAK)
         serial_receive_break(s);
 }
@@ -672,6 +674,7 @@ static int serial_post_load(void *opaque, int version_id)
     }
     /* Initialize fcr via setter to perform essential side-effects */
     serial_ioport_write(s, 0x02, s->fcr_vmstate);
+    serial_update_parameters(s);
     return 0;
 }
 
@@ -771,7 +774,7 @@ static int serial_isa_initfn(ISADevice *dev)
     s->baudbase = 115200;
     isa_init_irq(dev, &s->irq, isa->isairq);
     serial_init_core(s);
-    vmstate_register(isa->iobase, &vmstate_serial, s);
+    qdev_set_legacy_instance_id(&dev->qdev, isa->iobase, 3);
 
     register_ioport_write(isa->iobase, 8, 1, serial_ioport_write, s);
     register_ioport_read(isa->iobase, 8, 1, serial_ioport_read, s);
@@ -790,6 +793,16 @@ SerialState *serial_isa_init(int index, CharDriverState *chr)
     return &DO_UPCAST(ISASerialState, dev, dev)->state;
 }
 
+static const VMStateDescription vmstate_isa_serial = {
+    .name = "serial",
+    .version_id = 3,
+    .minimum_version_id = 2,
+    .fields      = (VMStateField []) {
+        VMSTATE_STRUCT(state, ISASerialState, 0, vmstate_serial, SerialState),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
 SerialState *serial_init(int base, qemu_irq irq, int baudbase,
                          CharDriverState *chr)
 {
@@ -802,7 +815,7 @@ SerialState *serial_init(int base, qemu_irq irq, int baudbase,
     s->chr = chr;
     serial_init_core(s);
 
-    vmstate_register(base, &vmstate_serial, s);
+    vmstate_register(NULL, base, &vmstate_serial, s);
 
     register_ioport_write(base, 8, 1, serial_ioport_write, s);
     register_ioport_read(base, 8, 1, serial_ioport_read, s);
@@ -937,7 +950,7 @@ SerialState *serial_mm_init (target_phys_addr_t base, int it_shift,
     s->chr = chr;
 
     serial_init_core(s);
-    vmstate_register(base, &vmstate_serial, s);
+    vmstate_register(NULL, base, &vmstate_serial, s);
 
     if (ioregister) {
         if (be) {
@@ -956,6 +969,7 @@ SerialState *serial_mm_init (target_phys_addr_t base, int it_shift,
 static ISADeviceInfo serial_isa_info = {
     .qdev.name  = "isa-serial",
     .qdev.size  = sizeof(ISASerialState),
+    .qdev.vmsd  = &vmstate_isa_serial,
     .init       = serial_isa_initfn,
     .qdev.props = (Property[]) {
         DEFINE_PROP_UINT32("index", ISASerialState, index,   -1),

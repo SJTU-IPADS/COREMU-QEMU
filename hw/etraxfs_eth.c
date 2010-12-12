@@ -437,6 +437,7 @@ eth_writel (void *opaque, target_phys_addr_t addr, uint32_t value)
 				eth_validate_duplex(eth);
 			}
 			eth->mdio_bus.mdc = !!(value & 4);
+			eth->regs[addr] = value;
 			break;
 
 		case RW_REC_CTRL:
@@ -463,7 +464,7 @@ static int eth_match_groupaddr(struct fs_eth *eth, const unsigned char *sa)
 
 	/* First bit on the wire of a MAC address signals multicast or
 	   physical address.  */
-	if (!m_individual && !sa[0] & 1)
+	if (!m_individual && !(sa[0] & 1))
 		return 0;
 
 	/* Calculate the hash index for the GA registers. */

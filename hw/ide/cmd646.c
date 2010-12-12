@@ -179,12 +179,8 @@ static void bmdma_map(PCIDevice *pci_dev, int region_num,
             register_ioport_read(addr, 4, 1, bmdma_readb_1, d);
         }
 
-        register_ioport_write(addr + 4, 4, 1, bmdma_addr_writeb, bm);
-        register_ioport_read(addr + 4, 4, 1, bmdma_addr_readb, bm);
-        register_ioport_write(addr + 4, 4, 2, bmdma_addr_writew, bm);
-        register_ioport_read(addr + 4, 4, 2, bmdma_addr_readw, bm);
-        register_ioport_write(addr + 4, 4, 4, bmdma_addr_writel, bm);
-        register_ioport_read(addr + 4, 4, 4, bmdma_addr_readl, bm);
+        iorange_init(&bm->addr_ioport, &bmdma_addr_ioport_ops, addr + 4, 4);
+        ioport_register(&bm->addr_ioport);
         addr += 8;
     }
 }
@@ -240,7 +236,6 @@ static int pci_cmd646_ide_initfn(PCIDevice *dev)
     pci_conf[PCI_CLASS_PROG] = 0x8f;
 
     pci_config_set_class(pci_conf, PCI_CLASS_STORAGE_IDE);
-    pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
 
     pci_conf[0x51] = 0x04; // enable IDE0
     if (d->secondary) {
@@ -260,10 +255,10 @@ static int pci_cmd646_ide_initfn(PCIDevice *dev)
     irq = qemu_allocate_irqs(cmd646_set_irq, d, 2);
     ide_bus_new(&d->bus[0], &d->dev.qdev);
     ide_bus_new(&d->bus[1], &d->dev.qdev);
-    ide_init2(&d->bus[0], NULL, NULL, irq[0]);
-    ide_init2(&d->bus[1], NULL, NULL, irq[1]);
+    ide_init2(&d->bus[0], irq[0]);
+    ide_init2(&d->bus[1], irq[1]);
 
-    vmstate_register(0, &vmstate_ide_pci, d);
+    vmstate_register(&dev->qdev, 0, &vmstate_ide_pci, d);
     qemu_register_reset(cmd646_reset, d);
     return 0;
 }

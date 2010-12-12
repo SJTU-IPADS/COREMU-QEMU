@@ -280,63 +280,63 @@ static void cirrus_bitblt_fill_nop(CirrusVGAState *s,
 }
 
 #define ROP_NAME 0
-#define ROP_OP(d, s) d = 0
+#define ROP_FN(d, s) 0
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME src_and_dst
-#define ROP_OP(d, s) d = (s) & (d)
+#define ROP_FN(d, s) (s) & (d)
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME src_and_notdst
-#define ROP_OP(d, s) d = (s) & (~(d))
+#define ROP_FN(d, s) (s) & (~(d))
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME notdst
-#define ROP_OP(d, s) d = ~(d)
+#define ROP_FN(d, s) ~(d)
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME src
-#define ROP_OP(d, s) d = s
+#define ROP_FN(d, s) s
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME 1
-#define ROP_OP(d, s) d = ~0
+#define ROP_FN(d, s) ~0
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME notsrc_and_dst
-#define ROP_OP(d, s) d = (~(s)) & (d)
+#define ROP_FN(d, s) (~(s)) & (d)
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME src_xor_dst
-#define ROP_OP(d, s) d = (s) ^ (d)
+#define ROP_FN(d, s) (s) ^ (d)
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME src_or_dst
-#define ROP_OP(d, s) d = (s) | (d)
+#define ROP_FN(d, s) (s) | (d)
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME notsrc_or_notdst
-#define ROP_OP(d, s) d = (~(s)) | (~(d))
+#define ROP_FN(d, s) (~(s)) | (~(d))
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME src_notxor_dst
-#define ROP_OP(d, s) d = ~((s) ^ (d))
+#define ROP_FN(d, s) ~((s) ^ (d))
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME src_or_notdst
-#define ROP_OP(d, s) d = (s) | (~(d))
+#define ROP_FN(d, s) (s) | (~(d))
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME notsrc
-#define ROP_OP(d, s) d = (~(s))
+#define ROP_FN(d, s) (~(s))
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME notsrc_or_dst
-#define ROP_OP(d, s) d = (~(s)) | (d)
+#define ROP_FN(d, s) (~(s)) | (d)
 #include "cirrus_vga_rop.h"
 
 #define ROP_NAME notsrc_and_notdst
-#define ROP_OP(d, s) d = (~(s)) & (~(d))
+#define ROP_FN(d, s) (~(s)) & (~(d))
 #include "cirrus_vga_rop.h"
 
 static const cirrus_bitblt_rop_t cirrus_fwd_rop[16] = {
@@ -2985,7 +2985,6 @@ static const VMStateDescription vmstate_pci_cirrus_vga = {
     .version_id = 2,
     .minimum_version_id = 2,
     .minimum_version_id_old = 2,
-    .post_load = cirrus_post_load,
     .fields      = (VMStateField []) {
         VMSTATE_PCI_DEVICE(dev, PCICirrusVGAState),
         VMSTATE_STRUCT(cirrus_vga, PCICirrusVGAState, 0,
@@ -3129,7 +3128,7 @@ void isa_cirrus_vga_init(void)
     s->vga.ds = graphic_console_init(s->vga.update, s->vga.invalidate,
                                      s->vga.screen_dump, s->vga.text_update,
                                      &s->vga);
-    vmstate_register(0, &vmstate_cirrus_vga, s);
+    vmstate_register(NULL, 0, &vmstate_cirrus_vga, s);
     rom_add_vga(VGABIOS_CIRRUS_FILENAME);
     /* XXX ISA-LFB support */
 }
@@ -3205,10 +3204,10 @@ static int pci_cirrus_vga_initfn(PCIDevice *dev)
      /* memory #0 LFB */
      /* memory #1 memory-mapped I/O */
      /* XXX: s->vga.vram_size must be a power of two */
-     pci_register_bar((PCIDevice *)d, 0, 0x2000000,
+     pci_register_bar(&d->dev, 0, 0x2000000,
                       PCI_BASE_ADDRESS_MEM_PREFETCH, cirrus_pci_lfb_map);
      if (device_id == CIRRUS_ID_CLGD5446) {
-         pci_register_bar((PCIDevice *)d, 1, CIRRUS_PNPMMIO_SIZE,
+         pci_register_bar(&d->dev, 1, CIRRUS_PNPMMIO_SIZE,
                           PCI_BASE_ADDRESS_SPACE_MEMORY, cirrus_pci_mmio_map);
      }
      return 0;

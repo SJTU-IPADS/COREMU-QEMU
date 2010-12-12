@@ -118,8 +118,9 @@ ETEXI
 DEF("drive", HAS_ARG, QEMU_OPTION_drive,
     "-drive [file=file][,if=type][,bus=n][,unit=m][,media=d][,index=i]\n"
     "       [,cyls=c,heads=h,secs=s[,trans=t]][,snapshot=on|off]\n"
-    "       [,cache=writethrough|writeback|none][,format=f][,serial=s]\n"
-    "       [,addr=A][,id=name][,aio=threads|native][,readonly=on|off]\n"
+    "       [,cache=writethrough|writeback|none|unsafe][,format=f]\n"
+    "       [,serial=s][,addr=A][,id=name][,aio=threads|native]\n"
+    "       [,readonly=on|off]\n"
     "                use 'file' as a drive image\n", QEMU_ARCH_ALL)
 STEXI
 @item -drive @var{option}[,@var{option}[,@var{option}[,...]]]
@@ -148,7 +149,7 @@ These options have the same definition as they have in @option{-hdachs}.
 @item snapshot=@var{snapshot}
 @var{snapshot} is "on" or "off" and allows to enable snapshot for given drive (see @option{-snapshot}).
 @item cache=@var{cache}
-@var{cache} is "none", "writeback", or "writethrough" and controls how the host cache is used to access block data.
+@var{cache} is "none", "writeback", "unsafe", or "writethrough" and controls how the host cache is used to access block data.
 @item aio=@var{aio}
 @var{aio} is "threads", or "native" and selects between pthread based disk I/O and native Linux AIO.
 @item format=@var{format}
@@ -169,8 +170,7 @@ the storage subsystem.
 Writeback caching will report data writes as completed as soon as the data is
 present in the host page cache.  This is safe as long as you trust your host.
 If your host crashes or loses power, then the guest may experience data
-corruption.  When using the @option{-snapshot} option, writeback caching is
-used by default.
+corruption.
 
 The host page cache can be avoided entirely with @option{cache=none}.  This will
 attempt to do disk IO directly to the guests memory.  QEMU may still perform
@@ -179,6 +179,13 @@ an internal copy of the data.
 Some block drivers perform badly with @option{cache=writethrough}, most notably,
 qcow2.  If performance is more important than correctness,
 @option{cache=writeback} should be used with qcow2.
+
+In case you don't care about data integrity over host failures, use
+cache=unsafe. This option tells qemu that it never needs to write any data
+to the disk but can instead keeps things in cache. If anything goes wrong,
+like your host losing power, the disk storage getting disconnected accidently,
+etc. you're image will most probably be rendered unusable.   When using
+the @option{-snapshot} option, unsafe caching is always used.
 
 Instead of @option{-cdrom} you can use:
 @example
@@ -386,6 +393,7 @@ available sound hardware.
 qemu -soundhw sb16,adlib disk.img
 qemu -soundhw es1370 disk.img
 qemu -soundhw ac97 disk.img
+qemu -soundhw hda disk.img
 qemu -soundhw all disk.img
 qemu -soundhw ?
 @end example
@@ -464,25 +472,21 @@ DEF("device", HAS_ARG, QEMU_OPTION_device,
     "                add device (based on driver)\n"
     "                prop=value,... sets driver properties\n"
     "                use -device ? to print all possible drivers\n"
-    "                use -device driver,? to print all possible options\n"
-    "                use -device driver,option=? to print a help for value\n",
+    "                use -device driver,? to print all possible properties\n",
     QEMU_ARCH_ALL)
 STEXI
-@item -device @var{driver}[,@var{option}[=@var{value}][,...]]
+@item -device @var{driver}[,@var{prop}[=@var{value}][,...]]
 @findex -device
-Add device @var{driver}. Depending on the device type,
-@var{option} (with default or given @var{value}) may be useful.
-To get a help on possible @var{driver}s, @var{option}s or @var{value}s, use
-@code{-device ?},
-@code{-device @var{driver},?} or
-@code{-device @var{driver},@var{option}=?}. 
+Add device @var{driver}.  @var{prop}=@var{value} sets driver
+properties.  Valid properties depend on the driver.  To get help on
+possible drivers and properties, use @code{-device ?} and
+@code{-device @var{driver},?}.
 ETEXI
 
-#ifdef CONFIG_LINUX
 DEFHEADING(File system options:)
 
 DEF("fsdev", HAS_ARG, QEMU_OPTION_fsdev,
-    "-fsdev local,id=id,path=path\n",
+    "-fsdev local,id=id,path=path,security_model=[mapped|passthrough|none]\n",
     QEMU_ARCH_ALL)
 
 STEXI
@@ -498,7 +502,7 @@ The specific Fstype will determine the applicable options.
 
 Options to each backend are described below.
 
-@item -fsdev local ,id=@var{id} ,path=@var{path}
+@item -fsdev local ,id=@var{id} ,path=@var{path} ,security_model=@var{security_model}
 
 Create a file-system-"device" for local-filesystem.
 
@@ -506,15 +510,16 @@ Create a file-system-"device" for local-filesystem.
 
 @option{path} specifies the path to be exported. @option{path} is required.
 
+@option{security_model} specifies the security model to be followed.
+@option{security_model} is required.
+
 @end table
 ETEXI
-#endif
 
-#ifdef CONFIG_LINUX
 DEFHEADING(Virtual File system pass-through options:)
 
 DEF("virtfs", HAS_ARG, QEMU_OPTION_virtfs,
-    "-virtfs local,path=path,mount_tag=tag\n",
+    "-virtfs local,path=path,mount_tag=tag,security_model=[mapped|passthrough|none]\n",
     QEMU_ARCH_ALL)
 
 STEXI
@@ -530,7 +535,7 @@ The specific Fstype will determine the applicable options.
 
 Options to each backend are described below.
 
-@item -virtfs local ,path=@var{path} ,mount_tag=@var{mount_tag}
+@item -virtfs local ,path=@var{path} ,mount_tag=@var{mount_tag} ,security_model=@var{security_model}
 
 Create a Virtual file-system-pass through for local-filesystem.
 
@@ -538,12 +543,15 @@ Create a Virtual file-system-pass through for local-filesystem.
 
 @option{path} specifies the path to be exported. @option{path} is required.
 
+@option{security_model} specifies the security model to be followed.
+@option{security_model} is required.
+
+
 @option{mount_tag} specifies the tag with which the exported file is mounted.
 @option{mount_tag} is required.
 
 @end table
 ETEXI
-#endif
 
 DEFHEADING()
 
@@ -661,6 +669,76 @@ STEXI
 @item -sdl
 @findex -sdl
 Enable SDL.
+ETEXI
+
+DEF("spice", HAS_ARG, QEMU_OPTION_spice,
+    "-spice <args>   enable spice\n", QEMU_ARCH_ALL)
+STEXI
+@item -spice @var{option}[,@var{option}[,...]]
+@findex -spice
+Enable the spice remote desktop protocol. Valid options are
+
+@table @option
+
+@item port=<nr>
+Set the TCP port spice is listening on for plaintext channels.
+
+@item addr=<addr>
+Set the IP address spice is listening on.  Default is any address.
+
+@item ipv4
+@item ipv6
+Force using the specified IP version.
+
+@item password=<secret>
+Set the password you need to authenticate.
+
+@item disable-ticketing
+Allow client connects without authentication.
+
+@item tls-port=<nr>
+Set the TCP port spice is listening on for encrypted channels.
+
+@item x509-dir=<dir>
+Set the x509 file directory. Expects same filenames as -vnc $display,x509=$dir
+
+@item x509-key-file=<file>
+@item x509-key-password=<file>
+@item x509-cert-file=<file>
+@item x509-cacert-file=<file>
+@item x509-dh-key-file=<file>
+The x509 file names can also be configured individually.
+
+@item tls-ciphers=<list>
+Specify which ciphers to use.
+
+@item tls-channel=[main|display|inputs|record|playback|tunnel]
+@item plaintext-channel=[main|display|inputs|record|playback|tunnel]
+Force specific channel to be used with or without TLS encryption.  The
+options can be specified multiple times to configure multiple
+channels.  The special name "default" can be used to set the default
+mode.  For channels which are not explicitly forced into one mode the
+spice client is allowed to pick tls/plaintext as he pleases.
+
+@item image-compression=[auto_glz|auto_lz|quic|glz|lz|off]
+Configure image compression (lossless).
+Default is auto_glz.
+
+@item jpeg-wan-compression=[auto|never|always]
+@item zlib-glz-wan-compression=[auto|never|always]
+Configure wan image compression (lossy for slow links).
+Default is auto.
+
+@item streaming-video=[off|all|filter]
+Configure video stream detection.  Default is filter.
+
+@item agent-mouse=[on|off]
+Enable/disable passing mouse events via vdagent.  Default is on.
+
+@item playback-compression=[on|off]
+Enable/disable audio stream compression (using celt 0.5.1).  Default is on.
+
+@end table
 ETEXI
 
 DEF("portrait", 0, QEMU_OPTION_portrait,
@@ -823,6 +901,13 @@ When the @option{acl} flag is set, the initial access list will be
 empty, with a @code{deny} policy. Thus no one will be allowed to
 use the VNC server until the ACLs have been loaded. This can be
 achieved using the @code{acl} monitor command.
+
+@item lossy
+
+Enable lossy compression methods (gradient, JPEG, ...). If this
+option is set, VNC client may receive lossy framebuffer updates
+depending on its encoding settings. Enabling this option can save
+a lot of bandwidth at the expense of quality.
 
 @end table
 ETEXI
@@ -1260,7 +1345,7 @@ DEF("chardev", HAS_ARG, QEMU_OPTION_chardev,
     "-chardev serial,id=id,path=path[,mux=on|off]\n"
 #else
     "-chardev pty,id=id[,mux=on|off]\n"
-    "-chardev stdio,id=id[,mux=on|off]\n"
+    "-chardev stdio,id=id[,mux=on|off][,signal=on|off]\n"
 #endif
 #ifdef CONFIG_BRLAPI
     "-chardev braille,id=id[,mux=on|off]\n"
@@ -1441,10 +1526,14 @@ not take any options.
 
 @option{pty} is not available on Windows hosts.
 
-@item -chardev stdio ,id=@var{id}
+@item -chardev stdio ,id=@var{id} [,signal=on|off]
 Connect to standard input and standard output of the qemu process.
-@option{stdio} does not take any options. @option{stdio} is not available on
-Windows hosts.
+
+@option{signal} controls if signals are enabled on the terminal, that includes
+exiting QEMU with the key sequence @key{Control-c}. This option is enabled by
+default, use @option{signal=off} to disable it.
+
+@option{stdio} is not available on Windows hosts.
 
 @item -chardev braille ,id=@var{id}
 
@@ -2212,6 +2301,17 @@ Normally QEMU loads a configuration file from @var{sysconfdir}/qemu.conf and
 @var{sysconfdir}/target-@var{ARCH}.conf on startup.  The @code{-nodefconfig}
 option will prevent QEMU from loading these configuration files at startup.
 ETEXI
+#ifdef CONFIG_SIMPLE_TRACE
+DEF("trace", HAS_ARG, QEMU_OPTION_trace,
+    "-trace\n"
+    "                Specify a trace file to log traces to\n",
+    QEMU_ARCH_ALL)
+STEXI
+@item -trace
+@findex -trace
+Specify a trace file to log output traces to.
+ETEXI
+#endif
 
 HXCOMM This is the last statement. Insert new options before this line!
 STEXI

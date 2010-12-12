@@ -118,7 +118,8 @@ static void mb_add_mod(MultibootState *s,
     stl_p(p + MB_MOD_END,     end);
     stl_p(p + MB_MOD_CMDLINE, cmdline_phys);
 
-    mb_debug("mod%02d: %08x - %08x\n", s->mb_mods_count, start, end);
+    mb_debug("mod%02d: "TARGET_FMT_plx" - "TARGET_FMT_plx"\n",
+             s->mb_mods_count, start, end);
 
     s->mb_mods_count++;
 }
@@ -170,6 +171,12 @@ int load_multiboot(void *fw_cfg,
         uint64_t elf_low, elf_high;
         int kernel_size;
         fclose(f);
+
+        if (((struct elf64_hdr*)header)->e_machine == EM_X86_64) {
+            fprintf(stderr, "Cannot load x86-64 image, give a 32bit one.\n");
+            exit(1);
+        }
+
         kernel_size = load_elf(kernel_filename, NULL, NULL, &elf_entry,
                                &elf_low, &elf_high, 0, ELF_MACHINE, 0);
         if (kernel_size < 0) {
@@ -251,7 +258,7 @@ int load_multiboot(void *fw_cfg,
 
         do {
             char *next_space;
-            uint32_t mb_mod_length;
+            int mb_mod_length;
             uint32_t offs = mbs.mb_buf_size;
 
             next_initrd = strchr(initrd_filename, ',');
@@ -276,7 +283,7 @@ int load_multiboot(void *fw_cfg,
             mb_add_mod(&mbs, mbs.mb_buf_phys + offs,
                        mbs.mb_buf_phys + offs + mb_mod_length, c);
 
-            mb_debug("mod_start: %p\nmod_end:   %p\n  cmdline: %#x\n",
+            mb_debug("mod_start: %p\nmod_end:   %p\n  cmdline: "TARGET_FMT_plx"\n",
                      (char *)mbs.mb_buf + offs,
                      (char *)mbs.mb_buf + offs + mb_mod_length, c);
             initrd_filename = next_initrd+1;
@@ -304,8 +311,8 @@ int load_multiboot(void *fw_cfg,
     stl_p(bootinfo + MBI_MMAP_ADDR,   ADDR_E820_MAP);
 
     mb_debug("multiboot: mh_entry_addr = %#x\n", mh_entry_addr);
-    mb_debug("           mb_buf_phys   = %x\n", mbs.mb_buf_phys);
-    mb_debug("           mod_start     = %x\n", mbs.mb_buf_phys + mbs.offset_mods);
+    mb_debug("           mb_buf_phys   = "TARGET_FMT_plx"\n", mbs.mb_buf_phys);
+    mb_debug("           mod_start     = "TARGET_FMT_plx"\n", mbs.mb_buf_phys + mbs.offset_mods);
     mb_debug("           mb_mods_count = %d\n", mbs.mb_mods_count);
 
     /* save bootinfo off the stack */

@@ -39,91 +39,101 @@ void bmdma_cmd_writeb(void *opaque, uint32_t addr, uint32_t val)
 #ifdef DEBUG_IDE
     printf("%s: 0x%08x\n", __func__, val);
 #endif
-    if (!(val & BM_CMD_START)) {
-        /* XXX: do it better */
-        ide_dma_cancel(bm);
-        bm->cmd = val & 0x09;
-    } else {
-        if (!(bm->status & BM_STATUS_DMAING)) {
-            bm->status |= BM_STATUS_DMAING;
-            /* start dma transfer if possible */
-            if (bm->dma_cb)
-                bm->dma_cb(bm, 0);
+
+    /* Ignore writes to SSBM if it keeps the old value */
+    if ((val & BM_CMD_START) != (bm->cmd & BM_CMD_START)) {
+        if (!(val & BM_CMD_START)) {
+            /*
+             * We can't cancel Scatter Gather DMA in the middle of the
+             * operation or a partial (not full) DMA transfer would reach
+             * the storage so we wait for completion instead (we beahve
+             * like if the DMA was completed by the time the guest trying
+             * to cancel dma with bmdma_cmd_writeb with BM_CMD_START not
+             * set).
+             *
+             * In the future we'll be able to safely cancel the I/O if the
+             * whole DMA operation will be submitted to disk with a single
+             * aio operation with preadv/pwritev.
+             */
+            if (bm->aiocb) {
+                qemu_aio_flush();
+#ifdef DEBUG_IDE
+                if (bm->aiocb)
+                    printf("ide_dma_cancel: aiocb still pending");
+                if (bm->status & BM_STATUS_DMAING)
+                    printf("ide_dma_cancel: BM_STATUS_DMAING still pending");
+#endif
+            }
+        } else {
+            bm->cur_addr = bm->addr;
+            if (!(bm->status & BM_STATUS_DMAING)) {
+                bm->status |= BM_STATUS_DMAING;
+                /* start dma transfer if possible */
+                if (bm->dma_cb)
+                    bm->dma_cb(bm, 0);
+            }
         }
-        bm->cmd = val & 0x09;
     }
+
+    bm->cmd = val & 0x09;
 }
 
-uint32_t bmdma_addr_readb(void *opaque, uint32_t addr)
+static void bmdma_addr_read(IORange *ioport, uint64_t addr,
+                            unsigned width, uint64_t *data)
 {
-    BMDMAState *bm = opaque;
-    uint32_t val;
-    val = (bm->addr >> ((addr & 3) * 8)) & 0xff;
+    BMDMAState *bm = container_of(ioport, BMDMAState, addr_ioport);
+    uint32_t mask = (1ULL << (width * 8)) - 1;
+
+    *data = (bm->addr >> (addr * 8)) & mask;
 #ifdef DEBUG_IDE
-    printf("%s: 0x%08x\n", __func__, val);
+    printf("%s: 0x%08x\n", __func__, (unsigned)*data);
 #endif
-    return val;
 }
 
-void bmdma_addr_writeb(void *opaque, uint32_t addr, uint32_t val)
+static void bmdma_addr_write(IORange *ioport, uint64_t addr,
+                             unsigned width, uint64_t data)
 {
-    BMDMAState *bm = opaque;
-    int shift = (addr & 3) * 8;
+    BMDMAState *bm = container_of(ioport, BMDMAState, addr_ioport);
+    int shift = addr * 8;
+    uint32_t mask = (1ULL << (width * 8)) - 1;
+
 #ifdef DEBUG_IDE
-    printf("%s: 0x%08x\n", __func__, val);
+    printf("%s: 0x%08x\n", __func__, (unsigned)data);
 #endif
-    bm->addr &= ~(0xFF << shift);
-    bm->addr |= ((val & 0xFF) << shift) & ~3;
-    bm->cur_addr = bm->addr;
+    bm->addr &= ~(mask << shift);
+    bm->addr |= ((data & mask) << shift) & ~3;
 }
 
-uint32_t bmdma_addr_readw(void *opaque, uint32_t addr)
+const IORangeOps bmdma_addr_ioport_ops = {
+    .read = bmdma_addr_read,
+    .write = bmdma_addr_write,
+};
+
+static bool ide_bmdma_current_needed(void *opaque)
 {
     BMDMAState *bm = opaque;
-    uint32_t val;
-    val = (bm->addr >> ((addr & 3) * 8)) & 0xffff;
-#ifdef DEBUG_IDE
-    printf("%s: 0x%08x\n", __func__, val);
-#endif
-    return val;
+
+    return (bm->cur_prd_len != 0);
 }
 
-void bmdma_addr_writew(void *opaque, uint32_t addr, uint32_t val)
-{
-    BMDMAState *bm = opaque;
-    int shift = (addr & 3) * 8;
-#ifdef DEBUG_IDE
-    printf("%s: 0x%08x\n", __func__, val);
-#endif
-    bm->addr &= ~(0xFFFF << shift);
-    bm->addr |= ((val & 0xFFFF) << shift) & ~3;
-    bm->cur_addr = bm->addr;
-}
+static const VMStateDescription vmstate_bmdma_current = {
+    .name = "ide bmdma_current",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .minimum_version_id_old = 1,
+    .fields      = (VMStateField []) {
+        VMSTATE_UINT32(cur_addr, BMDMAState),
+        VMSTATE_UINT32(cur_prd_last, BMDMAState),
+        VMSTATE_UINT32(cur_prd_addr, BMDMAState),
+        VMSTATE_UINT32(cur_prd_len, BMDMAState),
+        VMSTATE_END_OF_LIST()
+    }
+};
 
-uint32_t bmdma_addr_readl(void *opaque, uint32_t addr)
-{
-    BMDMAState *bm = opaque;
-    uint32_t val;
-    val = bm->addr;
-#ifdef DEBUG_IDE
-    printf("%s: 0x%08x\n", __func__, val);
-#endif
-    return val;
-}
-
-void bmdma_addr_writel(void *opaque, uint32_t addr, uint32_t val)
-{
-    BMDMAState *bm = opaque;
-#ifdef DEBUG_IDE
-    printf("%s: 0x%08x\n", __func__, val);
-#endif
-    bm->addr = val & ~3;
-    bm->cur_addr = bm->addr;
-}
 
 static const VMStateDescription vmstate_bmdma = {
     .name = "ide bmdma",
-    .version_id = 4,
+    .version_id = 3,
     .minimum_version_id = 0,
     .minimum_version_id_old = 0,
     .fields      = (VMStateField []) {
@@ -133,11 +143,15 @@ static const VMStateDescription vmstate_bmdma = {
         VMSTATE_INT64(sector_num, BMDMAState),
         VMSTATE_UINT32(nsector, BMDMAState),
         VMSTATE_UINT8(unit, BMDMAState),
-        VMSTATE_UINT32_V(cur_addr, BMDMAState, 4),
-        VMSTATE_UINT32_V(cur_prd_last, BMDMAState, 4),
-        VMSTATE_UINT32_V(cur_prd_addr, BMDMAState, 4),
-        VMSTATE_UINT32_V(cur_prd_len, BMDMAState, 4),
         VMSTATE_END_OF_LIST()
+    },
+    .subsections = (VMStateSubsection []) {
+        {
+            .vmsd = &vmstate_bmdma_current,
+            .needed = ide_bmdma_current_needed,
+        }, {
+            /* empty */
+        }
     }
 };
 
@@ -156,7 +170,7 @@ static int ide_pci_post_load(void *opaque, int version_id)
 
 const VMStateDescription vmstate_ide_pci = {
     .name = "ide",
-    .version_id = 4,
+    .version_id = 3,
     .minimum_version_id = 0,
     .minimum_version_id_old = 0,
     .post_load = ide_pci_post_load,

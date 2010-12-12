@@ -42,6 +42,12 @@ void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque)
     qemu_put_kbd_event = func;
 }
 
+void qemu_remove_kbd_event_handler(void)
+{
+    qemu_put_kbd_event_opaque = NULL;
+    qemu_put_kbd_event = NULL;
+}
+
 static void check_mode_change(void)
 {
     static int current_is_absolute, current_has_absolute;
@@ -214,24 +220,6 @@ void do_info_mice_print(Monitor *mon, const QObject *data)
     qlist_iter(mice_list, info_mice_iter, mon);
 }
 
-/**
- * do_info_mice(): Show VM mice information
- *
- * Each mouse is represented by a QDict, the returned QObject is a QList of
- * all mice.
- *
- * The mouse QDict contains the following:
- *
- * - "name": mouse's name
- * - "index": mouse's index
- * - "current": true if this mouse is receiving events, false otherwise
- * - "absolute": true if the mouse generates absolute input events
- *
- * Example:
- *
- * [ { "name": "QEMU Microsoft Mouse", "index": 0, "current": false, "absolute": false },
- *   { "name": "QEMU PS/2 Mouse", "index": 1, "current": true, "absolute": true } ]
- */
 void do_info_mice(Monitor *mon, QObject **ret_data)
 {
     QEMUPutMouseEntry *cursor;

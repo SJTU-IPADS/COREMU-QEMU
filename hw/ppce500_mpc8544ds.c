@@ -176,7 +176,6 @@ static void mpc8544ds_init(ram_addr_t ram_size,
     int i=0;
     unsigned int pci_irq_nrs[4] = {1, 2, 3, 4};
     qemu_irq *irqs, *mpic, *pci_irqs;
-    SerialState * serial[2];
 
     /* Setup CPU */
     env = cpu_ppc_init("e500v2_v30");
@@ -189,7 +188,8 @@ static void mpc8544ds_init(ram_addr_t ram_size,
     ram_size &= ~(RAM_SIZES_ALIGN - 1);
 
     /* Register Memory */
-    cpu_register_physical_memory(0, ram_size, qemu_ram_alloc(ram_size));
+    cpu_register_physical_memory(0, ram_size, qemu_ram_alloc(NULL,
+                                 "mpc8544ds.ram", ram_size));
 
     /* MPIC */
     irqs = qemu_mallocz(sizeof(qemu_irq) * OPENPIC_OUTPUT_NB);
@@ -199,15 +199,15 @@ static void mpc8544ds_init(ram_addr_t ram_size,
 
     /* Serial */
     if (serial_hds[0]) {
-        serial[0] = serial_mm_init(MPC8544_SERIAL0_REGS_BASE,
-                                   0, mpic[12+26], 399193,
-                                   serial_hds[0], 1, 1);
+        serial_mm_init(MPC8544_SERIAL0_REGS_BASE,
+                       0, mpic[12+26], 399193,
+                       serial_hds[0], 1, 1);
     }
 
     if (serial_hds[1]) {
-        serial[0] = serial_mm_init(MPC8544_SERIAL1_REGS_BASE,
-                                   0, mpic[12+26], 399193,
-                                   serial_hds[0], 1, 1);
+        serial_mm_init(MPC8544_SERIAL1_REGS_BASE,
+                       0, mpic[12+26], 399193,
+                       serial_hds[0], 1, 1);
     }
 
     /* PCI */

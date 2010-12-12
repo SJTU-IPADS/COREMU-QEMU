@@ -200,6 +200,8 @@ ENSONIQ AudioPCI ES1370 sound card
 @item
 Intel 82801AA AC97 Audio compatible sound card
 @item
+Intel HD Audio Controller and HDA codec
+@item
 Adlib(OPL2) - Yamaha YM3812 compatible chip
 @item
 Gravis Ultrasound GF1 sound card
@@ -620,6 +622,13 @@ qemu linux1.img -hdb nbd:unix:/tmp/my_socket
 qemu linux2.img -hdb nbd:unix:/tmp/my_socket
 @end example
 
+If the nbd-server uses named exports (since NBD 2.9.18), you must use the
+"exportname" option:
+@example
+qemu -cdrom nbd:localhost:exportname=debian-500-ppc-netinst
+qemu -cdrom nbd:localhost:exportname=openSUSE-11.1-ppc-netinst
+@end example
+
 @node pcsys_network
 @section Network emulation
 
@@ -705,6 +714,49 @@ redirect X11, telnet or SSH connections.
 Using the @option{-net socket} option, it is possible to make VLANs
 that span several QEMU instances. See @ref{sec_invocation} to have a
 basic example.
+
+@section Other Devices
+
+@subsection Inter-VM Shared Memory device
+
+With KVM enabled on a Linux host, a shared memory device is available.  Guests
+map a POSIX shared memory region into the guest as a PCI device that enables
+zero-copy communication to the application level of the guests.  The basic
+syntax is:
+
+@example
+qemu -device ivshmem,size=<size in format accepted by -m>[,shm=<shm name>]
+@end example
+
+If desired, interrupts can be sent between guest VMs accessing the same shared
+memory region.  Interrupt support requires using a shared memory server and
+using a chardev socket to connect to it.  The code for the shared memory server
+is qemu.git/contrib/ivshmem-server.  An example syntax when using the shared
+memory server is:
+
+@example
+qemu -device ivshmem,size=<size in format accepted by -m>[,chardev=<id>]
+                        [,msi=on][,ioeventfd=on][,vectors=n][,role=peer|master]
+qemu -chardev socket,path=<path>,id=<id>
+@end example
+
+When using the server, the guest will be assigned a VM ID (>=0) that allows guests
+using the same server to communicate via interrupts.  Guests can read their
+VM ID from a device register (see example code).  Since receiving the shared
+memory region from the server is asynchronous, there is a (small) chance the
+guest may boot before the shared memory is attached.  To allow an application
+to ensure shared memory is attached, the VM ID register will return -1 (an
+invalid VM ID) until the memory is attached.  Once the shared memory is
+attached, the VM ID will return the guest's valid VM ID.  With these semantics,
+the guest application can check to ensure the shared memory is attached to the
+guest before proceeding.
+
+The @option{role} argument can be set to either master or peer and will affect
+how the shared memory is migrated.  With @option{role=master}, the guest will
+copy the shared memory on migration to the destination host.  With
+@option{role=peer}, the guest will not be able to migrate with the device attached.
+With the @option{peer} case, the device should be detached and then reattached
+after migration using the PCI hotplug support.
 
 @node direct_linux_boot
 @section Direct Linux Boot
@@ -2124,7 +2176,7 @@ qemu-i386 /usr/local/qemu-i386/wine/bin/wine \
 @subsection Command line options
 
 @example
-usage: qemu-i386 [-h] [-d] [-L path] [-s size] [-cpu model] [-g port] [-B offset] program [arguments...]
+usage: qemu-i386 [-h] [-d] [-L path] [-s size] [-cpu model] [-g port] [-B offset] [-R size] program [arguments...]
 @end example
 
 @table @option
@@ -2136,10 +2188,20 @@ Set the x86 elf interpreter prefix (default=/usr/local/qemu-i386)
 Set the x86 stack size in bytes (default=524288)
 @item -cpu model
 Select CPU model (-cpu ? for list and additional feature selection)
+@item -ignore-environment
+Start with an empty environment. Without this option,
+the inital environment is a copy of the caller's environment.
+@item -E @var{var}=@var{value}
+Set environment @var{var} to @var{value}.
+@item -U @var{var}
+Remove @var{var} from the environment.
 @item -B offset
 Offset guest address by the specified number of bytes.  This is useful when
-the address region rewuired by guest applications is reserved on the host.
-Ths option is currently only supported on some hosts.
+the address region required by guest applications is reserved on the host.
+This option is currently only supported on some hosts.
+@item -R size
+Pre-allocate a guest virtual address space of the given size (in bytes).
+"G", "M", and "k" suffixes may be used when specifying the size.  
 @end table
 
 Debug options:
@@ -2356,6 +2418,13 @@ Print the help
 Set the library root path (default=/)
 @item -s size
 Set the stack size in bytes (default=524288)
+@item -ignore-environment
+Start with an empty environment. Without this option,
+the inital environment is a copy of the caller's environment.
+@item -E @var{var}=@var{value}
+Set environment @var{var} to @var{value}.
+@item -U @var{var}
+Remove @var{var} from the environment.
 @item -bsd type
 Set the type of the emulated BSD Operating system. Valid values are
 FreeBSD, NetBSD and OpenBSD (default).

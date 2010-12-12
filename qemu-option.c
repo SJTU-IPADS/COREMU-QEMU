@@ -346,6 +346,52 @@ void free_option_parameters(QEMUOptionParameter *list)
 }
 
 /*
+ * Count valid options in list
+ */
+static size_t count_option_parameters(QEMUOptionParameter *list)
+{
+    size_t num_options = 0;
+
+    while (list && list->name) {
+        num_options++;
+        list++;
+    }
+
+    return num_options;
+}
+
+/*
+ * Append an option list (list) to an option list (dest).
+ *
+ * If dest is NULL, a new copy of list is created.
+ *
+ * Returns a pointer to the first element of dest (or the newly allocated copy)
+ */
+QEMUOptionParameter *append_option_parameters(QEMUOptionParameter *dest,
+    QEMUOptionParameter *list)
+{
+    size_t num_options, num_dest_options;
+
+    num_options = count_option_parameters(dest);
+    num_dest_options = num_options;
+
+    num_options += count_option_parameters(list);
+
+    dest = qemu_realloc(dest, (num_options + 1) * sizeof(QEMUOptionParameter));
+    dest[num_dest_options].name = NULL;
+
+    while (list && list->name) {
+        if (get_option_parameter(dest, list->name) == NULL) {
+            dest[num_dest_options++] = *list;
+            dest[num_dest_options].name = NULL;
+        }
+        list++;
+    }
+
+    return dest;
+}
+
+/*
  * Parses a parameter string (param) into an option list (dest).
  *
  * list is the templace is. If dest is NULL, a new copy of list is created for
@@ -365,7 +411,6 @@ void free_option_parameters(QEMUOptionParameter *list)
 QEMUOptionParameter *parse_option_parameters(const char *param,
     QEMUOptionParameter *list, QEMUOptionParameter *dest)
 {
-    QEMUOptionParameter *cur;
     QEMUOptionParameter *allocated = NULL;
     char name[256];
     char value[256];
@@ -379,12 +424,7 @@ QEMUOptionParameter *parse_option_parameters(const char *param,
 
     if (dest == NULL) {
         // Count valid options
-        num_options = 0;
-        cur = list;
-        while (cur->name) {
-            num_options++;
-            cur++;
-        }
+        num_options = count_option_parameters(list);
 
         // Create a copy of the option list to fill in values
         dest = qemu_mallocz((num_options + 1) * sizeof(QEMUOptionParameter));
@@ -633,11 +673,31 @@ QemuOpts *qemu_opts_find(QemuOptsList *list, const char *id)
     return NULL;
 }
 
+static int id_wellformed(const char *id)
+{
+    int i;
+
+    if (!qemu_isalpha(id[0])) {
+        return 0;
+    }
+    for (i = 1; id[i]; i++) {
+        if (!qemu_isalnum(id[i]) && !strchr("-._", id[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 QemuOpts *qemu_opts_create(QemuOptsList *list, const char *id, int fail_if_exists)
 {
     QemuOpts *opts = NULL;
 
     if (id) {
+        if (!id_wellformed(id)) {
+            qerror_report(QERR_INVALID_PARAMETER_VALUE, "id", "an identifier");
+            error_printf_unless_qmp("Identifiers consist of letters, digits, '-', '.', '_', starting with a letter.\n");
+            return NULL;
+        }
         opts = qemu_opts_find(list, id);
         if (opts != NULL) {
             if (fail_if_exists) {
@@ -657,6 +717,20 @@ QemuOpts *qemu_opts_create(QemuOptsList *list, const char *id, int fail_if_exist
     QTAILQ_INIT(&opts->head);
     QTAILQ_INSERT_TAIL(&list->head, opts, next);
     return opts;
+}
+
+void qemu_opts_reset(QemuOptsList *list)
+{
+    QemuOpts *opts, *next_opts;
+
+    QTAILQ_FOREACH_SAFE(opts, &list->head, next, next_opts) {
+        qemu_opts_del(opts);
+    }
+}
+
+void qemu_opts_loc_restore(QemuOpts *opts)
+{
+    loc_restore(&opts->loc);
 }
 
 int qemu_opts_set(QemuOptsList *list, const char *id,

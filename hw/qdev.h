@@ -2,7 +2,6 @@
 #define QDEV_H
 
 #include "hw.h"
-#include "sysemu.h"
 #include "qemu-queue.h"
 #include "qemu-char.h"
 #include "qemu-option.h"
@@ -44,13 +43,20 @@ struct DeviceState {
     QLIST_HEAD(, BusState) child_bus;
     int num_child_bus;
     QLIST_ENTRY(DeviceState) sibling;
+    int instance_id_alias;
+    int alias_required_for_version;
 };
 
 typedef void (*bus_dev_printfn)(Monitor *mon, DeviceState *dev, int indent);
+typedef char *(*bus_get_dev_path)(DeviceState *dev);
+typedef int (qbus_resetfn)(BusState *bus);
+
 struct BusInfo {
     const char *name;
     size_t size;
     bus_dev_printfn print_dev;
+    bus_get_dev_path get_dev_path;
+    qbus_resetfn *reset;
     Property *props;
 };
 
@@ -96,6 +102,7 @@ struct PropertyInfo {
     enum PropertyType type;
     int (*parse)(DeviceState *dev, Property *prop, const char *str);
     int (*print)(DeviceState *dev, Property *prop, char *dest, size_t len);
+    void (*free)(DeviceState *dev, Property *prop);
 };
 
 typedef struct GlobalProperty {
@@ -112,6 +119,8 @@ int qdev_device_help(QemuOpts *opts);
 DeviceState *qdev_device_add(QemuOpts *opts);
 int qdev_init(DeviceState *dev) QEMU_WARN_UNUSED_RESULT;
 void qdev_init_nofail(DeviceState *dev);
+void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
+                                 int required_for_version);
 int qdev_unplug(DeviceState *dev);
 void qdev_free(DeviceState *dev);
 int qdev_simple_unplug_cb(DeviceState *dev);
@@ -119,6 +128,8 @@ void qdev_machine_creation_done(void);
 
 qemu_irq qdev_get_gpio_in(DeviceState *dev, int n);
 void qdev_connect_gpio_out(DeviceState *dev, int n, qemu_irq pin);
+
+BlockDriverState *qdev_init_bdrv(DeviceState *dev, BlockInterfaceType type);
 
 BusState *qdev_get_child_bus(DeviceState *dev, const char *name);
 
@@ -164,12 +175,28 @@ BusState *qdev_get_parent_bus(DeviceState *dev);
 
 /*** BUS API. ***/
 
+/* Returns 0 to walk children, > 0 to skip walk, < 0 to terminate walk. */
+typedef int (qbus_walkerfn)(BusState *bus, void *opaque);
+typedef int (qdev_walkerfn)(DeviceState *dev, void *opaque);
+
 void qbus_create_inplace(BusState *bus, BusInfo *info,
                          DeviceState *parent, const char *name);
 BusState *qbus_create(BusInfo *info, DeviceState *parent, const char *name);
+/* Returns > 0 if either devfn or busfn skip walk somewhere in cursion,
+ *         < 0 if either devfn or busfn terminate walk somewhere in cursion,
+ *           0 otherwise. */
+int qbus_walk_children(BusState *bus, qdev_walkerfn *devfn,
+                       qbus_walkerfn *busfn, void *opaque);
+int qdev_walk_children(DeviceState *dev, qdev_walkerfn *devfn,
+                       qbus_walkerfn *busfn, void *opaque);
+void qdev_reset_all(DeviceState *dev);
+void qbus_reset_all(BusState *bus);
 void qbus_free(BusState *bus);
 
 #define FROM_QBUS(type, dev) DO_UPCAST(type, qbus, dev)
+
+/* This should go away once we get rid of the NULL bus hack */
+BusState *sysbus_get_default(void);
 
 /*** monitor commands ***/
 
@@ -246,8 +273,8 @@ extern PropertyInfo qdev_prop_pci_devfn;
     DEFINE_PROP(_n, _s, _f, qdev_prop_netdev, VLANClientState*)
 #define DEFINE_PROP_VLAN(_n, _s, _f)             \
     DEFINE_PROP(_n, _s, _f, qdev_prop_vlan, VLANState*)
-#define DEFINE_PROP_DRIVE(_n, _s, _f)             \
-    DEFINE_PROP(_n, _s, _f, qdev_prop_drive, DriveInfo*)
+#define DEFINE_PROP_DRIVE(_n, _s, _f) \
+    DEFINE_PROP(_n, _s, _f, qdev_prop_drive, BlockDriverState *)
 #define DEFINE_PROP_MACADDR(_n, _s, _f)         \
     DEFINE_PROP(_n, _s, _f, qdev_prop_macaddr, MACAddr)
 
@@ -259,15 +286,18 @@ void *qdev_get_prop_ptr(DeviceState *dev, Property *prop);
 int qdev_prop_exists(DeviceState *dev, const char *name);
 int qdev_prop_parse(DeviceState *dev, const char *name, const char *value);
 void qdev_prop_set(DeviceState *dev, const char *name, void *src, enum PropertyType type);
+void qdev_prop_set_bit(DeviceState *dev, const char *name, bool value);
 void qdev_prop_set_uint8(DeviceState *dev, const char *name, uint8_t value);
 void qdev_prop_set_uint16(DeviceState *dev, const char *name, uint16_t value);
 void qdev_prop_set_uint32(DeviceState *dev, const char *name, uint32_t value);
 void qdev_prop_set_int32(DeviceState *dev, const char *name, int32_t value);
 void qdev_prop_set_uint64(DeviceState *dev, const char *name, uint64_t value);
+void qdev_prop_set_string(DeviceState *dev, const char *name, char *value);
 void qdev_prop_set_chr(DeviceState *dev, const char *name, CharDriverState *value);
 void qdev_prop_set_netdev(DeviceState *dev, const char *name, VLANClientState *value);
 void qdev_prop_set_vlan(DeviceState *dev, const char *name, VLANState *value);
-void qdev_prop_set_drive(DeviceState *dev, const char *name, DriveInfo *value);
+int qdev_prop_set_drive(DeviceState *dev, const char *name, BlockDriverState *value) QEMU_WARN_UNUSED_RESULT;
+void qdev_prop_set_drive_nofail(DeviceState *dev, const char *name, BlockDriverState *value);
 void qdev_prop_set_macaddr(DeviceState *dev, const char *name, uint8_t *value);
 /* FIXME: Remove opaque pointer properties.  */
 void qdev_prop_set_ptr(DeviceState *dev, const char *name, void *value);

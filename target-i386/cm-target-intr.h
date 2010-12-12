@@ -75,9 +75,9 @@ typedef struct CMTLBFlushReq {
 } CMTLBFlushReq;
 
 /* The declaration for apic wrapper function */
-void cm_apic_set_irq(struct APICState *s, int vector_num, int trigger_mode);
-void cm_apic_startup(struct APICState *s, int vector_num);
-void cm_apic_setup_arbid(struct APICState *s);
+void cm_apic_set_irq(DeviceState *s, int vector_num, int trigger_mode);
+void cm_apic_startup(DeviceState *s, int vector_num);
+void cm_apic_setup_arbid(DeviceState *s);
 
 /* The declaration for pic wrapper function */
 void cm_pic_irq_request(void *opaque, int irq, int level);

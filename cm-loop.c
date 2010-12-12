@@ -33,10 +33,12 @@
 #include "coremu-debug.h"
 #include "coremu-sched.h"
 #include "coremu-types.h"
+#include "coremu-core.h"
 #include "cm-loop.h"
 #include "cm-timer.h"
 #include "cm-init.h"
 
+int cm_cpu_can_run(CPUState *);
 static bool cm_tcg_cpu_exec(void);
 static bool cm_tcg_cpu_exec(void)
 {
@@ -83,7 +85,7 @@ void *cm_cpu_loop(void *args)
 
     for (;;) {
         ret = cm_tcg_cpu_exec();
-        if (test_reset_request()) {
+        if (cm_test_reset_request()) {
             coremu_pause_core();
             continue;
         }

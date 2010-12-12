@@ -27,19 +27,14 @@
 #include "coremu-atomic.h"
 #include "coremu-hw.h"
 
-static uint16_t *cm_phys_tb_cnt;
+#include  "cm-tbinval.h"
 
-extern void cm_inject_invalidate_code(TranslationBlock *tb);
-static int cm_invalidate_other(int cpu_id, target_phys_addr_t start, int len);
+static uint16_t *cm_phys_tb_cnt;
 
 void cm_init_tb_cnt(ram_addr_t ram_offset, ram_addr_t size)
 {
-    coremu_assert_hw_thr("cm_init_bt_cnt should only called by hw thr");
-
     cm_phys_tb_cnt = coremu_realloc(cm_phys_tb_cnt,
-                                    ((ram_offset +
-                                      size) >> TARGET_PAGE_BITS) *
-                                    sizeof(uint16_t));
+            ((ram_offset + size) >> TARGET_PAGE_BITS) * sizeof(uint16_t));
     memset(cm_phys_tb_cnt + (ram_offset >> TARGET_PAGE_BITS), 0x0,
            (size >> TARGET_PAGE_BITS) * sizeof(uint16_t));
 }
@@ -126,6 +121,7 @@ void cm_tlb_reset_dirty_range(CPUTLBEntry *tlb_entry,
     }
 }
 
+#ifdef COREMU_CMC_SUPPORT
 /* Try to Lazy invalidate the TB of CPU[cpu_id]
  * return 1: successful find and invalidate TB of CPU[cpu_id]
  *        0: dosn't exist
@@ -166,7 +162,6 @@ static int cm_lazy_invalidate_tb(TranslationBlock *tbs,
     return ret;
 }
 
-
 /* Try to invalidate the TB of CPU[cpu_id]
  * return 1: successful find and invalidate TB of CPU[cpu_id]
  *        0: dosn't exist
@@ -203,3 +198,5 @@ static int cm_invalidate_other(int cpu_id, target_phys_addr_t start, int len)
 
     return ret;
 }
+
+#endif /* COREMU_CMC_SUPPORT */

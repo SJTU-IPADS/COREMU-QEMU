@@ -18,6 +18,7 @@
 #include "flash.h"
 #include "console.h"
 #include "i2c.h"
+#include "blockdev.h"
 
 #define MP_MISC_BASE            0x80002000
 #define MP_MISC_SIZE            0x00001000
@@ -1295,8 +1296,6 @@ static int musicpal_gpio_init(SysBusDevice *dev)
                                        musicpal_gpio_writefn, s);
     sysbus_init_mmio(dev, MP_GPIO_SIZE, iomemtype);
 
-    musicpal_gpio_reset(&dev->qdev);
-
     qdev_init_gpio_out(&dev->qdev, s->out, ARRAY_SIZE(s->out));
 
     qdev_init_gpio_in(&dev->qdev, musicpal_gpio_pin_event, 32);
@@ -1488,10 +1487,8 @@ static void musicpal_init(ram_addr_t ram_size,
     DeviceState *i2c_dev;
     DeviceState *lcd_dev;
     DeviceState *key_dev;
-#ifdef HAS_AUDIO
     DeviceState *wm8750_dev;
     SysBusDevice *s;
-#endif
     i2c_bus *i2c;
     int i;
     unsigned long flash_size;
@@ -1510,9 +1507,10 @@ static void musicpal_init(ram_addr_t ram_size,
 
     /* For now we use a fixed - the original - RAM size */
     cpu_register_physical_memory(0, MP_RAM_DEFAULT_SIZE,
-                                 qemu_ram_alloc(MP_RAM_DEFAULT_SIZE));
+                                 qemu_ram_alloc(NULL, "musicpal.ram",
+                                                MP_RAM_DEFAULT_SIZE));
 
-    sram_off = qemu_ram_alloc(MP_SRAM_SIZE);
+    sram_off = qemu_ram_alloc(NULL, "musicpal.sram", MP_SRAM_SIZE);
     cpu_register_physical_memory(MP_SRAM_BASE, MP_SRAM_SIZE, sram_off);
 
     dev = sysbus_create_simple("mv88w8618_pic", MP_PIC_BASE,
@@ -1559,14 +1557,16 @@ static void musicpal_init(ram_addr_t ram_size,
          * image is smaller than 32 MB.
          */
 #ifdef TARGET_WORDS_BIGENDIAN
-        pflash_cfi02_register(0-MP_FLASH_SIZE_MAX, qemu_ram_alloc(flash_size),
+        pflash_cfi02_register(0-MP_FLASH_SIZE_MAX, qemu_ram_alloc(NULL,
+                              "musicpal.flash", flash_size),
                               dinfo->bdrv, 0x10000,
                               (flash_size + 0xffff) >> 16,
                               MP_FLASH_SIZE_MAX / flash_size,
                               2, 0x00BF, 0x236D, 0x0000, 0x0000,
                               0x5555, 0x2AAA, 1);
 #else
-        pflash_cfi02_register(0-MP_FLASH_SIZE_MAX, qemu_ram_alloc(flash_size),
+        pflash_cfi02_register(0-MP_FLASH_SIZE_MAX, qemu_ram_alloc(NULL,
+                              "musicpal.flash", flash_size),
                               dinfo->bdrv, 0x10000,
                               (flash_size + 0xffff) >> 16,
                               MP_FLASH_SIZE_MAX / flash_size,
@@ -1613,7 +1613,6 @@ static void musicpal_init(ram_addr_t ram_size,
         qdev_connect_gpio_out(key_dev, i, qdev_get_gpio_in(dev, i + 15));
     }
 
-#ifdef HAS_AUDIO
     wm8750_dev = i2c_create_slave(i2c, "wm8750", MP_WM_ADDR);
     dev = qdev_create(NULL, "mv88w8618_audio");
     s = sysbus_from_qdev(dev);
@@ -1621,7 +1620,6 @@ static void musicpal_init(ram_addr_t ram_size,
     qdev_init_nofail(dev);
     sysbus_mmio_map(s, 0, MP_AUDIO_BASE);
     sysbus_connect_irq(s, 0, pic[MP_AUDIO_IRQ]);
-#endif
 
     musicpal_binfo.ram_size = MP_RAM_DEFAULT_SIZE;
     musicpal_binfo.kernel_filename = kernel_filename;

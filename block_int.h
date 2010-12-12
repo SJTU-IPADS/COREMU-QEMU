@@ -59,7 +59,7 @@ struct BlockDriver {
                       const uint8_t *buf, int nb_sectors);
     void (*bdrv_close)(BlockDriverState *bs);
     int (*bdrv_create)(const char *filename, QEMUOptionParameter *options);
-    void (*bdrv_flush)(BlockDriverState *bs);
+    int (*bdrv_flush)(BlockDriverState *bs);
     int (*bdrv_is_allocated)(BlockDriverState *bs, int64_t sector_num,
                              int nb_sectors, int *pnum);
     int (*bdrv_set_key)(BlockDriverState *bs, const char *key);
@@ -93,6 +93,8 @@ struct BlockDriver {
     int (*bdrv_snapshot_delete)(BlockDriverState *bs, const char *snapshot_id);
     int (*bdrv_snapshot_list)(BlockDriverState *bs,
                               QEMUSnapshotInfo **psn_info);
+    int (*bdrv_snapshot_load_tmp)(BlockDriverState *bs,
+                                  const char *snapshot_name);
     int (*bdrv_get_info)(BlockDriverState *bs, BlockDriverInfo *bdi);
 
     int (*bdrv_save_vmstate)(BlockDriverState *bs, const uint8_t *buf,
@@ -119,13 +121,19 @@ struct BlockDriver {
     QEMUOptionParameter *create_options;
 
 
-    /* Returns number of errors in image, -errno for internal errors */
-    int (*bdrv_check)(BlockDriverState* bs);
+    /*
+     * Returns 0 for completed check, -errno for internal errors.
+     * The check results are stored in result.
+     */
+    int (*bdrv_check)(BlockDriverState* bs, BdrvCheckResult *result);
 
     void (*bdrv_debug_event)(BlockDriverState *bs, BlkDebugEvent event);
 
-    /* Set if newly created images are not guaranteed to contain only zeros */
-    int no_zero_init;
+    /*
+     * Returns 1 if newly created images are guaranteed to contain only
+     * zeros, 0 otherwise.
+     */
+    int (*bdrv_has_zero_init)(BlockDriverState *bs);
 
     QLIST_ENTRY(BlockDriver) list;
 };
@@ -138,6 +146,7 @@ struct BlockDriverState {
     int open_flags; /* flags used to open the file, re-used for re-open */
     int removable; /* if true, the media can be removed */
     int locked;    /* if true, the media cannot temporarily be ejected */
+    int tray_open; /* if true, the virtual tray is open */
     int encrypted; /* if true, the media is encrypted */
     int valid_key; /* if true, a valid encryption key has been set */
     int sg;        /* if true, the device is a /dev/sg* */
@@ -147,6 +156,8 @@ struct BlockDriverState {
 
     BlockDriver *drv; /* NULL means no media */
     void *opaque;
+
+    DeviceState *peer;
 
     char filename[1024];
     char backing_file[1024]; /* if non zero, the image is a diff of
@@ -182,6 +193,7 @@ struct BlockDriverState {
        drivers. They are not used by the block driver */
     int cyls, heads, secs, translation;
     int type;
+    BlockErrorAction on_read_error, on_write_error;
     char device_name[32];
     unsigned long *dirty_bitmap;
     int64_t dirty_count;
@@ -209,10 +221,8 @@ void *qemu_blockalign(BlockDriverState *bs, size_t size);
 int is_windows_drive(const char *filename);
 #endif
 
-struct DriveInfo;
-
 typedef struct BlockConf {
-    struct DriveInfo *dinfo;
+    BlockDriverState *bs;
     uint16_t physical_block_size;
     uint16_t logical_block_size;
     uint16_t min_io_size;
@@ -223,7 +233,9 @@ static inline unsigned int get_physical_block_exp(BlockConf *conf)
 {
     unsigned int exp = 0, size;
 
-    for (size = conf->physical_block_size; size > 512; size >>= 1) {
+    for (size = conf->physical_block_size;
+        size > conf->logical_block_size;
+        size >>= 1) {
         exp++;
     }
 
@@ -231,12 +243,12 @@ static inline unsigned int get_physical_block_exp(BlockConf *conf)
 }
 
 #define DEFINE_BLOCK_PROPERTIES(_state, _conf)                          \
-    DEFINE_PROP_DRIVE("drive", _state, _conf.dinfo),                    \
+    DEFINE_PROP_DRIVE("drive", _state, _conf.bs),                       \
     DEFINE_PROP_UINT16("logical_block_size", _state,                    \
                        _conf.logical_block_size, 512),                  \
     DEFINE_PROP_UINT16("physical_block_size", _state,                   \
                        _conf.physical_block_size, 512),                 \
-    DEFINE_PROP_UINT16("min_io_size", _state, _conf.min_io_size, 512),  \
-    DEFINE_PROP_UINT32("opt_io_size", _state, _conf.opt_io_size, 512)
+    DEFINE_PROP_UINT16("min_io_size", _state, _conf.min_io_size, 0),  \
+    DEFINE_PROP_UINT32("opt_io_size", _state, _conf.opt_io_size, 0)
 
 #endif /* BLOCK_INT_H */

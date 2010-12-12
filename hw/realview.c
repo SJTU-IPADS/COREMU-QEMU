@@ -18,6 +18,7 @@
 #include "boards.h"
 #include "bitbang_i2c.h"
 #include "sysbus.h"
+#include "blockdev.h"
 
 #define SMP_BOOT_ADDR 0xe0000000
 
@@ -196,12 +197,12 @@ static void realview_init(ram_addr_t ram_size,
         /* Core tile RAM.  */
         low_ram_size = ram_size - 0x20000000;
         ram_size = 0x20000000;
-        ram_offset = qemu_ram_alloc(low_ram_size);
+        ram_offset = qemu_ram_alloc(NULL, "realview.lowmem", low_ram_size);
         cpu_register_physical_memory(0x20000000, low_ram_size,
                                      ram_offset | IO_MEM_RAM);
     }
 
-    ram_offset = qemu_ram_alloc(ram_size);
+    ram_offset = qemu_ram_alloc(NULL, "realview.highmem", ram_size);
     low_ram_size = ram_size;
     if (low_ram_size > 0x10000000)
       low_ram_size = 0x10000000;
@@ -354,7 +355,7 @@ static void realview_init(ram_addr_t ram_size,
        startup code.  I guess this works on real hardware because the
        BootROM happens to be in ROM/flash or in memory that isn't clobbered
        until after Linux boots the secondary CPUs.  */
-    ram_offset = qemu_ram_alloc(0x1000);
+    ram_offset = qemu_ram_alloc(NULL, "realview.hack", 0x1000);
     cpu_register_physical_memory(SMP_BOOT_ADDR, 0x1000,
                                  ram_offset | IO_MEM_RAM);
 

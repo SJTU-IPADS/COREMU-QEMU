@@ -20,6 +20,7 @@
 #define _CPU_SH4_H
 
 #include "config.h"
+#include "qemu-common.h"
 
 #define TARGET_LONG_BITS 32
 #define TARGET_HAS_ICE 1
@@ -168,7 +169,7 @@ int cpu_sh4_handle_mmu_fault(CPUSH4State * env, target_ulong address, int rw,
 #define cpu_handle_mmu_fault cpu_sh4_handle_mmu_fault
 void do_interrupt(CPUSH4State * env);
 
-void sh4_cpu_list(FILE *f, int (*cpu_fprintf)(FILE *f, const char *fmt, ...));
+void sh4_cpu_list(FILE *f, fprintf_function cpu_fprintf);
 #if !defined(CONFIG_USER_ONLY)
 void cpu_sh4_invalidate_tlb(CPUSH4State *s);
 void cpu_sh4_write_mmaped_utlb_addr(CPUSH4State *s, target_phys_addr_t addr,
@@ -211,7 +212,6 @@ static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 #endif
 
 #include "cpu-all.h"
-#include "exec-all.h"
 
 /* Memory access type */
 enum {
@@ -302,12 +302,6 @@ static inline int cpu_ptel_pr (uint32_t ptel)
 #define cpu_ptea_sa(ptea) ((ptea) & PTEA_SA_MASK)
 #define PTEA_TC        (1 << 3)
 #define cpu_ptea_tc(ptea) (((ptea) & PTEA_TC) >> 3)
-
-static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock *tb)
-{
-    env->pc = tb->pc;
-    env->flags = tb->flags;
-}
 
 #define TB_FLAG_PENDING_MOVCA  (1 << 4)
 

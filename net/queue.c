@@ -160,13 +160,13 @@ static ssize_t qemu_net_queue_append_iov(NetQueue *queue,
 
 #ifdef CONFIG_COREMU
     coremu_spin_lock(&queue->nqlock);
-#endif    
+#endif
 
     QTAILQ_INSERT_TAIL(&queue->packets, packet, entry);
 
 #ifdef CONFIG_COREMU
     coremu_spin_unlock(&queue->nqlock);
-#endif 
+#endif
 
     return packet->size;
 }
@@ -262,7 +262,7 @@ void qemu_net_queue_purge(NetQueue *queue, VLANClientState *from)
 
 #ifdef CONFIG_COREMU
     coremu_spin_lock(&queue->nqlock);
-#endif 
+#endif
 
     QTAILQ_FOREACH_SAFE(packet, &queue->packets, entry, next) {
         if (packet->sender == from) {
@@ -273,7 +273,7 @@ void qemu_net_queue_purge(NetQueue *queue, VLANClientState *from)
 
 #ifdef CONFIG_COREMU
     coremu_spin_unlock(&queue->nqlock);
-#endif 
+#endif
 
 }
 

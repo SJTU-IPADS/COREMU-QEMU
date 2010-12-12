@@ -26,6 +26,8 @@
 #ifndef _CM_TBINVAL_H
 #define _CM_TBINVAL_H
 
+#include "coremu-spinlock.h"
+
 typedef struct {
     /* List of TBs of this cpu intersecting this ram page */
     TranslationBlock *first_tb;
@@ -47,5 +49,8 @@ void cm_invalidate_tb(target_phys_addr_t start, int len);
 
 void cm_tlb_reset_dirty_range(CPUTLBEntry *tlb_entry, unsigned long start,
                               unsigned long length);
+
+/* Defined in tcg/tcg.c */
+void cm_inject_invalidate_code(TranslationBlock *tb);
 
 #endif

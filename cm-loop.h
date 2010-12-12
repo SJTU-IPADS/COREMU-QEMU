@@ -33,5 +33,7 @@ void *cm_cpu_loop(void *args);
 /*int cm_cpu_can_run(struct CPUState * env);*/
 int cm_vm_can_run(void);
 
+int cm_test_reset_request(void);
+
 #endif
 

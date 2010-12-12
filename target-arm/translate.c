@@ -561,7 +561,7 @@ static void gen_arm_parallel_addsub(int op1, int op2, TCGv a, TCGv b)
 
 /* For unknown reasons Arm and Thumb-2 use arbitrarily different encodings.  */
 #define PAS_OP(pfx) \
-    switch (op2) {  \
+    switch (op1) {  \
     case 0: gen_pas_helper(glue(pfx,add8)); break; \
     case 1: gen_pas_helper(glue(pfx,add16)); break; \
     case 2: gen_pas_helper(glue(pfx,addsubx)); break; \
@@ -573,7 +573,7 @@ static void gen_thumb2_parallel_addsub(int op1, int op2, TCGv a, TCGv b)
 {
     TCGv_ptr tmp;
 
-    switch (op1) {
+    switch (op2) {
 #define gen_pas_helper(name) glue(gen_helper_,name)(a, a, b, tmp)
     case 0:
         tmp = tcg_temp_new_ptr();
@@ -3854,7 +3854,8 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
                             tcg_gen_addi_i32(addr, addr, stride);
                             tmp2 = gen_ld16u(addr, IS_USER(s));
                             tcg_gen_addi_i32(addr, addr, stride);
-                            gen_bfi(tmp, tmp, tmp2, 16, 0xffff);
+                            tcg_gen_shli_i32(tmp2, tmp2, 16);
+                            tcg_gen_or_i32(tmp, tmp, tmp2);
                             dead_tmp(tmp2);
                             neon_store_reg(rd, pass, tmp);
                         } else {
@@ -3875,7 +3876,8 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
                                 if (n == 0) {
                                     tmp2 = tmp;
                                 } else {
-                                    gen_bfi(tmp2, tmp2, tmp, n * 8, 0xff);
+                                    tcg_gen_shli_i32(tmp, tmp, n * 8);
+                                    tcg_gen_or_i32(tmp2, tmp2, tmp);
                                     dead_tmp(tmp);
                                 }
                             }
@@ -9336,8 +9338,7 @@ static const char *cpu_mode_names[16] = {
   "???", "???", "???", "und", "???", "???", "???", "sys"
 };
 
-void cpu_dump_state(CPUState *env, FILE *f,
-                    int (*cpu_fprintf)(FILE *f, const char *fmt, ...),
+void cpu_dump_state(CPUState *env, FILE *f, fprintf_function cpu_fprintf,
                     int flags)
 {
     int i;

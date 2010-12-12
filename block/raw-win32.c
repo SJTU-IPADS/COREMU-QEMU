@@ -147,10 +147,17 @@ static int raw_write(BlockDriverState *bs, int64_t sector_num,
     return ret_count;
 }
 
-static void raw_flush(BlockDriverState *bs)
+static int raw_flush(BlockDriverState *bs)
 {
     BDRVRawState *s = bs->opaque;
-    FlushFileBuffers(s->hfile);
+    int ret;
+
+    ret = FlushFileBuffers(s->hfile);
+    if (ret != 0) {
+        return -EIO;
+    }
+
+    return 0;
 }
 
 static void raw_close(BlockDriverState *bs)
@@ -394,6 +401,11 @@ static int raw_set_locked(BlockDriverState *bs, int locked)
 }
 #endif
 
+static int hdev_has_zero_init(BlockDriverState *bs)
+{
+    return 0;
+}
+
 static BlockDriver bdrv_host_device = {
     .format_name	= "host_device",
     .protocol_name	= "host_device",
@@ -402,6 +414,7 @@ static BlockDriver bdrv_host_device = {
     .bdrv_file_open	= hdev_open,
     .bdrv_close		= raw_close,
     .bdrv_flush		= raw_flush,
+    .bdrv_has_zero_init = hdev_has_zero_init,
 
     .bdrv_read		= raw_read,
     .bdrv_write	        = raw_write,

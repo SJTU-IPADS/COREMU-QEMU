@@ -26,8 +26,6 @@
 #include "block_int.h"
 #include "module.h"
 
-#include <stdbool.h>
-
 typedef struct BlkdebugVars {
     int state;
 
@@ -113,7 +111,7 @@ static QemuOptsList inject_error_opts = {
 
 static QemuOptsList set_state_opts = {
     .name = "set-state",
-    .head = QTAILQ_HEAD_INITIALIZER(inject_error_opts.head),
+    .head = QTAILQ_HEAD_INITIALIZER(set_state_opts.head),
     .desc = {
         {
             .name = "event",
@@ -269,6 +267,8 @@ static int read_config(BDRVBlkdebugState *s, const char *filename)
 
     ret = 0;
 fail:
+    qemu_opts_reset(&inject_error_opts);
+    qemu_opts_reset(&set_state_opts);
     fclose(f);
     return ret;
 }
@@ -301,6 +301,9 @@ static int blkdebug_open(BlockDriverState *bs, const char *filename, int flags)
     }
     filename = c + 1;
 
+    /* Set initial state */
+    s->vars.state = 1;
+
     /* Open the backing file */
     ret = bdrv_file_open(&bs->file, filename, flags);
     if (ret < 0) {
@@ -320,7 +323,7 @@ static void error_callback_bh(void *opaque)
 
 static void blkdebug_aio_cancel(BlockDriverAIOCB *blockacb)
 {
-    BlkdebugAIOCB *acb = (BlkdebugAIOCB*) blockacb;
+    BlkdebugAIOCB *acb = container_of(blockacb, BlkdebugAIOCB, common);
     qemu_aio_release(acb);
 }
 
@@ -347,7 +350,7 @@ static BlockDriverAIOCB *inject_error(BlockDriverState *bs,
     acb->bh = bh;
     qemu_bh_schedule(bh);
 
-    return (BlockDriverAIOCB*) acb;
+    return &acb->common;
 }
 
 static BlockDriverAIOCB *blkdebug_aio_readv(BlockDriverState *bs,
@@ -394,9 +397,9 @@ static void blkdebug_close(BlockDriverState *bs)
     }
 }
 
-static void blkdebug_flush(BlockDriverState *bs)
+static int blkdebug_flush(BlockDriverState *bs)
 {
-    bdrv_flush(bs->file);
+    return bdrv_flush(bs->file);
 }
 
 static BlockDriverAIOCB *blkdebug_aio_flush(BlockDriverState *bs,
@@ -436,9 +439,7 @@ static void blkdebug_debug_event(BlockDriverState *bs, BlkDebugEvent event)
     struct BlkdebugRule *rule;
     BlkdebugVars old_vars = s->vars;
 
-    if (event < 0 || event >= BLKDBG_EVENT_MAX) {
-        return;
-    }
+    assert((int)event >= 0 && event < BLKDBG_EVENT_MAX);
 
     QLIST_FOREACH(rule, &s->rules[event], next) {
         process_rule(bs, rule, &old_vars);

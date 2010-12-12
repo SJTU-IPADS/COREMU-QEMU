@@ -29,11 +29,12 @@
 
 #include "hw.h"
 #include "fdc.h"
-#include "block.h"
+#include "qemu-error.h"
 #include "qemu-timer.h"
 #include "isa.h"
 #include "sysbus.h"
 #include "qdev-addr.h"
+#include "blockdev.h"
 
 /********************************************************/
 /* debug Floppy devices */
@@ -81,7 +82,6 @@ typedef enum FDiskFlags {
 } FDiskFlags;
 
 typedef struct FDrive {
-    DriveInfo *dinfo;
     BlockDriverState *bs;
     /* Drive status */
     FDriveType drive;
@@ -101,7 +101,6 @@ typedef struct FDrive {
 static void fd_init(FDrive *drv)
 {
     /* Drive */
-    drv->bs = drv->dinfo ? drv->dinfo->bdrv : NULL;
     drv->drive = FDRIVE_DRV_NONE;
     drv->perpendicular = 0;
     /* Disk */
@@ -370,9 +369,9 @@ enum {
     FD_CMD_PART_ID = 0x18,
     FD_CMD_SCAN_LOW_OR_EQUAL = 0x19,
     FD_CMD_SCAN_HIGH_OR_EQUAL = 0x1d,
-    FD_CMD_SAVE = 0x2c,
+    FD_CMD_SAVE = 0x2e,
     FD_CMD_OPTION = 0x33,
-    FD_CMD_RESTORE = 0x4c,
+    FD_CMD_RESTORE = 0x4e,
     FD_CMD_DRIVE_SPECIFICATION_COMMAND = 0x8e,
     FD_CMD_RELATIVE_SEEK_OUT = 0x8f,
     FD_CMD_FORMAT_AND_WRITE = 0xcd,
@@ -1847,14 +1846,32 @@ static void fdctrl_result_timer(void *opaque)
 }
 
 /* Init functions */
-static void fdctrl_connect_drives(FDCtrl *fdctrl)
+static int fdctrl_connect_drives(FDCtrl *fdctrl)
 {
     unsigned int i;
+    FDrive *drive;
 
     for (i = 0; i < MAX_FD; i++) {
-        fd_init(&fdctrl->drives[i]);
-        fd_revalidate(&fdctrl->drives[i]);
+        drive = &fdctrl->drives[i];
+
+        if (drive->bs) {
+            if (bdrv_get_on_error(drive->bs, 0) != BLOCK_ERR_STOP_ENOSPC) {
+                error_report("fdc doesn't support drive option werror");
+                return -1;
+            }
+            if (bdrv_get_on_error(drive->bs, 1) != BLOCK_ERR_REPORT) {
+                error_report("fdc doesn't support drive option rerror");
+                return -1;
+            }
+        }
+
+        fd_init(drive);
+        fd_revalidate(drive);
+        if (drive->bs) {
+            bdrv_set_removable(drive->bs, 1);
+        }
     }
+    return 0;
 }
 
 FDCtrl *fdctrl_init_isa(DriveInfo **fds)
@@ -1863,13 +1880,12 @@ FDCtrl *fdctrl_init_isa(DriveInfo **fds)
 
     dev = isa_create("isa-fdc");
     if (fds[0]) {
-        qdev_prop_set_drive(&dev->qdev, "driveA", fds[0]);
+        qdev_prop_set_drive_nofail(&dev->qdev, "driveA", fds[0]->bdrv);
     }
     if (fds[1]) {
-        qdev_prop_set_drive(&dev->qdev, "driveB", fds[1]);
+        qdev_prop_set_drive_nofail(&dev->qdev, "driveB", fds[1]->bdrv);
     }
-    if (qdev_init(&dev->qdev) < 0)
-        return NULL;
+    qdev_init_nofail(&dev->qdev);
     return &(DO_UPCAST(FDCtrlISABus, busdev, dev)->state);
 }
 
@@ -1885,10 +1901,10 @@ FDCtrl *fdctrl_init_sysbus(qemu_irq irq, int dma_chann,
     fdctrl = &sys->state;
     fdctrl->dma_chann = dma_chann; /* FIXME */
     if (fds[0]) {
-        qdev_prop_set_drive(dev, "driveA", fds[0]);
+        qdev_prop_set_drive_nofail(dev, "driveA", fds[0]->bdrv);
     }
     if (fds[1]) {
-        qdev_prop_set_drive(dev, "driveB", fds[1]);
+        qdev_prop_set_drive_nofail(dev, "driveB", fds[1]->bdrv);
     }
     qdev_init_nofail(dev);
     sysbus_connect_irq(&sys->busdev, 0, irq);
@@ -1906,7 +1922,7 @@ FDCtrl *sun4m_fdctrl_init(qemu_irq irq, target_phys_addr_t io_base,
 
     dev = qdev_create(NULL, "SUNW,fdtwo");
     if (fds[0]) {
-        qdev_prop_set_drive(dev, "drive", fds[0]);
+        qdev_prop_set_drive_nofail(dev, "drive", fds[0]->bdrv);
     }
     qdev_init_nofail(dev);
     sys = DO_UPCAST(FDCtrlSysBus, busdev.qdev, dev);
@@ -1918,7 +1934,7 @@ FDCtrl *sun4m_fdctrl_init(qemu_irq irq, target_phys_addr_t io_base,
     return fdctrl;
 }
 
-static int fdctrl_init_common(FDCtrl *fdctrl, target_phys_addr_t io_base)
+static int fdctrl_init_common(FDCtrl *fdctrl)
 {
     int i, j;
     static int command_tables_inited = 0;
@@ -1947,10 +1963,7 @@ static int fdctrl_init_common(FDCtrl *fdctrl, target_phys_addr_t io_base)
 
     if (fdctrl->dma_chann != -1)
         DMA_register_channel(fdctrl->dma_chann, &fdctrl_transfer_handler, fdctrl);
-    fdctrl_connect_drives(fdctrl);
-
-    vmstate_register(io_base, &vmstate_fdc, fdctrl);
-    return 0;
+    return fdctrl_connect_drives(fdctrl);
 }
 
 static int isabus_fdc_init1(ISADevice *dev)
@@ -1973,7 +1986,8 @@ static int isabus_fdc_init1(ISADevice *dev)
     isa_init_irq(&isa->busdev, &fdctrl->irq, isairq);
     fdctrl->dma_chann = dma_chann;
 
-    ret = fdctrl_init_common(fdctrl, iobase);
+    qdev_set_legacy_instance_id(&dev->qdev, iobase, 2);
+    ret = fdctrl_init_common(fdctrl);
 
     return ret;
 }
@@ -1991,7 +2005,8 @@ static int sysbus_fdc_init1(SysBusDevice *dev)
     qdev_init_gpio_in(&dev->qdev, fdctrl_handle_tc, 1);
     fdctrl->dma_chann = -1;
 
-    ret = fdctrl_init_common(fdctrl, io);
+    qdev_set_legacy_instance_id(&dev->qdev, io, 2);
+    ret = fdctrl_init_common(fdctrl);
 
     return ret;
 }
@@ -2008,30 +2023,53 @@ static int sun4m_fdc_init1(SysBusDevice *dev)
     qdev_init_gpio_in(&dev->qdev, fdctrl_handle_tc, 1);
 
     fdctrl->sun4m = 1;
-    return fdctrl_init_common(fdctrl, io);
+    qdev_set_legacy_instance_id(&dev->qdev, io, 2);
+    return fdctrl_init_common(fdctrl);
 }
+
+static const VMStateDescription vmstate_isa_fdc ={
+    .name = "fdc",
+    .version_id = 2,
+    .minimum_version_id = 2,
+    .fields = (VMStateField []) {
+        VMSTATE_STRUCT(state, FDCtrlISABus, 0, vmstate_fdc, FDCtrl),
+        VMSTATE_END_OF_LIST()
+    }
+};
 
 static ISADeviceInfo isa_fdc_info = {
     .init = isabus_fdc_init1,
     .qdev.name  = "isa-fdc",
     .qdev.size  = sizeof(FDCtrlISABus),
     .qdev.no_user = 1,
+    .qdev.vmsd  = &vmstate_isa_fdc,
     .qdev.reset = fdctrl_external_reset_isa,
     .qdev.props = (Property[]) {
-        DEFINE_PROP_DRIVE("driveA", FDCtrlISABus, state.drives[0].dinfo),
-        DEFINE_PROP_DRIVE("driveB", FDCtrlISABus, state.drives[1].dinfo),
+        DEFINE_PROP_DRIVE("driveA", FDCtrlISABus, state.drives[0].bs),
+        DEFINE_PROP_DRIVE("driveB", FDCtrlISABus, state.drives[1].bs),
         DEFINE_PROP_END_OF_LIST(),
     },
+};
+
+static const VMStateDescription vmstate_sysbus_fdc ={
+    .name = "fdc",
+    .version_id = 2,
+    .minimum_version_id = 2,
+    .fields = (VMStateField []) {
+        VMSTATE_STRUCT(state, FDCtrlSysBus, 0, vmstate_fdc, FDCtrl),
+        VMSTATE_END_OF_LIST()
+    }
 };
 
 static SysBusDeviceInfo sysbus_fdc_info = {
     .init = sysbus_fdc_init1,
     .qdev.name  = "sysbus-fdc",
     .qdev.size  = sizeof(FDCtrlSysBus),
+    .qdev.vmsd  = &vmstate_sysbus_fdc,
     .qdev.reset = fdctrl_external_reset_sysbus,
     .qdev.props = (Property[]) {
-        DEFINE_PROP_DRIVE("driveA", FDCtrlSysBus, state.drives[0].dinfo),
-        DEFINE_PROP_DRIVE("driveB", FDCtrlSysBus, state.drives[1].dinfo),
+        DEFINE_PROP_DRIVE("driveA", FDCtrlSysBus, state.drives[0].bs),
+        DEFINE_PROP_DRIVE("driveB", FDCtrlSysBus, state.drives[1].bs),
         DEFINE_PROP_END_OF_LIST(),
     },
 };
@@ -2040,9 +2078,10 @@ static SysBusDeviceInfo sun4m_fdc_info = {
     .init = sun4m_fdc_init1,
     .qdev.name  = "SUNW,fdtwo",
     .qdev.size  = sizeof(FDCtrlSysBus),
+    .qdev.vmsd  = &vmstate_sysbus_fdc,
     .qdev.reset = fdctrl_external_reset_sysbus,
     .qdev.props = (Property[]) {
-        DEFINE_PROP_DRIVE("drive", FDCtrlSysBus, state.drives[0].dinfo),
+        DEFINE_PROP_DRIVE("drive", FDCtrlSysBus, state.drives[0].bs),
         DEFINE_PROP_END_OF_LIST(),
     },
 };
