@@ -25,6 +25,8 @@
 #include "host-utils.h"
 #include <math.h>
 
+#include "coremu-config.h"
+
 void pstrcpy(char *buf, int buf_size, const char *str)
 {
     int c;
@@ -150,6 +152,9 @@ void qemu_iovec_init_external(QEMUIOVector *qiov, struct iovec *iov, int niov)
     qiov->niov = niov;
     qiov->nalloc = -1;
     qiov->size = 0;
+#ifdef CONFIG_COREMU
+    qiov->em_sync_io = 0;
+#endif
     for (i = 0; i < niov; i++)
         qiov->size += iov[i].iov_len;
 }

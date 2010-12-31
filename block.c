@@ -28,6 +28,7 @@
 #include "block_int.h"
 #include "module.h"
 #include "qemu-objects.h"
+#include <assert.h>
 
 #ifdef CONFIG_BSD
 #include <sys/types.h>
@@ -2530,6 +2531,9 @@ static int bdrv_read_em(BlockDriverState *bs, int64_t sector_num,
     iov.iov_base = (void *)buf;
     iov.iov_len = nb_sectors * BDRV_SECTOR_SIZE;
     qemu_iovec_init_external(&qiov, &iov, 1);
+#ifdef CONFIG_COREMU
+    qiov.em_sync_io = 1;
+#endif
     acb = bdrv_aio_readv(bs, sector_num, &qiov, nb_sectors,
         bdrv_rw_em_cb, &async_ret);
     if (acb == NULL) {
@@ -2538,6 +2542,14 @@ static int bdrv_read_em(BlockDriverState *bs, int64_t sector_num,
     }
 
     while (async_ret == NOT_DONE) {
+#ifdef CONFIG_COREMU
+        /* Shouldn't wait here if we do real sync IO. Calling aio cb and bh in
+         * cpu thread is problematic in COREMU. Finding places to protect for
+         * concurrent access is really painful. So I just emulate real sync
+         * read/write operation in qcow2's aio read/write cb if the em_sync_io
+         * flag is set. */
+        assert(0);
+#endif
         qemu_aio_wait();
     }
 
@@ -2561,6 +2573,9 @@ static int bdrv_write_em(BlockDriverState *bs, int64_t sector_num,
     iov.iov_base = (void *)buf;
     iov.iov_len = nb_sectors * BDRV_SECTOR_SIZE;
     qemu_iovec_init_external(&qiov, &iov, 1);
+#ifdef CONFIG_COREMU
+    qiov.em_sync_io = 1;
+#endif
     acb = bdrv_aio_writev(bs, sector_num, &qiov, nb_sectors,
         bdrv_rw_em_cb, &async_ret);
     if (acb == NULL) {
@@ -2568,6 +2583,10 @@ static int bdrv_write_em(BlockDriverState *bs, int64_t sector_num,
         goto fail;
     }
     while (async_ret == NOT_DONE) {
+#ifdef CONFIG_COREMU
+        /* Shouldn't wait here if we do real sync IO. */
+        assert(0);
+#endif
         qemu_aio_wait();
     }
 

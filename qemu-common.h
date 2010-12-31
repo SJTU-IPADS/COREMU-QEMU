@@ -35,6 +35,8 @@ typedef struct DeviceState DeviceState;
 #include <sys/stat.h>
 #include <assert.h>
 
+#include "coremu-config.h"
+
 #ifndef O_LARGEFILE
 #define O_LARGEFILE 0
 #endif
@@ -308,6 +310,11 @@ typedef struct QEMUIOVector {
     int niov;
     int nalloc;
     size_t size;
+#ifdef CONFIG_COREMU
+    /* Mark this vector is used to emulate sync. io. I didn't find a better
+     * place to hold this information. */
+    int em_sync_io;
+#endif
 } QEMUIOVector;
 
 void qemu_iovec_init(QEMUIOVector *qiov, int alloc_hint);

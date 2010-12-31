@@ -392,6 +392,13 @@ static void qcow2_aio_read_bh(void *opaque)
 
 static int qcow2_schedule_bh(QEMUBHFunc *cb, QCowAIOCB *acb)
 {
+#ifdef CONFIG_COREMU
+    if (acb->qiov->em_sync_io) {
+        qcow2_aio_read_cb(acb, 0);
+        return 0;
+    }
+#endif
+
     if (acb->bh)
         return -EIO;
 
@@ -431,7 +438,9 @@ static void qcow2_aio_read_cb(void *opaque, int ret)
                 512 * acb->cur_nr_sectors);
         }
     }
-
+#ifdef CONFIG_COREMU
+begin:
+#endif
     acb->remaining_sectors -= acb->cur_nr_sectors;
     acb->sector_num += acb->cur_nr_sectors;
     acb->bytes_done += acb->cur_nr_sectors * 512;
@@ -521,6 +530,13 @@ static void qcow2_aio_read_cb(void *opaque, int ret)
                 512 * acb->cur_nr_sectors);
         }
 
+#ifdef CONFIG_COREMU
+        if (acb->qiov->em_sync_io) {
+            bdrv_read(bs->file, (acb->cluster_offset >> 9) + index_in_cluster,
+                      acb->hd_qiov.iov->iov_base, acb->cur_nr_sectors);
+            goto begin;
+        }
+#endif
         BLKDBG_EVENT(bs->file, BLKDBG_READ_AIO);
         acb->hd_aiocb = bdrv_aio_readv(bs->file,
                             (acb->cluster_offset >> 9) + index_in_cluster,
@@ -619,7 +635,9 @@ static void qcow2_aio_write_cb(void *opaque, int ret)
 
     if (ret < 0)
         goto done;
-
+#ifdef CONFIG_COREMU
+begin:
+#endif
     acb->remaining_sectors -= acb->cur_nr_sectors;
     acb->sector_num += acb->cur_nr_sectors;
     acb->bytes_done += acb->cur_nr_sectors * 512;
@@ -674,6 +692,13 @@ static void qcow2_aio_write_cb(void *opaque, int ret)
             acb->cur_nr_sectors * 512);
     }
 
+#ifdef CONFIG_COREMU
+    if (acb->qiov->em_sync_io) {
+        bdrv_write(bs->file, (acb->cluster_offset >> 9) + index_in_cluster,
+                  acb->hd_qiov.iov->iov_base, acb->cur_nr_sectors);
+        goto begin;
+    }
+#endif
     BLKDBG_EVENT(bs->file, BLKDBG_WRITE_AIO);
     acb->hd_aiocb = bdrv_aio_writev(bs->file,
                                     (acb->cluster_offset >> 9) + index_in_cluster,
