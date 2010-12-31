@@ -107,10 +107,7 @@ DeviceState *qdev_create(BusState *bus, const char *name)
     DeviceInfo *info;
 
     if (!bus) {
-        if (!main_system_bus) {
-            main_system_bus = qbus_create(&system_bus_info, NULL, "main-system-bus");
-        }
-        bus = main_system_bus;
+        bus = sysbus_get_default();
     }
 
     info = qdev_find_info(bus->info, name);
@@ -311,6 +308,10 @@ static int qdev_reset_one(DeviceState *dev, void *opaque)
 
 BusState *sysbus_get_default(void)
 {
+    if (!main_system_bus) {
+        main_system_bus = qbus_create(&system_bus_info, NULL,
+                                      "main-system-bus");
+    }
     return main_system_bus;
 }
 
@@ -888,4 +889,36 @@ int do_device_del(Monitor *mon, const QDict *qdict, QObject **ret_data)
         return -1;
     }
     return qdev_unplug(dev);
+}
+
+static int qdev_get_fw_dev_path_helper(DeviceState *dev, char *p, int size)
+{
+    int l = 0;
+
+    if (dev && dev->parent_bus) {
+        char *d;
+        l = qdev_get_fw_dev_path_helper(dev->parent_bus->parent, p, size);
+        if (dev->parent_bus->info->get_fw_dev_path) {
+            d = dev->parent_bus->info->get_fw_dev_path(dev);
+            l += snprintf(p + l, size - l, "%s", d);
+            qemu_free(d);
+        } else {
+            l += snprintf(p + l, size - l, "%s", dev->info->name);
+        }
+    }
+    l += snprintf(p + l , size - l, "/");
+
+    return l;
+}
+
+char* qdev_get_fw_dev_path(DeviceState *dev)
+{
+    char path[128];
+    int l;
+
+    l = qdev_get_fw_dev_path_helper(dev, path, 128);
+
+    path[l-1] = '\0';
+
+    return strdup(path);
 }
