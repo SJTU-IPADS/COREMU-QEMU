@@ -514,13 +514,10 @@ void ide_read_dma_cb(void *opaque, int ret)
     if (s->nsector == 0) {
         s->status = READY_STAT | SEEK_STAT;
 
-/* For coremu dma state need to be changed before irq is sent */
 #ifdef CONFIG_COREMU
-        bm->status &= ~BM_STATUS_DMAING;
-        bm->status |= BM_STATUS_INT;
-        bm->dma_cb = NULL;
-        bm->unit = -1;
-        bm->aiocb = NULL;
+        /* For coremu dma state need to be changed before irq is sent */
+        s->bus->dma->ops->add_status(s->bus->dma, BM_STATUS_INT);
+        ide_set_inactive(s);
 #endif
         ide_set_irq(s->bus);
 
@@ -632,13 +629,10 @@ void ide_write_dma_cb(void *opaque, int ret)
     if (s->nsector == 0) {
         s->status = READY_STAT | SEEK_STAT;
 
-/* For coremu dma state need to be changed before irq is sent */
 #ifdef CONFIG_COREMU
-        bm->status &= ~BM_STATUS_DMAING;
-        bm->status |= BM_STATUS_INT;
-        bm->dma_cb = NULL;
-        bm->unit = -1;
-        bm->aiocb = NULL;
+        /* For coremu dma state need to be changed before irq is sent */
+        s->bus->dma->ops->add_status(s->bus->dma, BM_STATUS_INT);
+        ide_set_inactive(s);
 #endif
         ide_set_irq(s->bus);
 
