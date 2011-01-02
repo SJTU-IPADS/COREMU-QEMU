@@ -478,6 +478,14 @@ begin:
                 acb->sector_num, acb->cur_nr_sectors);
             if (n1 > 0) {
                 BLKDBG_EVENT(bs->file, BLKDBG_READ_BACKING_AIO);
+#ifdef CONFIG_COREMU
+                if (acb->qiov->em_sync_io) {
+                    if (bdrv_read(bs->backing_hd, acb->sector_num,
+                              acb->hd_qiov.iov->iov_base, acb->cur_nr_sectors) < 0)
+                        goto done;
+                    goto begin;
+                }
+#endif
                 acb->hd_aiocb = bdrv_aio_readv(bs->backing_hd, acb->sector_num,
                                     &acb->hd_qiov, acb->cur_nr_sectors,
 				    qcow2_aio_read_cb, acb);
@@ -532,8 +540,9 @@ begin:
 
 #ifdef CONFIG_COREMU
         if (acb->qiov->em_sync_io) {
-            bdrv_read(bs->file, (acb->cluster_offset >> 9) + index_in_cluster,
-                      acb->hd_qiov.iov->iov_base, acb->cur_nr_sectors);
+            if (bdrv_read(bs->file, (acb->cluster_offset >> 9) + index_in_cluster,
+                      acb->hd_qiov.iov->iov_base, acb->cur_nr_sectors) < 0)
+                goto done;
             goto begin;
         }
 #endif
