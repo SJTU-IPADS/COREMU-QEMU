@@ -46,6 +46,7 @@ uint16_t cm_phys_page_tb_p(ram_addr_t addr);
 
 void cm_invalidate_bitmap(CMPageDesc *p);
 void cm_invalidate_tb(target_phys_addr_t start, int len);
+int cm_invalidate_other(int cpu_id, target_phys_addr_t start, int len);
 
 void cm_tlb_reset_dirty_range(CPUTLBEntry *tlb_entry, unsigned long start,
                               unsigned long length);

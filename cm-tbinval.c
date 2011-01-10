@@ -27,7 +27,7 @@
 #include "coremu-atomic.h"
 #include "coremu-hw.h"
 
-#include  "cm-tbinval.h"
+#include "cm-tbinval.h"
 
 static uint16_t *cm_phys_tb_cnt;
 
@@ -166,7 +166,7 @@ static int cm_lazy_invalidate_tb(TranslationBlock *tbs,
  * return 1: successful find and invalidate TB of CPU[cpu_id]
  *        0: dosn't exist
  */
-static int cm_invalidate_other(int cpu_id, target_phys_addr_t start, int len)
+int cm_invalidate_other(int cpu_id, target_phys_addr_t start, int len)
 {
     /* Find if exit any TB intersect with start -- start+len */
     PageDesc *p = page_find(start >> TARGET_PAGE_BITS);

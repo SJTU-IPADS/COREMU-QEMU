@@ -48,7 +48,6 @@
 #include "cache-utils.h"
 #include "host-utils.h"
 #include "qemu-timer.h"
-#include "coremu-atomic.h"
 
 /* Note: the long term plan is to reduce the dependancies on the QEMU
    CPU definitions. Currently they are used for qemu_ld/st
@@ -61,6 +60,7 @@
 #include "elf.h"
 
 #include "coremu-config.h"
+#include "coremu-atomic.h"
 
 #if defined(CONFIG_USE_GUEST_BASE) && !defined(TCG_TARGET_HAS_GUEST_BASE)
 #error GUEST_BASE not supported on this host.
@@ -2186,7 +2186,6 @@ void tcg_dump_info(FILE *f, fprintf_function cpu_fprintf)
 #include <sys/types.h>
 #include <sys/mman.h>
 #include "cm-init.h"
-#include "cm-tbinval.h"
 
 void cm_code_prologue_init(void)
 {
@@ -2199,20 +2198,21 @@ void cm_code_prologue_init(void)
     tcg_target_qemu_prologue(&tmp_ctx);
 }
 
+#include "cm-tbinval.h"
+
 void cm_inject_invalidate_code(TranslationBlock *tb)
 {
     uint16_t ret =  atomic_compare_exchangew(&tb->has_invalidate, 0, 1);
 
-    if(ret == 1)
+    if (ret == 1)
        return;
 
     TCGContext *s = &tcg_ctx;
     s->code_buf = tb->tc_ptr;
     s->code_ptr = tb->tc_ptr;
 
-    tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_RAX, (long) tb + 3);
-    tcg_out8(s, 0xe9); /* jmp tb_ret_addr */
-    tcg_out32(s, tb_ret_addr - s->code_ptr - 4);
+    TCGArg args[] = { (long) tb + 3};
+    tcg_out_op(s, INDEX_op_exit_tb, args, NULL);
 }
 
 #endif /* CONFIG_COREMU */
