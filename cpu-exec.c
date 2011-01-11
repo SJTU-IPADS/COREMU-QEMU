@@ -115,7 +115,11 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
                      max_cycles);
     env->current_tb = tb;
     /* execute the generated code */
+#ifdef CONFIG_REPLAY
+    next_tb = tcg_qemu_tb_exec(tb->cm_tc_ptr);
+#else
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
+#endif
     env->current_tb = NULL;
 
     if ((next_tb & 3) == 2) {
@@ -611,7 +615,13 @@ int cpu_exec(CPUState *env1)
                 env->current_tb = tb;
                 barrier();
                 if (likely(!env->exit_request)) {
+#ifdef CONFIG_REPLAY
+                    tc_ptr = tb->cm_tc_ptr;
+                    if (tb->cm_tb_exec_cnt % 101 == 1)
+                        printf("exec tb cnt %ld\n", tb->cm_tb_exec_cnt);
+#else
                     tc_ptr = tb->tc_ptr;
+#endif
                 /* execute the generated code */
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)
 #undef env

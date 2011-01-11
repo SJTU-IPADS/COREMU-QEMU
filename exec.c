@@ -1052,6 +1052,12 @@ TranslationBlock *tb_gen_code(CPUState *env,
         /* Don't forget to invalidate previous TB info.  */
         tb_invalidated_flag = 1;
     }
+#ifdef CONFIG_REPLAY
+    tb->cm_tb_exec_cnt = 0;
+    /* Generate code to increase tb execution count. */
+    tb->cm_tc_ptr = code_gen_ptr;
+    code_gen_ptr += cm_tcg_gen_tb_exec_cnt(tb, code_gen_ptr);
+#endif
     tc_ptr = code_gen_ptr;
     tb->tc_ptr = tc_ptr;
     tb->cs_base = cs_base;

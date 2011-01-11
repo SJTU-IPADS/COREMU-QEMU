@@ -162,6 +162,11 @@ struct TranslationBlock {
     uint32_t icount;
 #ifdef CONFIG_COREMU
     uint16_t has_invalidate; /* if this TB has been invalidated */
+
+#ifdef CONFIG_REPLAY
+    uint64_t cm_tb_exec_cnt;
+    uint8_t *cm_tc_ptr;
+#endif
 #endif
 };
 

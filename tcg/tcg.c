@@ -2198,21 +2198,46 @@ void cm_code_prologue_init(void)
     tcg_target_qemu_prologue(&tmp_ctx);
 }
 
-#include "cm-tbinval.h"
+#ifdef CONFIG_CMC_SUPPORT
 
+#include "cm-tbinval.h"
 void cm_inject_invalidate_code(TranslationBlock *tb)
 {
-    uint16_t ret =  atomic_compare_exchangew(&tb->has_invalidate, 0, 1);
-
-    if (ret == 1)
+    if (atomic_compare_exchangew(&tb->has_invalidate, 0, 1) == 1)
        return;
 
-    TCGContext *s = &tcg_ctx;
-    s->code_buf = tb->tc_ptr;
-    s->code_ptr = tb->tc_ptr;
+    TCGContext s;
+    memset(&s, 0, sizeof(s));
+    /* exit_tb op only relies on code_ptr */
+    s.code_ptr = tb->tc_ptr;
 
     TCGArg args[] = { (long) tb + 3};
-    tcg_out_op(s, INDEX_op_exit_tb, args, NULL);
+    tcg_out_op(&s, INDEX_op_exit_tb, args, NULL);
 }
+#endif
+
+#ifdef CONFIG_REPLAY
+/* Return the size of generated code. */
+int cm_tcg_gen_tb_exec_cnt(TranslationBlock *tb, uint8_t *code_ptr)
+{
+    TCGContext s;
+    memset(&s, 0, sizeof(s));
+    s.code_ptr = code_ptr;
+
+    tcg_out_movi(&s, TCG_TYPE_PTR, TCG_REG_RAX, (long)&tb->cm_tb_exec_cnt);
+#if defined(__x86_64__)
+    /* tcg_out_addi can only generate code which operate on register, but we
+     * want to directly operate on memory location. The following binary code
+     * is extracted from object code compiled by gcc. */
+
+    /* incq (%rax) */
+    tcg_out8(&s, 0x48); /* insn. prefix REX.W */
+    tcg_out8(&s, 0xff); /* inc */
+    tcg_out8(&s, 0x00); /* modrm byte */
+#endif
+
+    return s.code_ptr - code_ptr;
+}
+#endif
 
 #endif /* CONFIG_COREMU */

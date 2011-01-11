@@ -469,6 +469,11 @@ void tcg_gen_callN(TCGContext *s, TCGv_ptr func, unsigned int flags,
 void tcg_gen_shifti_i64(TCGv_i64 ret, TCGv_i64 arg1,
                         int c, int right, int arith);
 
+#include "coremu-config.h"
+#ifdef CONFIG_REPLAY
+int cm_tcg_gen_tb_exec_cnt(TranslationBlock *tb, uint8_t *code_ptr);
+#endif
+
 /* only used for debugging purposes */
 void tcg_register_helper(void *func, const char *name);
 const char *tcg_helper_get_name(TCGContext *s, void *func);
