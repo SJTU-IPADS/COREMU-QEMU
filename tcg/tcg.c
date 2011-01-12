@@ -2014,6 +2014,10 @@ static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
     s->code_buf = gen_code_buf;
     s->code_ptr = gen_code_buf;
 
+#ifdef CONFIG_REPLAY
+    cm_tcg_gen_tb_exec_cnt(s);
+#endif
+
     args = gen_opparam_buf;
     op_index = 0;
 
@@ -2206,9 +2210,10 @@ void cm_inject_invalidate_code(TranslationBlock *tb)
     if (atomic_compare_exchangew(&tb->has_invalidate, 0, 1) == 1)
        return;
 
+    /* We are playing on the already generated tb's code,
+     * exit_tb op only relies on code_ptr */
     TCGContext s;
     memset(&s, 0, sizeof(s));
-    /* exit_tb op only relies on code_ptr */
     s.code_ptr = tb->tc_ptr;
 
     TCGArg args[] = { (long) tb + 3};
@@ -2218,25 +2223,20 @@ void cm_inject_invalidate_code(TranslationBlock *tb)
 
 #ifdef CONFIG_REPLAY
 /* Return the size of generated code. */
-int cm_tcg_gen_tb_exec_cnt(TranslationBlock *tb, uint8_t *code_ptr)
+void cm_tcg_gen_tb_exec_cnt(TCGContext *s)
 {
-    TCGContext s;
-    memset(&s, 0, sizeof(s));
-    s.code_ptr = code_ptr;
-
-    tcg_out_movi(&s, TCG_TYPE_PTR, TCG_REG_RAX, (long)&tb->cm_tb_exec_cnt);
-#if defined(__x86_64__)
     /* tcg_out_addi can only generate code which operate on register, but we
-     * want to directly operate on memory location. The following binary code
-     * is extracted from object code compiled by gcc. */
+     * want to directly operate on memory location.
+     * So I hard code the machine code which is platform dependent. The
+     * following binary code is extracted from object code compiled by gcc. */
+#if defined(__x86_64__)
+    tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_RAX, (long)&cm_tb_exec_cnt);
 
     /* incq (%rax) */
-    tcg_out8(&s, 0x48); /* insn. prefix REX.W */
-    tcg_out8(&s, 0xff); /* inc */
-    tcg_out8(&s, 0x00); /* modrm byte */
+    tcg_out8(s, 0x48); /* insn. prefix REX.W */
+    tcg_out8(s, 0xff); /* inc */
+    tcg_out8(s, 0x00); /* modrm byte */
 #endif
-
-    return s.code_ptr - code_ptr;
 }
 #endif
 

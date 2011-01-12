@@ -471,7 +471,7 @@ void tcg_gen_shifti_i64(TCGv_i64 ret, TCGv_i64 arg1,
 
 #include "coremu-config.h"
 #ifdef CONFIG_REPLAY
-int cm_tcg_gen_tb_exec_cnt(TranslationBlock *tb, uint8_t *code_ptr);
+void cm_tcg_gen_tb_exec_cnt(TCGContext *s);
 #endif
 
 /* only used for debugging purposes */

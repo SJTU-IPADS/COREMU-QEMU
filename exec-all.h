@@ -127,6 +127,10 @@ void tlb_set_page(CPUState *env, target_ulong vaddr,
 #define USE_DIRECT_JUMP
 #endif
 
+#ifdef CONFIG_REPLAY
+extern COREMU_THREAD uint64_t cm_tb_exec_cnt;
+#endif
+
 struct TranslationBlock {
     target_ulong pc;   /* simulated PC corresponding to this block (EIP + CS base) */
     target_ulong cs_base; /* CS base for this block */
@@ -162,11 +166,6 @@ struct TranslationBlock {
     uint32_t icount;
 #ifdef CONFIG_COREMU
     uint16_t has_invalidate; /* if this TB has been invalidated */
-
-#ifdef CONFIG_REPLAY
-    uint64_t cm_tb_exec_cnt;
-    uint8_t *cm_tc_ptr;
-#endif
 #endif
 };
 
