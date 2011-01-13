@@ -49,5 +49,11 @@ do {                                                                        \
     q_addr = v_addr + __env1->tlb_table[__mmu_idx][__index].addend;         \
 } while(0)
 
+/* XXX These are also used by atomic instruction handling.
+ * Put these defines in some other files? */
+#define DATA_b uint8_t
+#define DATA_w uint16_t
+#define DATA_l uint32_t
+#define DATA_q uint64_t
 
 #endif /* _CM_MMU_H */

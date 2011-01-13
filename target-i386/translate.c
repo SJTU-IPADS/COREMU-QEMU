@@ -81,6 +81,17 @@ static COREMU_THREAD uint8_t gen_opc_cc_op[OPC_BUF_SIZE];
 static COREMU_THREAD int x86_64_hregs;
 #endif
 
+#ifdef CONFIG_COREMU
+#ifdef TARGET_X86_64
+#define X86_64_HREGS x86_64_hregs
+#else
+/* Ugly hack to support 32-bit target */
+/* For 32-bit target, we don't need this variable, but atomic helper function
+ * takes this argument. So just pass 0.*/
+#define X86_64_HREGS 0
+#endif
+#endif
+
 typedef struct DisasContext {
     /* current insn context */
     int override; /* -1 if no override */
@@ -1323,7 +1334,6 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
         case 2:
             gen_helper_atomic_opl(cpu_A0,cpu_T[1], tcg_const_i32(op));
             break;
-        default:
 #ifdef TARGET_X86_64
         case 3:
             gen_helper_atomic_opq(cpu_A0,cpu_T[1], tcg_const_i32(op));
@@ -1449,7 +1459,6 @@ static void gen_inc(DisasContext *s1, int ot, int d, int c)
         case 2:
             gen_helper_atomic_incl(cpu_A0, tcg_const_i32(c));
             break;
-        default:
 #ifdef TARGET_X86_64
         case 3:
             gen_helper_atomic_incq(cpu_A0, tcg_const_i32(c));
@@ -4451,7 +4460,6 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 case 2:
                     gen_helper_atomic_notl(cpu_A0);
                     break;
-                default:
 #ifdef TARGET_X86_64
                 case 3:
                     gen_helper_atomic_notq(cpu_A0);
@@ -4486,7 +4494,6 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 case 2:
                     gen_helper_atomic_negl(cpu_A0);
                     break;
-                default:
 #ifdef TARGET_X86_64
                 case 3:
                     gen_helper_atomic_negq(cpu_A0);
@@ -4960,17 +4967,16 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             switch (ot & 3) {
             case 0:
                 gen_helper_atomic_xaddb(cpu_A0, tcg_const_i32(reg),
-                        tcg_const_i32(x86_64_hregs));
+                        tcg_const_i32(X86_64_HREGS));
                 break;
             case 1:
                 gen_helper_atomic_xaddw(cpu_A0, tcg_const_i32(reg),
-                        tcg_const_i32(x86_64_hregs));
+                        tcg_const_i32(X86_64_HREGS));
                 break;
             case 2:
                 gen_helper_atomic_xaddl(cpu_A0, tcg_const_i32(reg),
-                        tcg_const_i32(x86_64_hregs));
+                        tcg_const_i32(X86_64_HREGS));
                 break;
-            default:
 #ifdef TARGET_X86_64
             case 3:
                 gen_helper_atomic_xaddq(cpu_A0, tcg_const_i32(reg),
@@ -5019,17 +5025,16 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 switch(ot & 3) {
                 case 0:
                     gen_helper_atomic_cmpxchgb(cpu_A0, tcg_const_i32(reg),
-                                                    tcg_const_i32(x86_64_hregs));
+                                                    tcg_const_i32(X86_64_HREGS));
                     break;
                 case 1:
                     gen_helper_atomic_cmpxchgw(cpu_A0, tcg_const_i32(reg),
-                                                    tcg_const_i32(x86_64_hregs));
+                                                    tcg_const_i32(X86_64_HREGS));
                     break;
                 case 2:
                     gen_helper_atomic_cmpxchgl(cpu_A0, tcg_const_i32(reg),
-                                                    tcg_const_i32(x86_64_hregs));
+                                                    tcg_const_i32(X86_64_HREGS));
                     break;
-                default:
 #ifdef TARGET_X86_64
                 case 3:
                     gen_helper_atomic_cmpxchgq(cpu_A0, tcg_const_i32(reg),
@@ -5515,17 +5520,16 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             switch (ot & 3) {
             case 0:
                 gen_helper_xchgb(cpu_A0, tcg_const_i32(reg),
-                        tcg_const_i32(x86_64_hregs));
+                        tcg_const_i32(X86_64_HREGS));
                 break;
             case 1:
                 gen_helper_xchgw(cpu_A0, tcg_const_i32(reg),
-                        tcg_const_i32(x86_64_hregs));
+                        tcg_const_i32(X86_64_HREGS));
                 break;
             case 2:
                 gen_helper_xchgl(cpu_A0, tcg_const_i32(reg),
-                        tcg_const_i32(x86_64_hregs));
+                        tcg_const_i32(X86_64_HREGS));
                 break;
-            default:
 #ifdef TARGET_X86_64
                 case 3:
                 gen_helper_xchgq(cpu_A0, tcg_const_i32(reg),
