@@ -62,7 +62,7 @@ static bool cm_tcg_cpu_exec(void)
             break;
 
         if (ret == EXCP_DEBUG) {
-            cm_assert(0, "debug support hasn't been finished\n");
+            coremu_assert(0, "debug support hasn't been finished\n");
             break;
         }
         if (ret == EXCP_HALTED || ret == EXCP_HLT) {

@@ -880,7 +880,7 @@ static int dynticks_start_timer(struct qemu_alarm_timer *t)
 
     if (coremu_timer_create(signo, &host_timer)) {
         perror("timer_create");
-        cm_assert(0, "timer create failed");
+        coremu_assert(0, "timer create failed");
         return -1;
     }
 #else
