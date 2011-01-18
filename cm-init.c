@@ -60,11 +60,11 @@ static void cm_code_gen_alloc_all(void)
                       flags, -1, 0);
 
     if (cm_bufbase == MAP_FAILED) {
-        cm_assert(0, "mmap failed\n");
+        coremu_assert(0, "mmap failed\n");
     }
 
     code_gen_buffer_size = (unsigned long)(cm_bufsize / (smp_cpus));
-    cm_assert(code_gen_buffer_size >= MIN_CODE_GEN_BUFFER_SIZE,
+    coremu_assert(code_gen_buffer_size >= MIN_CODE_GEN_BUFFER_SIZE,
               "code buffer size too small");
     code_gen_buffer_max_size = code_gen_buffer_size - (TCG_MAX_OP_SIZE * OPC_MAX_SIZE);
     code_gen_max_blocks = code_gen_buffer_size / CODE_GEN_AVG_BLOCK_SIZE;
@@ -82,7 +82,7 @@ static void cm_code_gen_alloc(void)
     /* Allocate space for TBs. */
     tbs = qemu_malloc(code_gen_max_blocks * sizeof(TranslationBlock));
 
-   /* cm_print("CORE[%u] TC [%lu MB] at %p", cpu_single_env->cpu_index,
+   /* coremu_print("CORE[%u] TC [%lu MB] at %p", cpu_single_env->cpu_index,
              (code_gen_buffer_size) / (1024 * 1024), code_gen_buffer); */
 }
 
@@ -122,7 +122,7 @@ void cm_cpu_exec_init_core(void)
 
     /* Create per core timer. */
     if (cm_init_local_timer_alarm() < 0) {
-        cm_assert(0, "local alarm initialize failed");
+        coremu_assert(0, "local alarm initialize failed");
     }
 
     /* Wait other core to finish initialization. */

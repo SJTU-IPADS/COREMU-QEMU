@@ -2823,7 +2823,7 @@ int main(int argc, char **argv, char **envp)
     }
 
 #ifdef CONFIG_COREMU
-    cm_print("\n%s\n%s\n%s",
+    coremu_print("\n%s\n%s\n%s",
              "------------------------------------",
              "|     [COREMU Parallel Emulator]   |",
              "------------------------------------");
