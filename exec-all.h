@@ -82,16 +82,12 @@ void gen_intermediate_code_pc(CPUState *env, struct TranslationBlock *tb);
 void gen_pc_load(CPUState *env, struct TranslationBlock *tb,
                  unsigned long searched_pc, int pc_pos, void *puc);
 
-unsigned long code_gen_max_block_size(void);
 void cpu_gen_init(void);
 int cpu_gen_code(CPUState *env, struct TranslationBlock *tb,
                  int *gen_code_size_ptr);
 int cpu_restore_state(struct TranslationBlock *tb,
                       CPUState *env, unsigned long searched_pc,
                       void *puc);
-int cpu_restore_state_copy(struct TranslationBlock *tb,
-                           CPUState *env, unsigned long searched_pc,
-                           void *puc);
 void cpu_resume_from_signal(CPUState *env1, void *puc);
 void cpu_io_recompile(CPUState *env, void *retaddr);
 TranslationBlock *tb_gen_code(CPUState *env, 
@@ -186,7 +182,7 @@ static inline unsigned int tb_jmp_cache_hash_func(target_ulong pc)
 
 static inline unsigned int tb_phys_hash_func(tb_page_addr_t pc)
 {
-    return pc & (CODE_GEN_PHYS_HASH_SIZE - 1);
+    return (pc >> 2) & (CODE_GEN_PHYS_HASH_SIZE - 1);
 }
 
 TranslationBlock *tb_alloc(target_ulong pc);
@@ -197,8 +193,6 @@ void tb_link_page(TranslationBlock *tb,
 void tb_phys_invalidate(TranslationBlock *tb, tb_page_addr_t page_addr);
 
 extern COREMU_THREAD TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
-extern COREMU_THREAD uint8_t *code_gen_ptr;
-extern int code_gen_max_blocks;
 
 #if defined(USE_DIRECT_JUMP)
 
@@ -215,9 +209,7 @@ static inline void tb_set_jmp_target1(unsigned long jmp_addr, unsigned long addr
 #elif defined(__arm__)
 static inline void tb_set_jmp_target1(unsigned long jmp_addr, unsigned long addr)
 {
-#if QEMU_GNUC_PREREQ(4, 1)
-    void __clear_cache(char *beg, char *end);
-#else
+#if !QEMU_GNUC_PREREQ(4, 1)
     register unsigned long _beg __asm ("a1");
     register unsigned long _end __asm ("a2");
     register unsigned long _flg __asm ("a3");
@@ -229,7 +221,7 @@ static inline void tb_set_jmp_target1(unsigned long jmp_addr, unsigned long addr
         | (((addr - (jmp_addr + 8)) >> 2) & 0xffffff);
 
 #if QEMU_GNUC_PREREQ(4, 1)
-    __clear_cache((char *) jmp_addr, (char *) jmp_addr + 4);
+    __builtin___clear_cache((char *) jmp_addr, (char *) jmp_addr + 4);
 #else
     /* flush icache */
     _beg = jmp_addr;
@@ -278,7 +270,7 @@ TranslationBlock *tb_find_pc(unsigned long pc_ptr);
 
 #include "qemu-lock.h"
 
-extern COREMU_THREAD spinlock_t tb_lock;
+extern spinlock_t tb_lock;
 
 extern COREMU_THREAD int tb_invalidated_flag;
 
@@ -345,7 +337,7 @@ static inline tb_page_addr_t get_page_addr_code(CPUState *env1, target_ulong add
     }
     p = (void *)(unsigned long)addr
         + env1->tlb_table[mmu_idx][page_index].addend;
-    return qemu_ram_addr_from_host(p);
+    return qemu_ram_addr_from_host_nofail(p);
 }
 #endif
 
@@ -355,5 +347,8 @@ CPUDebugExcpHandler *cpu_set_debug_excp_handler(CPUDebugExcpHandler *handler);
 
 /* vl.c */
 extern int singlestep;
+
+/* cpu-exec.c */
+extern volatile sig_atomic_t exit_request;
 
 #endif

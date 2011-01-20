@@ -22,6 +22,7 @@
 #include "block.h"
 #include "audio/audio.h"
 #include "boards.h"
+#include "blockdev.h"
 
 #undef REG_FMT
 #define REG_FMT			"0x%02lx"
@@ -175,10 +176,10 @@ static void sl_flash_register(PXA2xxState *cpu, int size)
         s->nand = nand_init(NAND_MFR_SAMSUNG, 0xf1);
 
     iomemtype = cpu_register_io_memory(sl_readfn,
-                    sl_writefn, s);
+                    sl_writefn, s, DEVICE_NATIVE_ENDIAN);
     cpu_register_physical_memory(FLASH_BASE, 0x40, iomemtype);
 
-    register_savevm("sl_flash", 0, 0, sl_save, sl_load, s);
+    register_savevm(NULL, "sl_flash", 0, 0, sl_save, sl_load, s);
 }
 
 /* Spitz Keyboard */
@@ -508,7 +509,7 @@ static void spitz_keyboard_register(PXA2xxState *cpu)
     spitz_keyboard_pre_map(s);
     qemu_add_kbd_event_handler((QEMUPutKBDEvent *) spitz_keyboard_handler, s);
 
-    register_savevm("spitz_keyboard", 0, 0,
+    register_savevm(NULL, "spitz_keyboard", 0, 0,
                     spitz_keyboard_save, spitz_keyboard_load, s);
 }
 
@@ -613,7 +614,7 @@ static int spitz_lcdtg_init(SSISlave *dev)
     s->bl_power = 0;
     s->bl_intensity = 0x20;
 
-    register_savevm("spitz-lcdtg", -1, 1,
+    register_savevm(&dev->qdev, "spitz-lcdtg", -1, 1,
                     spitz_lcdtg_save, spitz_lcdtg_load, s);
     return 0;
 }
@@ -708,7 +709,8 @@ static int corgi_ssp_init(SSISlave *dev)
     s->bus[1] = ssi_create_bus(&dev->qdev, "ssi1");
     s->bus[2] = ssi_create_bus(&dev->qdev, "ssi2");
 
-    register_savevm("spitz_ssp", -1, 1, spitz_ssp_save, spitz_ssp_load, s);
+    register_savevm(&dev->qdev, "spitz_ssp", -1, 1,
+                    spitz_ssp_save, spitz_ssp_load, s);
     return 0;
 }
 
@@ -768,7 +770,6 @@ static void spitz_microdrive_attach(PXA2xxState *cpu, int slot)
 
 #define SPITZ_GPIO_WM	5
 
-#ifdef HAS_AUDIO
 static void spitz_wm8750_addr(void *opaque, int line, int level)
 {
     i2c_slave *wm = (i2c_slave *) opaque;
@@ -777,14 +778,12 @@ static void spitz_wm8750_addr(void *opaque, int line, int level)
     else
         i2c_set_slave_address(wm, SPITZ_WM_ADDRL);
 }
-#endif
 
 static void spitz_i2c_setup(PXA2xxState *cpu)
 {
     /* Attach the CPU on one end of our I2C bus.  */
     i2c_bus *bus = pxa2xx_i2c_bus(cpu->i2c[0]);
 
-#ifdef HAS_AUDIO
     DeviceState *wm;
 
     /* Attach a WM8750 to the bus */
@@ -798,7 +797,6 @@ static void spitz_i2c_setup(PXA2xxState *cpu)
     cpu->i2s->codec_out = wm8750_dac_dat;
     cpu->i2s->codec_in = wm8750_adc_dat;
     wm8750_data_req_set(wm, cpu->i2s->data_req, cpu->i2s);
-#endif
 }
 
 static void spitz_akita_i2c_setup(PXA2xxState *cpu)
@@ -965,7 +963,7 @@ static void spitz_common_init(ram_addr_t ram_size,
     sl_flash_register(cpu, (model == spitz) ? FLASH_128M : FLASH_1024M);
 
     cpu_register_physical_memory(0, SPITZ_ROM,
-                    qemu_ram_alloc(SPITZ_ROM) | IO_MEM_ROM);
+                    qemu_ram_alloc(NULL, "spitz.rom", SPITZ_ROM) | IO_MEM_ROM);
 
     /* Setup peripherals */
     spitz_keyboard_register(cpu);
@@ -992,9 +990,6 @@ static void spitz_common_init(ram_addr_t ram_size,
     else if (model != akita)
         /* A 4.0 GB microdrive is permanently sitting in CF slot 0.  */
         spitz_microdrive_attach(cpu, 0);
-
-    /* Setup initial (reset) machine state */
-    cpu->env->regs[15] = spitz_binfo.loader_start;
 
     spitz_binfo.kernel_filename = kernel_filename;
     spitz_binfo.kernel_cmdline = kernel_cmdline;

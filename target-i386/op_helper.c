@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
-#define CPU_NO_GLOBAL_REGS
+
 #include "exec.h"
 #include "exec-all.h"
 #include "host-utils.h"
@@ -349,6 +349,10 @@ static void switch_tss(int tss_selector,
         new_segs[R_GS] = 0;
         new_trap = 0;
     }
+    /* XXX: avoid a compiler warning, see
+     http://support.amd.com/us/Processor_TechDocs/24593.pdf
+     chapters 12.2.5 and 13.2.4 on how to implement TSS Trap bit */
+    (void)new_trap;
 
     /* NOTE: we must avoid memory exceptions during the task switch,
        so we make dummy accesses before */
@@ -2888,7 +2892,7 @@ target_ulong helper_read_crN(int reg)
         break;
     case 8:
         if (!(env->hflags2 & HF2_VINTR_MASK)) {
-            val = cpu_get_apic_tpr(env);
+            val = cpu_get_apic_tpr(env->apic_state);
         } else {
             val = env->v_tpr;
         }
@@ -2912,7 +2916,7 @@ void helper_write_crN(int reg, target_ulong t0)
         break;
     case 8:
         if (!(env->hflags2 & HF2_VINTR_MASK)) {
-            cpu_set_apic_tpr(env, t0);
+            cpu_set_apic_tpr(env->apic_state, t0);
         }
         env->v_tpr = t0 & 0x0f;
         break;
@@ -3020,7 +3024,7 @@ void helper_wrmsr(void)
         env->sysenter_eip = val;
         break;
     case MSR_IA32_APICBASE:
-        cpu_set_apic_base(env, val);
+        cpu_set_apic_base(env->apic_state, val);
         break;
     case MSR_EFER:
         {
@@ -3153,7 +3157,7 @@ void helper_rdmsr(void)
         val = env->sysenter_eip;
         break;
     case MSR_IA32_APICBASE:
-        val = cpu_get_apic_base(env);
+        val = cpu_get_apic_base(env->apic_state);
         break;
     case MSR_EFER:
         val = env->efer;
@@ -5237,7 +5241,7 @@ void helper_svm_check_intercept_param(uint32_t type, uint64_t param)
             switch((uint32_t)ECX) {
             case 0 ... 0x1fff:
                 t0 = (ECX * 2) % 8;
-                t1 = ECX / 8;
+                t1 = (ECX * 2) / 8;
                 break;
             case 0xc0000000 ... 0xc0001fff:
                 t0 = (8192 + ECX - 0xc0000000) * 2;
@@ -5388,6 +5392,7 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
              ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj)));
     stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.exit_int_info_err),
              ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj_err)));
+    stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj), 0);
 
     env->hflags2 &= ~HF2_GIF_MASK;
     /* FIXME: Resets the current ASID register to zero (host ASID). */

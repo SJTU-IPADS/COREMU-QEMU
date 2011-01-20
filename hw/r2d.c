@@ -36,6 +36,7 @@
 #include "loader.h"
 #include "usb.h"
 #include "flash.h"
+#include "blockdev.h"
 
 #define FLASH_BASE 0x00000000
 #define FLASH_SIZE 0x02000000
@@ -188,7 +189,8 @@ static qemu_irq *r2d_fpga_init(target_phys_addr_t base, qemu_irq irl)
     s->irl = irl;
 
     iomemtype = cpu_register_io_memory(r2d_fpga_readfn,
-				       r2d_fpga_writefn, s);
+				       r2d_fpga_writefn, s,
+                                       DEVICE_NATIVE_ENDIAN);
     cpu_register_physical_memory(base, 0x40, iomemtype);
     return qemu_allocate_irqs(r2d_fpga_irq_set, s, NR_IRQS);
 }
@@ -242,7 +244,7 @@ static void r2d_init(ram_addr_t ram_size,
     }
 
     /* Allocate memory space */
-    sdram_addr = qemu_ram_alloc(SDRAM_SIZE);
+    sdram_addr = qemu_ram_alloc(NULL, "r2d.sdram", SDRAM_SIZE);
     cpu_register_physical_memory(SDRAM_BASE, SDRAM_SIZE, sdram_addr);
     /* Register peripherals */
     s = sh7750_init(env);
@@ -257,7 +259,8 @@ static void r2d_init(ram_addr_t ram_size,
                   dinfo, NULL);
 
     /* onboard flash memory */
-    pflash_cfi02_register(0x0, qemu_ram_alloc(FLASH_SIZE),
+    dinfo = drive_get(IF_PFLASH, 0, 0);
+    pflash_cfi02_register(0x0, qemu_ram_alloc(NULL, "r2d.flash", FLASH_SIZE),
                           dinfo ? dinfo->bdrv : NULL, (16 * 1024),
                           FLASH_SIZE >> 16,
                           1, 4, 0x0000, 0x0000, 0x0000, 0x0000,

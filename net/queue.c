@@ -21,8 +21,12 @@
  * THE SOFTWARE.
  */
 
+#include <pthread.h>
 #include "net/queue.h"
 #include "qemu-queue.h"
+#include "coremu-config.h"
+#include "coremu-spinlock.h"
+#include "coremu-atomic.h"
 
 /* The delivery handler may only return zero if it will call
  * qemu_net_queue_flush() when it determines that it is once again able
@@ -54,7 +58,12 @@ struct NetQueue {
 
     QTAILQ_HEAD(packets, NetPacket) packets;
 
+#ifdef CONFIG_COREMU
+    unsigned int delivering;
+    CMSpinLock nqlock;
+#else
     unsigned delivering : 1;
+#endif
 };
 
 NetQueue *qemu_new_net_queue(NetPacketDeliver *deliver,
@@ -64,7 +73,6 @@ NetQueue *qemu_new_net_queue(NetPacketDeliver *deliver,
     NetQueue *queue;
 
     queue = qemu_mallocz(sizeof(NetQueue));
-
     queue->deliver = deliver;
     queue->deliver_iov = deliver_iov;
     queue->opaque = opaque;
@@ -72,18 +80,25 @@ NetQueue *qemu_new_net_queue(NetPacketDeliver *deliver,
     QTAILQ_INIT(&queue->packets);
 
     queue->delivering = 0;
-
+#ifdef CONFIG_COREMU
+    CM_SPIN_LOCK_INIT(&queue->nqlock);
+#endif
     return queue;
 }
 
 void qemu_del_net_queue(NetQueue *queue)
 {
     NetPacket *packet, *next;
-
+#ifdef CONFIG_COREMU
+    coremu_spin_lock(&queue->nqlock);
+#endif
     QTAILQ_FOREACH_SAFE(packet, &queue->packets, entry, next) {
         QTAILQ_REMOVE(&queue->packets, packet, entry);
         qemu_free(packet);
     }
+#ifdef CONFIG_COREMU
+    coremu_spin_unlock(&queue->nqlock);
+#endif
 
     qemu_free(queue);
 }
@@ -104,7 +119,13 @@ static ssize_t qemu_net_queue_append(NetQueue *queue,
     packet->sent_cb = sent_cb;
     memcpy(packet->data, buf, size);
 
+#ifdef CONFIG_COREMU
+    coremu_spin_lock(&queue->nqlock);
+#endif
     QTAILQ_INSERT_TAIL(&queue->packets, packet, entry);
+#ifdef CONFIG_COREMU
+    coremu_spin_unlock(&queue->nqlock);
+#endif
 
     return size;
 }
@@ -137,7 +158,15 @@ static ssize_t qemu_net_queue_append_iov(NetQueue *queue,
         packet->size += len;
     }
 
+#ifdef CONFIG_COREMU
+    coremu_spin_lock(&queue->nqlock);
+#endif
+
     QTAILQ_INSERT_TAIL(&queue->packets, packet, entry);
+
+#ifdef CONFIG_COREMU
+    coremu_spin_unlock(&queue->nqlock);
+#endif
 
     return packet->size;
 }
@@ -150,7 +179,9 @@ static ssize_t qemu_net_queue_deliver(NetQueue *queue,
 {
     ssize_t ret = -1;
 
+#ifndef CONFIG_COREMU
     queue->delivering = 1;
+#endif
     ret = queue->deliver(sender, flags, data, size, queue->opaque);
     queue->delivering = 0;
 
@@ -180,8 +211,13 @@ ssize_t qemu_net_queue_send(NetQueue *queue,
                             NetPacketSent *sent_cb)
 {
     ssize_t ret;
-
+#ifdef CONFIG_COREMU
+    unsigned delivering;
+    delivering = atomic_compare_exchangel(&queue->delivering, 0, 1);
+    if(delivering) {
+#else
     if (queue->delivering) {
+#endif
         return qemu_net_queue_append(queue, sender, flags, data, size, NULL);
     }
 
@@ -224,12 +260,21 @@ void qemu_net_queue_purge(NetQueue *queue, VLANClientState *from)
 {
     NetPacket *packet, *next;
 
+#ifdef CONFIG_COREMU
+    coremu_spin_lock(&queue->nqlock);
+#endif
+
     QTAILQ_FOREACH_SAFE(packet, &queue->packets, entry, next) {
         if (packet->sender == from) {
             QTAILQ_REMOVE(&queue->packets, packet, entry);
             qemu_free(packet);
         }
     }
+
+#ifdef CONFIG_COREMU
+    coremu_spin_unlock(&queue->nqlock);
+#endif
+
 }
 
 void qemu_net_queue_flush(NetQueue *queue)
@@ -238,8 +283,10 @@ void qemu_net_queue_flush(NetQueue *queue)
         NetPacket *packet;
         int ret;
 
+        coremu_spin_lock(&queue->nqlock);
         packet = QTAILQ_FIRST(&queue->packets);
         QTAILQ_REMOVE(&queue->packets, packet, entry);
+        coremu_spin_unlock(&queue->nqlock);
 
         ret = qemu_net_queue_deliver(queue,
                                      packet->sender,
@@ -247,7 +294,10 @@ void qemu_net_queue_flush(NetQueue *queue)
                                      packet->data,
                                      packet->size);
         if (ret == 0) {
+            coremu_spin_lock(&queue->nqlock);
             QTAILQ_INSERT_HEAD(&queue->packets, packet, entry);
+            coremu_spin_unlock(&queue->nqlock);
+
             break;
         }
 

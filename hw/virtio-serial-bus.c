@@ -41,6 +41,8 @@ struct VirtIOSerial {
 
     VirtIOSerialBus *bus;
 
+    DeviceState *qdev;
+
     QTAILQ_HEAD(, VirtIOSerialPort) ports;
 
     /* bitmap for identifying active ports */
@@ -117,6 +119,7 @@ static void do_flush_queued_data(VirtIOSerialPort *port, VirtQueue *vq,
     VirtQueueElement elem;
 
     assert(port || discard);
+    assert(virtio_queue_ready(vq));
 
     while ((discard || !port->throttled) && virtqueue_pop(vq, &elem)) {
         uint8_t *buf;
@@ -139,6 +142,9 @@ static void flush_queued_data(VirtIOSerialPort *port, bool discard)
 {
     assert(port);
 
+    if (!virtio_queue_ready(port->ovq)) {
+        return;
+    }
     do_flush_queued_data(port, port->ovq, &port->vser->vdev, discard);
 }
 
@@ -492,8 +498,7 @@ static int virtio_serial_load(QEMUFile *f, void *opaque, int version_id)
 {
     VirtIOSerial *s = opaque;
     VirtIOSerialPort *port;
-    size_t ports_map_size;
-    uint32_t max_nr_ports, nr_active_ports, *ports_map;
+    uint32_t max_nr_ports, nr_active_ports, ports_map;
     unsigned int i;
 
     if (version_id > 2) {
@@ -517,22 +522,17 @@ static int virtio_serial_load(QEMUFile *f, void *opaque, int version_id)
         return -EINVAL;
     }
 
-    ports_map_size = sizeof(uint32_t) * (max_nr_ports + 31) / 32;
-    ports_map = qemu_malloc(ports_map_size);
-
     for (i = 0; i < (max_nr_ports + 31) / 32; i++) {
-        qemu_get_be32s(f, &ports_map[i]);
+        qemu_get_be32s(f, &ports_map);
 
-        if (ports_map[i] != s->ports_map[i]) {
+        if (ports_map != s->ports_map[i]) {
             /*
              * Ports active on source and destination don't
              * match. Fail migration.
              */
-            qemu_free(ports_map);
             return -EINVAL;
         }
     }
-    qemu_free(ports_map);
 
     qemu_get_be32s(f, &nr_active_ports);
 
@@ -736,10 +736,18 @@ VirtIODevice *virtio_serial_init(DeviceState *dev, uint32_t max_nr_ports)
 {
     VirtIOSerial *vser;
     VirtIODevice *vdev;
-    uint32_t i;
+    uint32_t i, max_supported_ports;
 
     if (!max_nr_ports)
         return NULL;
+
+    /* Each port takes 2 queues, and one pair is for the control queue */
+    max_supported_ports = VIRTIO_PCI_QUEUE_MAX / 2 - 1;
+
+    if (max_nr_ports > max_supported_ports) {
+        error_report("maximum ports supported: %u", max_supported_ports);
+        return NULL;
+    }
 
     vdev = virtio_common_init("virtio-serial", VIRTIO_ID_CONSOLE,
                               sizeof(struct virtio_console_config),
@@ -774,7 +782,8 @@ VirtIODevice *virtio_serial_init(DeviceState *dev, uint32_t max_nr_ports)
     }
 
     vser->config.max_nr_ports = max_nr_ports;
-    vser->ports_map = qemu_mallocz((max_nr_ports + 31) / 32);
+    vser->ports_map = qemu_mallocz(((max_nr_ports + 31) / 32)
+        * sizeof(vser->ports_map[0]));
     /*
      * Reserve location 0 for a console port for backward compat
      * (old kernel, new qemu)
@@ -785,12 +794,27 @@ VirtIODevice *virtio_serial_init(DeviceState *dev, uint32_t max_nr_ports)
     vser->vdev.get_config = get_config;
     vser->vdev.set_config = set_config;
 
+    vser->qdev = dev;
+
     /*
      * Register for the savevm section with the virtio-console name
      * to preserve backward compat
      */
-    register_savevm("virtio-console", -1, 2, virtio_serial_save,
+    register_savevm(dev, "virtio-console", -1, 2, virtio_serial_save,
                     virtio_serial_load, vser);
 
     return vdev;
+}
+
+void virtio_serial_exit(VirtIODevice *vdev)
+{
+    VirtIOSerial *vser = DO_UPCAST(VirtIOSerial, vdev, vdev);
+
+    unregister_savevm(vser->qdev, "virtio-console", vser);
+
+    qemu_free(vser->ivqs);
+    qemu_free(vser->ovqs);
+    qemu_free(vser->ports_map);
+
+    virtio_cleanup(vdev);
 }

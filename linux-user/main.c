@@ -31,7 +31,7 @@
 #include "cache-utils.h"
 /* For tb_lock */
 #include "exec-all.h"
-
+#include "tcg.h"
 #include "qemu-timer.h"
 #include "envlist.h"
 
@@ -44,9 +44,10 @@ unsigned long mmap_min_addr;
 #if defined(CONFIG_USE_GUEST_BASE)
 unsigned long guest_base;
 int have_guest_base;
+unsigned long reserved_va;
 #endif
 
-static const char *interp_prefix = CONFIG_QEMU_PREFIX;
+static const char *interp_prefix = CONFIG_QEMU_INTERP_PREFIX;
 const char *qemu_uname_release = CONFIG_UNAME_RELEASE;
 
 /* XXX: on x86 MAP_GROWSDOWN only works if ESP <= address + 32, so
@@ -588,7 +589,7 @@ static int do_strex(CPUARMState *env)
     }
     if (size == 3) {
         val = env->regs[(env->exclusive_info >> 12) & 0xf];
-        segv = put_user_u32(val, addr);
+        segv = put_user_u32(val, addr + 4);
         if (segv) {
             env->cp15.c6_data = addr + 4;
             goto done;
@@ -2232,6 +2233,37 @@ void cpu_loop (CPUState *env)
             env->regs[3] = ret;
             env->sregs[SR_PC] = env->regs[14];
             break;
+        case EXCP_HW_EXCP:
+            env->regs[17] = env->sregs[SR_PC] + 4;
+            if (env->iflags & D_FLAG) {
+                env->sregs[SR_ESR] |= 1 << 12;
+                env->sregs[SR_PC] -= 4;
+                /* FIXME: if branch was immed, replay the imm aswell.  */
+            }
+
+            env->iflags &= ~(IMM_FLAG | D_FLAG);
+
+            switch (env->sregs[SR_ESR] & 31) {
+                case ESR_EC_FPU:
+                    info.si_signo = SIGFPE;
+                    info.si_errno = 0;
+                    if (env->sregs[SR_FSR] & FSR_IO) {
+                        info.si_code = TARGET_FPE_FLTINV;
+                    }
+                    if (env->sregs[SR_FSR] & FSR_DZ) {
+                        info.si_code = TARGET_FPE_FLTDIV;
+                    }
+                    info._sifields._sigfault._addr = 0;
+                    queue_signal(env, info.si_signo, &info);
+                    break;
+                default:
+                    printf ("Unhandled hw-exception: 0x%x\n",
+                            env->sregs[SR_ESR] & 5);
+                    cpu_dump_state(env, stderr, fprintf, 0);
+                    exit (1);
+                    break;
+            }
+            break;
         case EXCP_DEBUG:
             {
                 int sig;
@@ -2433,8 +2465,9 @@ void cpu_loop (CPUState *env)
             env->lock_addr = -1;
             info.si_signo = TARGET_SIGSEGV;
             info.si_errno = 0;
-            info.si_code = 0;  /* ??? SEGV_MAPERR vs SEGV_ACCERR.  */
-            info._sifields._sigfault._addr = env->pc;
+            info.si_code = (page_get_flags(env->ipr[IPR_EXC_ADDR]) & PAGE_VALID
+                            ? TARGET_SEGV_ACCERR : TARGET_SEGV_MAPERR);
+            info._sifields._sigfault._addr = env->ipr[IPR_EXC_ADDR];
             queue_signal(env, info.si_signo, &info);
             break;
         case EXCP_DTB_MISS_PAL:
@@ -2458,7 +2491,7 @@ void cpu_loop (CPUState *env)
             info.si_signo = TARGET_SIGBUS;
             info.si_errno = 0;
             info.si_code = TARGET_BUS_ADRALN;
-            info._sifields._sigfault._addr = env->pc;
+            info._sifields._sigfault._addr = env->ipr[IPR_EXC_ADDR];
             queue_signal(env, info.si_signo, &info);
             break;
         case EXCP_OPCDEC:
@@ -2499,8 +2532,15 @@ void cpu_loop (CPUState *env)
                                     env->ir[IR_A0], env->ir[IR_A1],
                                     env->ir[IR_A2], env->ir[IR_A3],
                                     env->ir[IR_A4], env->ir[IR_A5]);
-                if (trapnr != TARGET_NR_sigreturn
-                    && trapnr != TARGET_NR_rt_sigreturn) {
+                if (trapnr == TARGET_NR_sigreturn
+                    || trapnr == TARGET_NR_rt_sigreturn) {
+                    break;
+                }
+                /* Syscall writes 0 to V0 to bypass error check, similar
+                   to how this is handled internal to Linux kernel.  */
+                if (env->ir[IR_V0] == 0) {
+                    env->ir[IR_V0] = sysret;
+                } else {
                     env->ir[IR_V0] = (sysret < 0 ? -sysret : sysret);
                     env->ir[IR_A3] = (sysret < 0);
                 }
@@ -2602,6 +2642,7 @@ static void usage(void)
            "-0 argv0          forces target process argv[0] to be argv0\n"
 #if defined(CONFIG_USE_GUEST_BASE)
            "-B address        set guest_base address to address\n"
+           "-R size           reserve size bytes for guest virtual address space\n"
 #endif
            "\n"
            "Debug options:\n"
@@ -2670,7 +2711,7 @@ int main(int argc, char **argv, char **envp)
     struct target_pt_regs regs1, *regs = &regs1;
     struct image_info info1, *info = &info1;
     struct linux_binprm bprm;
-    TaskState ts1, *ts = &ts1;
+    TaskState *ts;
     CPUState *env;
     int optind;
     const char *r;
@@ -2706,7 +2747,8 @@ int main(int argc, char **argv, char **envp)
     {
         struct rlimit lim;
         if (getrlimit(RLIMIT_STACK, &lim) == 0
-            && lim.rlim_cur != RLIM_INFINITY) {
+            && lim.rlim_cur != RLIM_INFINITY
+            && lim.rlim_cur == (target_long)lim.rlim_cur) {
             guest_stack_size = lim.rlim_cur;
         }
     }
@@ -2748,6 +2790,12 @@ int main(int argc, char **argv, char **envp)
             r = argv[optind++];
             if (envlist_setenv(envlist, r) != 0)
                 usage();
+        } else if (!strcmp(r, "ignore-environment")) {
+            envlist_free(envlist);
+            if ((envlist = envlist_create()) == NULL) {
+                (void) fprintf(stderr, "Unable to allocate envlist\n");
+                exit(1);
+            }
         } else if (!strcmp(r, "U")) {
             r = argv[optind++];
             if (envlist_unsetenv(envlist, r) != 0)
@@ -2789,6 +2837,8 @@ int main(int argc, char **argv, char **envp)
 /* XXX: implement xxx_cpu_list for targets that still miss it */
 #if defined(cpu_list_id)
                 cpu_list_id(stdout, &fprintf, "");
+#elif defined(cpu_list)
+                cpu_list(stdout, &fprintf); /* deprecated */
 #endif
                 exit(1);
             }
@@ -2796,6 +2846,39 @@ int main(int argc, char **argv, char **envp)
         } else if (!strcmp(r, "B")) {
            guest_base = strtol(argv[optind++], NULL, 0);
            have_guest_base = 1;
+        } else if (!strcmp(r, "R")) {
+            char *p;
+            int shift = 0;
+            reserved_va = strtoul(argv[optind++], &p, 0);
+            switch (*p) {
+            case 'k':
+            case 'K':
+                shift = 10;
+                break;
+            case 'M':
+                shift = 20;
+                break;
+            case 'G':
+                shift = 30;
+                break;
+            }
+            if (shift) {
+                unsigned long unshifted = reserved_va;
+                p++;
+                reserved_va <<= shift;
+                if (((reserved_va >> shift) != unshifted)
+#if HOST_LONG_BITS > TARGET_VIRT_ADDR_SPACE_BITS
+                    || (reserved_va > (1ul << TARGET_VIRT_ADDR_SPACE_BITS))
+#endif
+                    ) {
+                    fprintf(stderr, "Reserved virtual address too big\n");
+                    exit(1);
+                }
+            }
+            if (*p) {
+                fprintf(stderr, "Unrecognised -R size suffix '%s'\n", p);
+                exit(1);
+            }
 #endif
         } else if (!strcmp(r, "drop-ld-preload")) {
             (void) envlist_unsetenv(envlist, "LD_PRELOAD");
@@ -2884,6 +2967,34 @@ int main(int argc, char **argv, char **envp)
      * proper page alignment for guest_base.
      */
     guest_base = HOST_PAGE_ALIGN(guest_base);
+
+    if (reserved_va) {
+        void *p;
+        int flags;
+
+        flags = MAP_ANONYMOUS | MAP_PRIVATE | MAP_NORESERVE;
+        if (have_guest_base) {
+            flags |= MAP_FIXED;
+        }
+        p = mmap((void *)guest_base, reserved_va, PROT_NONE, flags, -1, 0);
+        if (p == MAP_FAILED) {
+            fprintf(stderr, "Unable to reserve guest address space\n");
+            exit(1);
+        }
+        guest_base = (unsigned long)p;
+        /* Make sure the address is properly aligned.  */
+        if (guest_base & ~qemu_host_page_mask) {
+            munmap(p, reserved_va);
+            p = mmap((void *)guest_base, reserved_va + qemu_host_page_size,
+                     PROT_NONE, flags, -1, 0);
+            if (p == MAP_FAILED) {
+                fprintf(stderr, "Unable to reserve guest address space\n");
+                exit(1);
+            }
+            guest_base = HOST_PAGE_ALIGN((unsigned long)p);
+        }
+        qemu_log("Reserved 0x%lx bytes of guest address space\n", reserved_va);
+    }
 #endif /* CONFIG_USE_GUEST_BASE */
 
     /*
@@ -2927,7 +3038,7 @@ int main(int argc, char **argv, char **envp)
     }
     target_argv[target_argc] = NULL;
 
-    memset(ts, 0, sizeof(TaskState));
+    ts = qemu_mallocz (sizeof(TaskState));
     init_task_state(ts);
     /* build Task State */
     ts->info = info;
@@ -2975,6 +3086,13 @@ int main(int argc, char **argv, char **envp)
     target_set_brk(info->brk);
     syscall_init();
     signal_init();
+
+#if defined(CONFIG_USE_GUEST_BASE)
+    /* Now that we've loaded the binary, GUEST_BASE is fixed.  Delay
+       generating the prologue until now so that the prologue can take
+       the real value of GUEST_BASE into account.  */
+    tcg_prologue_init(&tcg_ctx);
+#endif
 
 #if defined(TARGET_I386)
     cpu_x86_set_cpl(env, 3);
@@ -3192,7 +3310,10 @@ int main(int argc, char **argv, char **envp)
         for(i = 0; i < 32; i++) {
             env->active_tc.gpr[i] = regs->regs[i];
         }
-        env->active_tc.PC = regs->cp0_epc;
+        env->active_tc.PC = regs->cp0_epc & ~(target_ulong)1;
+        if (regs->cp0_epc & 1) {
+            env->hflags |= MIPS_HFLAG_M16;
+        }
     }
 #elif defined(TARGET_SH4)
     {

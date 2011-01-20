@@ -5,11 +5,6 @@
 
 register struct CPUSPARCState *env asm(AREG0);
 
-#define DT0 (env->dt0)
-#define DT1 (env->dt1)
-#define QT0 (env->qt0)
-#define QT1 (env->qt1)
-
 #include "cpu.h"
 #include "exec-all.h"
 
@@ -35,6 +30,12 @@ static inline int cpu_halted(CPUState *env1) {
         return 0;
     }
     return EXCP_HALTED;
+}
+
+static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock *tb)
+{
+    env->pc = tb->pc;
+    env->npc = tb->cs_base;
 }
 
 #endif

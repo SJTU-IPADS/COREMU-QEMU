@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "cpu.h"
+#include "exec-all.h"
 #include "../hw/apic.h"
 
 #include "coremu-intr.h"
@@ -109,8 +110,8 @@ void cm_pic_intr_handler(void *opaque)
     int level = pic_intr->level;
 
     if (self->apic_state) {
-        if (apic_accept_pic_intr(self))
-            apic_deliver_pic_intr(self, pic_intr->level);
+        if (apic_accept_pic_intr(self->apic_state))
+            apic_deliver_pic_intr(self->apic_state, pic_intr->level);
     } else {
         if (level)
             cpu_interrupt(self, CPU_INTERRUPT_HARD);
@@ -131,7 +132,7 @@ void cm_apicbus_intr_handler(void *opaque)
 
     if (apicbus_intr->vector_num >= 0) {
         cm_apic_set_irq(self->apic_state, apicbus_intr->vector_num,
-                        apicbus_intr->trigger_mode);
+                apicbus_intr->trigger_mode);
     } else {
         /* For NMI, SMI and INIT the vector information is ignored */
         cpu_interrupt(self, apicbus_intr->mask);

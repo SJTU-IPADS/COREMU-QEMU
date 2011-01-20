@@ -50,7 +50,9 @@ struct FdMigrationState
     void *opaque;
 };
 
-void qemu_start_incoming_migration(const char *uri);
+void process_incoming_migration(QEMUFile *f);
+
+int qemu_start_incoming_migration(const char *uri);
 
 int do_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data);
 
@@ -107,7 +109,7 @@ void migrate_fd_monitor_suspend(FdMigrationState *s, Monitor *mon);
 
 void migrate_fd_error(FdMigrationState *s);
 
-void migrate_fd_cleanup(FdMigrationState *s);
+int migrate_fd_cleanup(FdMigrationState *s);
 
 void migrate_fd_put_notify(void *opaque);
 

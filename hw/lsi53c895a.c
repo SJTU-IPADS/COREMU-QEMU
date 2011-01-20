@@ -490,10 +490,10 @@ static void lsi_bad_phase(LSIState *s, int out, int new_phase)
 {
     /* Trigger a phase mismatch.  */
     if (s->ccntl0 & LSI_CCNTL0_ENPMJ) {
-        if ((s->ccntl0 & LSI_CCNTL0_PMJCTL) || out) {
-            s->dsp = s->pmjad1;
+        if ((s->ccntl0 & LSI_CCNTL0_PMJCTL)) {
+            s->dsp = out ? s->pmjad1 : s->pmjad2;
         } else {
-            s->dsp = s->pmjad2;
+            s->dsp = (s->scntl2 & LSI_SCNTL2_WSR ? s->pmjad2 : s->pmjad1);
         }
         DPRINTF("Data phase mismatch jump to %08x\n", s->dsp);
     } else {
@@ -543,7 +543,7 @@ static void lsi_do_dma(LSIState *s, int out)
         return;
     }
 
-    id = s->current->tag >> 8;
+    id = (s->current->tag >> 8) & 0xf;
     dev = s->bus.devs[id];
     if (!dev) {
         lsi_bad_selection(s, id);
@@ -600,7 +600,7 @@ static void lsi_queue_command(LSIState *s)
 {
     lsi_request *p = s->current;
 
-    DPRINTF("Queueing tag=0x%x\n", s->current_tag);
+    DPRINTF("Queueing tag=0x%x\n", p->tag);
     assert(s->current != NULL);
     assert(s->current->dma_len == 0);
     QTAILQ_INSERT_TAIL(&s->queue, s->current, next);
@@ -745,7 +745,7 @@ static void lsi_do_command(LSIState *s)
     s->sfbr = buf[0];
     s->command_complete = 0;
 
-    id = s->select_tag >> 8;
+    id = (s->select_tag >> 8) & 0xf;
     dev = s->bus.devs[id];
     if (!dev) {
         lsi_bad_selection(s, id);
@@ -864,6 +864,7 @@ static void lsi_do_msgout(LSIState *s)
         case 0x01:
             len = lsi_get_msgbyte(s);
             msg = lsi_get_msgbyte(s);
+            (void)len; /* avoid a warning about unused variable*/
             DPRINTF("Extended message 0x%x (len %d)\n", msg, len);
             switch (msg) {
             case 1:
@@ -880,7 +881,7 @@ static void lsi_do_msgout(LSIState *s)
             break;
         case 0x20: /* SIMPLE queue */
             s->select_tag |= lsi_get_msgbyte(s) | LSI_TAG_VALID;
-            DPRINTF("SIMPLE queue tag=0x%x\n", s->current_tag & 0xff);
+            DPRINTF("SIMPLE queue tag=0x%x\n", s->select_tag & 0xff);
             break;
         case 0x21: /* HEAD of queue */
             BADF("HEAD queue not implemented\n");
@@ -1590,8 +1591,19 @@ static void lsi_reg_writeb(LSIState *s, int offset, uint8_t val)
             BADF("Immediate Arbritration not implemented\n");
         }
         if (val & LSI_SCNTL1_RST) {
-            s->sstat0 |= LSI_SSTAT0_RST;
-            lsi_script_scsi_interrupt(s, LSI_SIST0_RST, 0);
+            if (!(s->sstat0 & LSI_SSTAT0_RST)) {
+                DeviceState *dev;
+                int id;
+
+                for (id = 0; id < s->bus.ndev; id++) {
+                    if (s->bus.devs[id]) {
+                        dev = &s->bus.devs[id]->qdev;
+                        dev->info->reset(dev);
+                    }
+                }
+                s->sstat0 |= LSI_SSTAT0_RST;
+                lsi_script_scsi_interrupt(s, LSI_SIST0_RST, 0);
+            }
         } else {
             s->sstat0 &= ~LSI_SSTAT0_RST;
         }
@@ -2161,22 +2173,23 @@ static int lsi_scsi_init(PCIDevice *dev)
     pci_conf[PCI_INTERRUPT_PIN] = 0x01;
 
     s->mmio_io_addr = cpu_register_io_memory(lsi_mmio_readfn,
-                                             lsi_mmio_writefn, s);
+                                             lsi_mmio_writefn, s,
+                                             DEVICE_NATIVE_ENDIAN);
     s->ram_io_addr = cpu_register_io_memory(lsi_ram_readfn,
-                                            lsi_ram_writefn, s);
+                                            lsi_ram_writefn, s,
+                                            DEVICE_NATIVE_ENDIAN);
 
-    /* TODO: use dev and get rid of cast below */
-    pci_register_bar((struct PCIDevice *)s, 0, 256,
+    pci_register_bar(&s->dev, 0, 256,
                            PCI_BASE_ADDRESS_SPACE_IO, lsi_io_mapfunc);
-    pci_register_bar((struct PCIDevice *)s, 1, 0x400,
+    pci_register_bar(&s->dev, 1, 0x400,
                            PCI_BASE_ADDRESS_SPACE_MEMORY, lsi_mmio_mapfunc);
-    pci_register_bar((struct PCIDevice *)s, 2, 0x2000,
+    pci_register_bar(&s->dev, 2, 0x2000,
                            PCI_BASE_ADDRESS_SPACE_MEMORY, lsi_ram_mapfunc);
     QTAILQ_INIT(&s->queue);
 
     scsi_bus_new(&s->bus, &dev->qdev, 1, LSI_MAX_DEVS, lsi_command_complete);
     if (!dev->qdev.hotplugged) {
-        scsi_bus_legacy_handle_cmdline(&s->bus);
+        return scsi_bus_legacy_handle_cmdline(&s->bus);
     }
     return 0;
 }

@@ -1,7 +1,6 @@
 #ifndef QEMU_NET_H
 #define QEMU_NET_H
 
-#include <stdbool.h>
 #include "qemu-queue.h"
 #include "qemu-common.h"
 #include "qdict.h"
@@ -18,12 +17,14 @@ typedef struct NICConf {
     MACAddr macaddr;
     VLANState *vlan;
     VLANClientState *peer;
+    int32_t bootindex;
 } NICConf;
 
 #define DEFINE_NIC_PROPERTIES(_state, _conf)                            \
     DEFINE_PROP_MACADDR("mac",   _state, _conf.macaddr),                \
     DEFINE_PROP_VLAN("vlan",     _state, _conf.vlan),                   \
-    DEFINE_PROP_NETDEV("netdev", _state, _conf.peer)
+    DEFINE_PROP_NETDEV("netdev", _state, _conf.peer),                   \
+    DEFINE_PROP_INT32("bootindex", _state, _conf.bootindex, -1)
 
 /* VLANs support */
 
@@ -73,6 +74,7 @@ typedef struct NICState {
     VLANClientState nc;
     NICConf *conf;
     void *opaque;
+    bool peer_deleted;
 } NICState;
 
 struct VLANState {

@@ -27,19 +27,14 @@
 #include "coremu-atomic.h"
 #include "coremu-hw.h"
 
-static uint16_t *cm_phys_tb_cnt;
+#include "cm-tbinval.h"
 
-extern void cm_inject_invalidate_code(TranslationBlock *tb);
-static int cm_invalidate_other(int cpu_id, target_phys_addr_t start, int len);
+static uint16_t *cm_phys_tb_cnt;
 
 void cm_init_tb_cnt(ram_addr_t ram_offset, ram_addr_t size)
 {
-    coremu_assert_hw_thr("cm_init_bt_cnt should only called by hw thr");
-
     cm_phys_tb_cnt = coremu_realloc(cm_phys_tb_cnt,
-                                    ((ram_offset +
-                                      size) >> TARGET_PAGE_BITS) *
-                                    sizeof(uint16_t));
+            ((ram_offset + size) >> TARGET_PAGE_BITS) * sizeof(uint16_t));
     memset(cm_phys_tb_cnt + (ram_offset >> TARGET_PAGE_BITS), 0x0,
            (size >> TARGET_PAGE_BITS) * sizeof(uint16_t));
 }
@@ -115,11 +110,18 @@ void cm_tlb_reset_dirty_range(CPUTLBEntry *tlb_entry,
         if ((addr - start) < length) {
             uint64_t newv = (tlb_entry->addr_write & TARGET_PAGE_MASK) |
                 TLB_NOTDIRTY;
+#if TARGET_LONG_SIZE == 4
+            atomic_compare_exchangel(&tlb_entry->addr_write, old, newv);
+#elif TARGET_LONG_SIZE == 8
             atomic_compare_exchangeq(&tlb_entry->addr_write, old, newv);
+#else
+#error TARGET_LONG_SIZE undefined
+#endif
         }
     }
 }
 
+#ifdef COREMU_CMC_SUPPORT
 /* Try to Lazy invalidate the TB of CPU[cpu_id]
  * return 1: successful find and invalidate TB of CPU[cpu_id]
  *        0: dosn't exist
@@ -160,12 +162,11 @@ static int cm_lazy_invalidate_tb(TranslationBlock *tbs,
     return ret;
 }
 
-
 /* Try to invalidate the TB of CPU[cpu_id]
  * return 1: successful find and invalidate TB of CPU[cpu_id]
  *        0: dosn't exist
  */
-static int cm_invalidate_other(int cpu_id, target_phys_addr_t start, int len)
+int cm_invalidate_other(int cpu_id, target_phys_addr_t start, int len)
 {
     /* Find if exit any TB intersect with start -- start+len */
     PageDesc *p = page_find(start >> TARGET_PAGE_BITS);
@@ -197,3 +198,5 @@ static int cm_invalidate_other(int cpu_id, target_phys_addr_t start, int len)
 
     return ret;
 }
+
+#endif /* COREMU_CMC_SUPPORT */

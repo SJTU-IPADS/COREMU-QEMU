@@ -21,6 +21,7 @@
 #include "disas.h"
 #include "tcg.h"
 #include "kvm.h"
+#include "qemu-barrier.h"
 
 #include "coremu-config.h"
 #include "coremu-intr.h"
@@ -169,6 +170,12 @@ static TranslationBlock *tb_find_slow(target_ulong pc,
     tb = tb_gen_code(env, pc, cs_base, flags, 0);
 
  found:
+    /* Move the last found TB to the head of the list */
+    if (likely(*ptb1)) {
+        *ptb1 = tb->phys_hash_next;
+        tb->phys_hash_next = tb_phys_hash[h];
+        tb_phys_hash[h] = tb;
+    }
     /* we add the TB in the virtual pc hash table */
     env->tb_jmp_cache[tb_jmp_cache_hash_func(pc)] = tb;
     return tb;
@@ -216,6 +223,8 @@ static void cpu_handle_debug_exception(CPUState *env)
 
 /* main execution loop */
 
+volatile sig_atomic_t exit_request;
+
 int cpu_exec(CPUState *env1)
 {
     volatile host_reg_t saved_env_reg;
@@ -235,8 +244,12 @@ int cpu_exec(CPUState *env1)
        use it.  */
     QEMU_BUILD_BUG_ON (sizeof (saved_env_reg) != sizeof (env));
     saved_env_reg = (host_reg_t) env;
-    asm("");
+    barrier();
     env = env1;
+
+    if (unlikely(exit_request)) {
+        env->exit_request = 1;
+    }
 
 #if defined(TARGET_I386)
     if (!kvm_enabled()) {
@@ -448,11 +461,7 @@ int cpu_exec(CPUState *env1)
                     }
 #elif defined(TARGET_MIPS)
                     if ((interrupt_request & CPU_INTERRUPT_HARD) &&
-                        (env->CP0_Status & env->CP0_Cause & CP0Ca_IP_mask) &&
-                        (env->CP0_Status & (1 << CP0St_IE)) &&
-                        !(env->CP0_Status & (1 << CP0St_EXL)) &&
-                        !(env->CP0_Status & (1 << CP0St_ERL)) &&
-                        !(env->hflags & MIPS_HFLAG_DM)) {
+                        cpu_mips_hw_interrupts_pending(env)) {
                         /* Raise it */
                         env->exception_index = EXCP_EXT_INTERRUPT;
                         env->error_code = 0;
@@ -599,8 +608,9 @@ int cpu_exec(CPUState *env1)
                    TB, but before it is linked into a potentially
                    infinite loop and becomes env->current_tb. Avoid
                    starting execution if there is a pending interrupt. */
-                if (!unlikely (env->exit_request)) {
-                    env->current_tb = tb;
+                env->current_tb = tb;
+                barrier();
+                if (likely(!env->exit_request)) {
                     tc_ptr = tb->tc_ptr;
                 /* execute the generated code */
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)
@@ -610,26 +620,27 @@ int cpu_exec(CPUState *env1)
 #endif
 
 #ifdef CONFIG_COREMU
+                    /* Receive interrupt before and after executing the
+                     * translated code. */
                     coremu_receive_intr();
-#endif
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
-
-#ifdef CONFIG_COREMU
                     coremu_receive_intr();
 
-#ifdef COREMU_CMC_SUPPORT
-                    if((next_tb & 3) == 3) {
-                        //assert(0);
-                        /* this tb has been invalidate */
+# ifdef COREMU_CMC_SUPPORT
+                    if ((next_tb & 3) == 3) {
+                        /* This tb has been invalidate */
                         TranslationBlock *tmp_tb = (TranslationBlock *)(next_tb & ~3);
                         next_tb = 0;
                         cpu_pc_from_tb(env, tmp_tb);
                         tb_phys_invalidate(tmp_tb, -1);
                     }
-#endif
+# endif
+                    /* REBASE_NOTE: do we need the next line? */
+                    /*env->current_tb = NULL;*/
+#else
+                    next_tb = tcg_qemu_tb_exec(tc_ptr);
 #endif
 
-                    env->current_tb = NULL;
                     if ((next_tb & 3) == 2) {
                         /* Instruction counter expired.  */
                         int insns_left;
@@ -658,6 +669,7 @@ int cpu_exec(CPUState *env1)
                         }
                     }
                 }
+                env->current_tb = NULL;
                 /* reset soft MMU for next block (it can currently
                    only be set by a memory fault) */
             } /* for(;;) */
@@ -689,7 +701,7 @@ int cpu_exec(CPUState *env1)
 #endif
 
     /* restore global registers */
-    asm("");
+    barrier();
     env = (void *) saved_env_reg;
 
 #ifndef CONFIG_COREMU
@@ -1178,11 +1190,47 @@ int cpu_signal_handler(int host_signum, void *pinfo,
     siginfo_t *info = pinfo;
     struct ucontext *uc = puc;
     unsigned long pc;
-    int is_write;
+    uint16_t *pinsn;
+    int is_write = 0;
 
     pc = uc->uc_mcontext.psw.addr;
-    /* XXX: compute is_write */
-    is_write = 0;
+
+    /* ??? On linux, the non-rt signal handler has 4 (!) arguments instead
+       of the normal 2 arguments.  The 3rd argument contains the "int_code"
+       from the hardware which does in fact contain the is_write value.
+       The rt signal handler, as far as I can tell, does not give this value
+       at all.  Not that we could get to it from here even if it were.  */
+    /* ??? This is not even close to complete, since it ignores all
+       of the read-modify-write instructions.  */
+    pinsn = (uint16_t *)pc;
+    switch (pinsn[0] >> 8) {
+    case 0x50: /* ST */
+    case 0x42: /* STC */
+    case 0x40: /* STH */
+        is_write = 1;
+        break;
+    case 0xc4: /* RIL format insns */
+        switch (pinsn[0] & 0xf) {
+        case 0xf: /* STRL */
+        case 0xb: /* STGRL */
+        case 0x7: /* STHRL */
+            is_write = 1;
+        }
+        break;
+    case 0xe3: /* RXY format insns */
+        switch (pinsn[2] & 0xff) {
+        case 0x50: /* STY */
+        case 0x24: /* STG */
+        case 0x72: /* STCY */
+        case 0x70: /* STHY */
+        case 0x8e: /* STPQ */
+        case 0x3f: /* STRVH */
+        case 0x3e: /* STRV */
+        case 0x2f: /* STRVG */
+            is_write = 1;
+        }
+        break;
+    }
     return handle_cpu_signal(pc, (unsigned long)info->si_addr,
                              is_write, &uc->uc_sigmask, puc);
 }

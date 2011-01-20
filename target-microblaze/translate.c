@@ -63,8 +63,7 @@ static TCGv env_iflags;
 /* This is the state at translation time.  */
 typedef struct DisasContext {
     CPUState *env;
-    target_ulong pc, ppc;
-    target_ulong cache_pc;
+    target_ulong pc;
 
     /* Decoder.  */
     int type_b;
@@ -151,6 +150,14 @@ static void gen_goto_tb(DisasContext *dc, int n, target_ulong dest)
         tcg_gen_movi_tl(cpu_SR[SR_PC], dest);
         tcg_gen_exit_tb(0);
     }
+}
+
+/* True if ALU operand b is a small immediate that may deserve
+   faster treatment.  */
+static inline int dec_alu_op_b_is_small_imm(DisasContext *dc)
+{
+    /* Immediate insn without the imm prefix ?  */
+    return dc->type_b && !(dc->tb_flags & IMM_FLAG);
 }
 
 static inline TCGv *dec_alu_op_b(DisasContext *dc)
@@ -450,7 +457,7 @@ static void dec_msr(DisasContext *dc)
                 tcg_gen_mov_tl(cpu_SR[SR_ESR], cpu_R[dc->ra]);
                 break;
             case 0x7:
-                /* Ignored at the moment.  */
+                tcg_gen_andi_tl(cpu_SR[SR_FSR], cpu_R[dc->ra], 31);
                 break;
             default:
                 cpu_abort(dc->env, "unknown mts reg %x\n", sr);
@@ -473,7 +480,7 @@ static void dec_msr(DisasContext *dc)
                 tcg_gen_mov_tl(cpu_R[dc->rd], cpu_SR[SR_ESR]);
                 break;
              case 0x7:
-                tcg_gen_movi_tl(cpu_R[dc->rd], 0);
+                tcg_gen_mov_tl(cpu_R[dc->rd], cpu_SR[SR_FSR]);
                 break;
             case 0xb:
                 tcg_gen_mov_tl(cpu_R[dc->rd], cpu_SR[SR_BTR]);
@@ -745,9 +752,8 @@ static void dec_bit(DisasContext *dc)
 static inline void sync_jmpstate(DisasContext *dc)
 {
     if (dc->jmp == JMP_DIRECT) {
-            dc->jmp = JMP_INDIRECT;
-            tcg_gen_movi_tl(env_btaken, 1);
-            tcg_gen_movi_tl(env_btarget, dc->jmp_pc);
+        dc->jmp = JMP_INDIRECT;
+        tcg_gen_movi_tl(env_btarget, dc->jmp_pc);
     }
 }
 
@@ -780,6 +786,13 @@ static inline TCGv *compute_ldst_addr(DisasContext *dc, TCGv *t)
 
     /* Treat the fast cases first.  */
     if (!dc->type_b) {
+        /* If any of the regs is r0, return a ptr to the other.  */
+        if (dc->ra == 0) {
+            return &cpu_R[dc->rb];
+        } else if (dc->rb == 0) {
+            return &cpu_R[dc->ra];
+        }
+
         *t = tcg_temp_new();
         tcg_gen_add_tl(*t, cpu_R[dc->ra], cpu_R[dc->rb]);
         return t;
@@ -904,50 +917,24 @@ static void dec_store(DisasContext *dc)
 static inline void eval_cc(DisasContext *dc, unsigned int cc,
                            TCGv d, TCGv a, TCGv b)
 {
-    int l1;
-
     switch (cc) {
         case CC_EQ:
-            l1 = gen_new_label();
-            tcg_gen_movi_tl(env_btaken, 1);
-            tcg_gen_brcond_tl(TCG_COND_EQ, a, b, l1);
-            tcg_gen_movi_tl(env_btaken, 0);
-            gen_set_label(l1);
+            tcg_gen_setcond_tl(TCG_COND_EQ, d, a, b);
             break;
         case CC_NE:
-            l1 = gen_new_label();
-            tcg_gen_movi_tl(env_btaken, 1);
-            tcg_gen_brcond_tl(TCG_COND_NE, a, b, l1);
-            tcg_gen_movi_tl(env_btaken, 0);
-            gen_set_label(l1);
+            tcg_gen_setcond_tl(TCG_COND_NE, d, a, b);
             break;
         case CC_LT:
-            l1 = gen_new_label();
-            tcg_gen_movi_tl(env_btaken, 1);
-            tcg_gen_brcond_tl(TCG_COND_LT, a, b, l1);
-            tcg_gen_movi_tl(env_btaken, 0);
-            gen_set_label(l1);
+            tcg_gen_setcond_tl(TCG_COND_LT, d, a, b);
             break;
         case CC_LE:
-            l1 = gen_new_label();
-            tcg_gen_movi_tl(env_btaken, 1);
-            tcg_gen_brcond_tl(TCG_COND_LE, a, b, l1);
-            tcg_gen_movi_tl(env_btaken, 0);
-            gen_set_label(l1);
+            tcg_gen_setcond_tl(TCG_COND_LE, d, a, b);
             break;
         case CC_GE:
-            l1 = gen_new_label();
-            tcg_gen_movi_tl(env_btaken, 1);
-            tcg_gen_brcond_tl(TCG_COND_GE, a, b, l1);
-            tcg_gen_movi_tl(env_btaken, 0);
-            gen_set_label(l1);
+            tcg_gen_setcond_tl(TCG_COND_GE, d, a, b);
             break;
         case CC_GT:
-            l1 = gen_new_label();
-            tcg_gen_movi_tl(env_btaken, 1);
-            tcg_gen_brcond_tl(TCG_COND_GT, a, b, l1);
-            tcg_gen_movi_tl(env_btaken, 0);
-            gen_set_label(l1);
+            tcg_gen_setcond_tl(TCG_COND_GT, d, a, b);
             break;
         default:
             cpu_abort(dc->env, "Unknown condition code %x.\n", cc);
@@ -984,10 +971,18 @@ static void dec_bcc(DisasContext *dc)
                       cpu_env, offsetof(CPUState, bimm));
     }
 
-    tcg_gen_movi_tl(env_btarget, dc->pc);
-    tcg_gen_add_tl(env_btarget, env_btarget, *(dec_alu_op_b(dc)));
+    if (dec_alu_op_b_is_small_imm(dc)) {
+        int32_t offset = (int32_t)((int16_t)dc->imm); /* sign-extend.  */
+
+        tcg_gen_movi_tl(env_btarget, dc->pc + offset);
+        dc->jmp = JMP_DIRECT;
+        dc->jmp_pc = dc->pc + offset;
+    } else {
+        dc->jmp = JMP_INDIRECT;
+        tcg_gen_movi_tl(env_btarget, dc->pc);
+        tcg_gen_add_tl(env_btarget, env_btarget, *(dec_alu_op_b(dc)));
+    }
     eval_cc(dc, cc, env_btaken, cpu_R[dc->ra], tcg_const_tl(0));
-    dc->jmp = JMP_INDIRECT;
 }
 
 static void dec_br(DisasContext *dc)
@@ -1031,13 +1026,14 @@ static void dec_br(DisasContext *dc)
             }
         }
     } else {
-        if (!dc->type_b || (dc->tb_flags & IMM_FLAG)) {
+        if (dec_alu_op_b_is_small_imm(dc)) {
+            dc->jmp = JMP_DIRECT;
+            dc->jmp_pc = dc->pc + (int32_t)((int16_t)dc->imm);
+            tcg_gen_movi_tl(env_btaken, 1);
+        } else {
             tcg_gen_movi_tl(env_btaken, 1);
             tcg_gen_movi_tl(env_btarget, dc->pc);
             tcg_gen_add_tl(env_btarget, env_btarget, *(dec_alu_op_b(dc)));
-        } else {
-            dc->jmp = JMP_DIRECT;
-            dc->jmp_pc = dc->pc + (int32_t)((int16_t)dc->imm);
         }
     }
 }
@@ -1136,22 +1132,120 @@ static void dec_rts(DisasContext *dc)
     } else
         LOG_DIS("rts ir=%x\n", dc->ir);
 
+    dc->jmp = JMP_INDIRECT;
     tcg_gen_movi_tl(env_btaken, 1);
     tcg_gen_add_tl(env_btarget, cpu_R[dc->ra], *(dec_alu_op_b(dc)));
 }
 
+static int dec_check_fpuv2(DisasContext *dc)
+{
+    int r;
+
+    r = dc->env->pvr.regs[2] & PVR2_USE_FPU2_MASK;
+
+    if (!r && (dc->tb_flags & MSR_EE_FLAG)) {
+        tcg_gen_movi_tl(cpu_SR[SR_ESR], ESR_EC_FPU);
+        t_gen_raise_exception(dc, EXCP_HW_EXCP);
+    }
+    return r;
+}
+
 static void dec_fpu(DisasContext *dc)
 {
+    unsigned int fpu_insn;
+
     if ((dc->tb_flags & MSR_EE_FLAG)
           && (dc->env->pvr.regs[2] & PVR2_ILL_OPCODE_EXC_MASK)
           && !((dc->env->pvr.regs[2] & PVR2_USE_FPU_MASK))) {
-        tcg_gen_movi_tl(cpu_SR[SR_ESR], ESR_EC_FPU);
+        tcg_gen_movi_tl(cpu_SR[SR_ESR], ESR_EC_ILLEGAL_OP);
         t_gen_raise_exception(dc, EXCP_HW_EXCP);
         return;
     }
 
-    qemu_log ("unimplemented FPU insn pc=%x opc=%x\n", dc->pc, dc->opcode);
-    dc->abort_at_next_insn = 1;
+    fpu_insn = (dc->ir >> 7) & 7;
+
+    switch (fpu_insn) {
+        case 0:
+            gen_helper_fadd(cpu_R[dc->rd], cpu_R[dc->ra], cpu_R[dc->rb]);
+            break;
+
+        case 1:
+            gen_helper_frsub(cpu_R[dc->rd], cpu_R[dc->ra], cpu_R[dc->rb]);
+            break;
+
+        case 2:
+            gen_helper_fmul(cpu_R[dc->rd], cpu_R[dc->ra], cpu_R[dc->rb]);
+            break;
+
+        case 3:
+            gen_helper_fdiv(cpu_R[dc->rd], cpu_R[dc->ra], cpu_R[dc->rb]);
+            break;
+
+        case 4:
+            switch ((dc->ir >> 4) & 7) {
+                case 0:
+                    gen_helper_fcmp_un(cpu_R[dc->rd],
+                                       cpu_R[dc->ra], cpu_R[dc->rb]);
+                    break;
+                case 1:
+                    gen_helper_fcmp_lt(cpu_R[dc->rd],
+                                       cpu_R[dc->ra], cpu_R[dc->rb]);
+                    break;
+                case 2:
+                    gen_helper_fcmp_eq(cpu_R[dc->rd],
+                                       cpu_R[dc->ra], cpu_R[dc->rb]);
+                    break;
+                case 3:
+                    gen_helper_fcmp_le(cpu_R[dc->rd],
+                                       cpu_R[dc->ra], cpu_R[dc->rb]);
+                    break;
+                case 4:
+                    gen_helper_fcmp_gt(cpu_R[dc->rd],
+                                       cpu_R[dc->ra], cpu_R[dc->rb]);
+                    break;
+                case 5:
+                    gen_helper_fcmp_ne(cpu_R[dc->rd],
+                                       cpu_R[dc->ra], cpu_R[dc->rb]);
+                    break;
+                case 6:
+                    gen_helper_fcmp_ge(cpu_R[dc->rd],
+                                       cpu_R[dc->ra], cpu_R[dc->rb]);
+                    break;
+                default:
+                    qemu_log ("unimplemented fcmp fpu_insn=%x pc=%x opc=%x\n",
+                              fpu_insn, dc->pc, dc->opcode);
+                    dc->abort_at_next_insn = 1;
+                    break;
+            }
+            break;
+
+        case 5:
+            if (!dec_check_fpuv2(dc)) {
+                return;
+            }
+            gen_helper_flt(cpu_R[dc->rd], cpu_R[dc->ra]);
+            break;
+
+        case 6:
+            if (!dec_check_fpuv2(dc)) {
+                return;
+            }
+            gen_helper_fint(cpu_R[dc->rd], cpu_R[dc->ra]);
+            break;
+
+        case 7:
+            if (!dec_check_fpuv2(dc)) {
+                return;
+            }
+            gen_helper_fsqrt(cpu_R[dc->rd], cpu_R[dc->ra]);
+            break;
+
+        default:
+            qemu_log ("unimplemented FPU insn fpu_insn=%x pc=%x opc=%x\n",
+                      fpu_insn, dc->pc, dc->opcode);
+            dc->abort_at_next_insn = 1;
+            break;
+    }
 }
 
 static void dec_null(DisasContext *dc)
@@ -1279,9 +1373,10 @@ gen_intermediate_code_internal(CPUState *env, TranslationBlock *tb,
     dc->is_jmp = DISAS_NEXT;
     dc->jmp = 0;
     dc->delayed_branch = !!(dc->tb_flags & D_FLAG);
-    dc->ppc = pc_start;
+    if (dc->delayed_branch) {
+        dc->jmp = JMP_INDIRECT;
+    }
     dc->pc = pc_start;
-    dc->cache_pc = -1;
     dc->singlestep_enabled = env->singlestep_enabled;
     dc->cpustate_changed = 0;
     dc->abort_at_next_insn = 0;
@@ -1337,7 +1432,6 @@ gen_intermediate_code_internal(CPUState *env, TranslationBlock *tb,
 	decode(dc);
         if (dc->clear_imm)
             dc->tb_flags &= ~IMM_FLAG;
-        dc->ppc = dc->pc;
         dc->pc += 4;
         num_insns++;
 
@@ -1353,9 +1447,21 @@ gen_intermediate_code_internal(CPUState *env, TranslationBlock *tb,
                 /* Clear the delay slot flag.  */
                 dc->tb_flags &= ~D_FLAG;
                 /* If it is a direct jump, try direct chaining.  */
-                if (dc->jmp != JMP_DIRECT) {
+                if (dc->jmp == JMP_INDIRECT) {
                     eval_cond_jmp(dc, env_btarget, tcg_const_tl(dc->pc));
                     dc->is_jmp = DISAS_JUMP;
+                } else if (dc->jmp == JMP_DIRECT) {
+                    int l1;
+
+                    t_sync_flags(dc);
+                    l1 = gen_new_label();
+                    /* Conditional jmp.  */
+                    tcg_gen_brcondi_tl(TCG_COND_NE, env_btaken, 0, l1);
+                    gen_goto_tb(dc, 1, dc->pc);
+                    gen_set_label(l1);
+                    gen_goto_tb(dc, 0, dc->jmp_pc);
+
+                    dc->is_jmp = DISAS_TB_JUMP;
                 }
                 break;
             }
@@ -1428,7 +1534,7 @@ gen_intermediate_code_internal(CPUState *env, TranslationBlock *tb,
 #if DISAS_GNU
         log_target_disas(pc_start, dc->pc - pc_start, 0);
 #endif
-        qemu_log("\nisize=%d osize=%zd\n",
+        qemu_log("\nisize=%d osize=%td\n",
             dc->pc - pc_start, gen_opc_ptr - gen_opc_buf);
     }
 #endif
@@ -1446,8 +1552,7 @@ void gen_intermediate_code_pc (CPUState *env, struct TranslationBlock *tb)
     gen_intermediate_code_internal(env, tb, 1);
 }
 
-void cpu_dump_state (CPUState *env, FILE *f,
-                     int (*cpu_fprintf)(FILE *f, const char *fmt, ...),
+void cpu_dump_state (CPUState *env, FILE *f, fprintf_function cpu_fprintf,
                      int flags)
 {
     int i;
@@ -1457,9 +1562,9 @@ void cpu_dump_state (CPUState *env, FILE *f,
 
     cpu_fprintf(f, "IN: PC=%x %s\n",
                 env->sregs[SR_PC], lookup_symbol(env->sregs[SR_PC]));
-    cpu_fprintf(f, "rmsr=%x resr=%x rear=%x debug[%x] imm=%x iflags=%x\n",
+    cpu_fprintf(f, "rmsr=%x resr=%x rear=%x debug=%x imm=%x iflags=%x fsr=%x\n",
              env->sregs[SR_MSR], env->sregs[SR_ESR], env->sregs[SR_EAR],
-             env->debug, env->imm, env->iflags);
+             env->debug, env->imm, env->iflags, env->sregs[SR_FSR]);
     cpu_fprintf(f, "btaken=%d btarget=%x mode=%s(saved=%s) eip=%d ie=%d\n",
              env->btaken, env->btarget,
              (env->sregs[SR_MSR] & MSR_UM) ? "user" : "kernel",
@@ -1485,7 +1590,7 @@ CPUState *cpu_mb_init (const char *cpu_model)
 
     cpu_exec_init(env);
     cpu_reset(env);
-
+    set_float_rounding_mode(float_round_nearest_even, &env->fp_status);
 
     if (tcg_initialized)
         return env;
@@ -1554,15 +1659,19 @@ void cpu_reset (CPUState *env)
                         | PVR2_USE_DIV_MASK \
                         | PVR2_USE_HW_MUL_MASK \
                         | PVR2_USE_MUL64_MASK \
+                        | PVR2_USE_FPU_MASK \
+                        | PVR2_USE_FPU2_MASK \
+                        | PVR2_FPU_EXC_MASK \
                         | 0;
     env->pvr.regs[10] = 0x0c000000; /* Default to spartan 3a dsp family.  */
     env->pvr.regs[11] = PVR11_USE_MMU | (16 << 17);
 
-    env->sregs[SR_MSR] = 0;
 #if defined(CONFIG_USER_ONLY)
     /* start in user mode with interrupts enabled.  */
+    env->sregs[SR_MSR] = MSR_EE | MSR_IE | MSR_VM | MSR_UM;
     env->pvr.regs[10] = 0x0c000000; /* Spartan 3a dsp.  */
 #else
+    env->sregs[SR_MSR] = 0;
     mmu_init(&env->mmu);
     env->mmu.c_mmu = 3;
     env->mmu.c_mmu_tlb_access = 3;

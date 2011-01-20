@@ -12,6 +12,8 @@
 #include "hw/loader.h"
 #endif
 
+#include "coremu-core.h"
+
 static uint32_t cortexa9_cp15_c0_c1[8] =
 { 0x1031, 0x11, 0x000, 0, 0x00100103, 0x20000000, 0x01230000, 0x00002111 };
 
@@ -76,6 +78,7 @@ static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
         memcpy(env->cp15.c0_c1, arm1136_cp15_c0_c1, 8 * sizeof(uint32_t));
         memcpy(env->cp15.c0_c2, arm1136_cp15_c0_c2, 8 * sizeof(uint32_t));
         env->cp15.c0_cachetype = 0x1dd20d2;
+        env->cp15.c1_sys = 0x00050078;
         break;
     case ARM_CPUID_ARM11MPCORE:
         set_feature(env, ARM_FEATURE_V6);
@@ -109,6 +112,7 @@ static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
         env->cp15.c0_ccsid[0] = 0xe007e01a; /* 16k L1 dcache. */
         env->cp15.c0_ccsid[1] = 0x2007e01a; /* 16k L1 icache. */
         env->cp15.c0_ccsid[2] = 0xf0000000; /* No L2 icache. */
+        env->cp15.c1_sys = 0x00c50078;
         break;
     case ARM_CPUID_CORTEXA9:
         set_feature(env, ARM_FEATURE_V6);
@@ -130,6 +134,7 @@ static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
         env->cp15.c0_clid = (1 << 27) | (1 << 24) | 3;
         env->cp15.c0_ccsid[0] = 0xe00fe015; /* 16k L1 dcache. */
         env->cp15.c0_ccsid[1] = 0x200fe015; /* 16k L1 icache. */
+        env->cp15.c1_sys = 0x00c50078;
         break;
     case ARM_CPUID_CORTEXM3:
         set_feature(env, ARM_FEATURE_V6);
@@ -203,11 +208,16 @@ void cpu_reset(CPUARMState *env)
         cpu_reset_model_id(env, id);
 #if defined (CONFIG_USER_ONLY)
     env->uncached_cpsr = ARM_CPU_MODE_USR;
+    /* For user mode we must enable access to coprocessors */
     env->vfp.xregs[ARM_VFP_FPEXC] = 1 << 30;
+    if (arm_feature(env, ARM_FEATURE_IWMMXT)) {
+        env->cp15.c15_cpar = 3;
+    } else if (arm_feature(env, ARM_FEATURE_XSCALE)) {
+        env->cp15.c15_cpar = 1;
+    }
 #else
     /* SVC mode with interrupts disabled.  */
     env->uncached_cpsr = ARM_CPU_MODE_SVC | CPSR_A | CPSR_F | CPSR_I;
-    env->regs[15] = 0;
     /* On ARMv7-M the CPSR_I is the value of the PRIMASK register, and is
        clear at reset.  Initial SP and PC are loaded from ROM.  */
     if (IS_M(env)) {
@@ -356,7 +366,7 @@ static const struct arm_cpu_t arm_cpu_names[] = {
     { 0, NULL}
 };
 
-void arm_cpu_list(FILE *f, int (*cpu_fprintf)(FILE *f, const char *fmt, ...))
+void arm_cpu_list(FILE *f, fprintf_function cpu_fprintf)
 {
     int i;
 
@@ -1086,22 +1096,26 @@ static int get_phys_addr_v6(CPUState *env, uint32_t address, int access_type,
         }
         code = 15;
     }
-    if (xn && access_type == 2)
-        goto do_fault;
+    if (domain == 3) {
+        *prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
+    } else {
+        if (xn && access_type == 2)
+            goto do_fault;
 
-    /* The simplified model uses AP[0] as an access control bit.  */
-    if ((env->cp15.c1_sys & (1 << 29)) && (ap & 1) == 0) {
-        /* Access flag fault.  */
-        code = (code == 15) ? 6 : 3;
-        goto do_fault;
-    }
-    *prot = check_ap(env, ap, domain, access_type, is_user);
-    if (!*prot) {
-        /* Access permission fault.  */
-        goto do_fault;
-    }
-    if (!xn) {
-        *prot |= PAGE_EXEC;
+        /* The simplified model uses AP[0] as an access control bit.  */
+        if ((env->cp15.c1_sys & (1 << 29)) && (ap & 1) == 0) {
+            /* Access flag fault.  */
+            code = (code == 15) ? 6 : 3;
+            goto do_fault;
+        }
+        *prot = check_ap(env, ap, domain, access_type, is_user);
+        if (!*prot) {
+            /* Access permission fault.  */
+            goto do_fault;
+        }
+        if (!xn) {
+            *prot |= PAGE_EXEC;
+        }
     }
     *phys_ptr = phys_addr;
     return 0;
@@ -2055,7 +2069,7 @@ static inline uint16_t add16_usat(uint16_t a, uint16_t b)
 
 static inline uint16_t sub16_usat(uint16_t a, uint16_t b)
 {
-    if (a < b)
+    if (a > b)
         return a - b;
     else
         return 0;
@@ -2072,7 +2086,7 @@ static inline uint8_t add8_usat(uint8_t a, uint8_t b)
 
 static inline uint8_t sub8_usat(uint8_t a, uint8_t b)
 {
-    if (a < b)
+    if (a > b)
         return a - b;
     else
         return 0;
@@ -2237,6 +2251,8 @@ static inline int vfp_exceptbits_from_host(int host_bits)
         target_bits |= 8;
     if (host_bits & float_flag_inexact)
         target_bits |= 0x10;
+    if (host_bits & float_flag_input_denormal)
+        target_bits |= 0x80;
     return target_bits;
 }
 
@@ -2251,6 +2267,11 @@ uint32_t HELPER(vfp_get_fpscr)(CPUState *env)
     i = get_float_exception_flags(&env->vfp.fp_status);
     fpscr |= vfp_exceptbits_from_host(i);
     return fpscr;
+}
+
+uint32_t vfp_get_fpscr(CPUState *env)
+{
+    return HELPER(vfp_get_fpscr)(env);
 }
 
 /* Convert vfp exception flags to target form.  */
@@ -2268,6 +2289,8 @@ static inline int vfp_exceptbits_to_host(int target_bits)
         host_bits |= float_flag_underflow;
     if (target_bits & 0x10)
         host_bits |= float_flag_inexact;
+    if (target_bits & 0x80)
+        host_bits |= float_flag_input_denormal;
     return host_bits;
 }
 
@@ -2300,13 +2323,20 @@ void HELPER(vfp_set_fpscr)(CPUState *env, uint32_t val)
         }
         set_float_rounding_mode(i, &env->vfp.fp_status);
     }
-    if (changed & (1 << 24))
+    if (changed & (1 << 24)) {
         set_flush_to_zero((val & (1 << 24)) != 0, &env->vfp.fp_status);
+        set_flush_inputs_to_zero((val & (1 << 24)) != 0, &env->vfp.fp_status);
+    }
     if (changed & (1 << 25))
         set_default_nan_mode((val & (1 << 25)) != 0, &env->vfp.fp_status);
 
-    i = vfp_exceptbits_to_host((val >> 8) & 0x1f);
+    i = vfp_exceptbits_to_host(val);
     set_float_exception_flags(i, &env->vfp.fp_status);
+}
+
+void vfp_set_fpscr(CPUState *env, uint32_t val)
+{
+    HELPER(vfp_set_fpscr)(env, val);
 }
 
 #define VFP_HELPER(name, p) HELPER(glue(glue(vfp_,name),p))
@@ -2455,53 +2485,85 @@ float64 VFP_HELPER(sito, d)(float32 x, CPUState *env)
 /* Float to integer conversion.  */
 float32 VFP_HELPER(toui, s)(float32 x, CPUState *env)
 {
+    if (float32_is_any_nan(x)) {
+        return float32_zero;
+    }
     return vfp_itos(float32_to_uint32(x, &env->vfp.fp_status));
 }
 
 float32 VFP_HELPER(toui, d)(float64 x, CPUState *env)
 {
+    if (float64_is_any_nan(x)) {
+        return float32_zero;
+    }
     return vfp_itos(float64_to_uint32(x, &env->vfp.fp_status));
 }
 
 float32 VFP_HELPER(tosi, s)(float32 x, CPUState *env)
 {
+    if (float32_is_any_nan(x)) {
+        return float32_zero;
+    }
     return vfp_itos(float32_to_int32(x, &env->vfp.fp_status));
 }
 
 float32 VFP_HELPER(tosi, d)(float64 x, CPUState *env)
 {
+    if (float64_is_any_nan(x)) {
+        return float32_zero;
+    }
     return vfp_itos(float64_to_int32(x, &env->vfp.fp_status));
 }
 
 float32 VFP_HELPER(touiz, s)(float32 x, CPUState *env)
 {
+    if (float32_is_any_nan(x)) {
+        return float32_zero;
+    }
     return vfp_itos(float32_to_uint32_round_to_zero(x, &env->vfp.fp_status));
 }
 
 float32 VFP_HELPER(touiz, d)(float64 x, CPUState *env)
 {
+    if (float64_is_any_nan(x)) {
+        return float32_zero;
+    }
     return vfp_itos(float64_to_uint32_round_to_zero(x, &env->vfp.fp_status));
 }
 
 float32 VFP_HELPER(tosiz, s)(float32 x, CPUState *env)
 {
+    if (float32_is_any_nan(x)) {
+        return float32_zero;
+    }
     return vfp_itos(float32_to_int32_round_to_zero(x, &env->vfp.fp_status));
 }
 
 float32 VFP_HELPER(tosiz, d)(float64 x, CPUState *env)
 {
+    if (float64_is_any_nan(x)) {
+        return float32_zero;
+    }
     return vfp_itos(float64_to_int32_round_to_zero(x, &env->vfp.fp_status));
 }
 
 /* floating point conversion */
 float64 VFP_HELPER(fcvtd, s)(float32 x, CPUState *env)
 {
-    return float32_to_float64(x, &env->vfp.fp_status);
+    float64 r = float32_to_float64(x, &env->vfp.fp_status);
+    /* ARM requires that S<->D conversion of any kind of NaN generates
+     * a quiet NaN by forcing the most significant frac bit to 1.
+     */
+    return float64_maybe_silence_nan(r);
 }
 
 float32 VFP_HELPER(fcvts, d)(float64 x, CPUState *env)
 {
-    return float64_to_float32(x, &env->vfp.fp_status);
+    float32 r =  float64_to_float32(x, &env->vfp.fp_status);
+    /* ARM requires that S<->D conversion of any kind of NaN generates
+     * a quiet NaN by forcing the most significant frac bit to 1.
+     */
+    return float32_maybe_silence_nan(r);
 }
 
 /* VFP3 fixed point conversion.  */
@@ -2509,15 +2571,18 @@ float32 VFP_HELPER(fcvts, d)(float64 x, CPUState *env)
 ftype VFP_HELPER(name##to, p)(ftype x, uint32_t shift, CPUState *env) \
 { \
     ftype tmp; \
-    tmp = sign##int32_to_##ftype ((itype)vfp_##p##toi(x), \
+    tmp = sign##int32_to_##ftype ((itype##_t)vfp_##p##toi(x), \
                                   &env->vfp.fp_status); \
     return ftype##_scalbn(tmp, -(int)shift, &env->vfp.fp_status); \
 } \
 ftype VFP_HELPER(to##name, p)(ftype x, uint32_t shift, CPUState *env) \
 { \
     ftype tmp; \
+    if (ftype##_is_any_nan(x)) { \
+        return ftype##_zero; \
+    } \
     tmp = ftype##_scalbn(x, shift, &env->vfp.fp_status); \
-    return vfp_ito##p((itype)ftype##_to_##sign##int32_round_to_zero(tmp, \
+    return vfp_ito##p(ftype##_to_##itype##_round_to_zero(tmp, \
         &env->vfp.fp_status)); \
 }
 

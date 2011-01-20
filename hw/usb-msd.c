@@ -11,10 +11,11 @@
 #include "qemu-option.h"
 #include "qemu-config.h"
 #include "usb.h"
-#include "block.h"
 #include "scsi.h"
 #include "console.h"
 #include "monitor.h"
+#include "sysemu.h"
+#include "blockdev.h"
 
 //#define DEBUG_MSD
 
@@ -522,22 +523,37 @@ static void usb_msd_password_cb(void *opaque, int err)
 static int usb_msd_initfn(USBDevice *dev)
 {
     MSDState *s = DO_UPCAST(MSDState, dev, dev);
+    BlockDriverState *bs = s->conf.bs;
 
-    if (!s->conf.dinfo || !s->conf.dinfo->bdrv) {
+    if (!bs) {
         error_report("usb-msd: drive property not set");
         return -1;
     }
 
+    /*
+     * Hack alert: this pretends to be a block device, but it's really
+     * a SCSI bus that can serve only a single device, which it
+     * creates automatically.  But first it needs to detach from its
+     * blockdev, or else scsi_bus_legacy_add_drive() dies when it
+     * attaches again.
+     *
+     * The hack is probably a bad idea.
+     */
+    bdrv_detach(bs, &s->dev.qdev);
+    s->conf.bs = NULL;
+
     s->dev.speed = USB_SPEED_FULL;
     scsi_bus_new(&s->bus, &s->dev.qdev, 0, 1, usb_msd_command_complete);
-    s->scsi_dev = scsi_bus_legacy_add_drive(&s->bus, s->conf.dinfo, 0);
+    s->scsi_dev = scsi_bus_legacy_add_drive(&s->bus, bs, 0);
+    if (!s->scsi_dev) {
+        return -1;
+    }
     s->bus.qbus.allow_hotplug = 0;
     usb_msd_handle_reset(dev);
 
-    if (bdrv_key_required(s->conf.dinfo->bdrv)) {
+    if (bdrv_key_required(bs)) {
         if (cur_mon) {
-            monitor_read_bdrv_key_start(cur_mon, s->conf.dinfo->bdrv,
-                                        usb_msd_password_cb, s);
+            monitor_read_bdrv_key_start(cur_mon, bs, usb_msd_password_cb, s);
             s->dev.auto_attach = 0;
         } else {
             autostart = 0;
@@ -560,7 +576,7 @@ static USBDevice *usb_msd_init(const char *filename)
 
     /* parse -usbdevice disk: syntax into drive opts */
     snprintf(id, sizeof(id), "usb%d", nr++);
-    opts = qemu_opts_create(&qemu_drive_opts, id, 0);
+    opts = qemu_opts_create(qemu_find_opts("drive"), id, 0);
 
     p1 = strchr(filename, ':');
     if (p1++) {
@@ -584,7 +600,7 @@ static USBDevice *usb_msd_init(const char *filename)
     qemu_opt_set(opts, "if", "none");
 
     /* create host drive */
-    dinfo = drive_init(opts, NULL, &fatal_error);
+    dinfo = drive_init(opts, 0, &fatal_error);
     if (!dinfo) {
         qemu_opts_del(opts);
         return NULL;
@@ -595,7 +611,10 @@ static USBDevice *usb_msd_init(const char *filename)
     if (!dev) {
         return NULL;
     }
-    qdev_prop_set_drive(&dev->qdev, "drive", dinfo);
+    if (qdev_prop_set_drive(&dev->qdev, "drive", dinfo->bdrv) < 0) {
+        qdev_free(&dev->qdev);
+        return NULL;
+    }
     if (qdev_init(&dev->qdev) < 0)
         return NULL;
 

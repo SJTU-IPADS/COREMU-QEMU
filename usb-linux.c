@@ -33,6 +33,7 @@
 #include "qemu-common.h"
 #include "qemu-timer.h"
 #include "monitor.h"
+#include "sysemu.h"
 
 #include <dirent.h>
 #include <sys/ioctl.h>
@@ -61,8 +62,8 @@ struct usb_ctrlrequest {
     uint16_t wLength;
 };
 
-typedef int USBScanFunc(void *opaque, int bus_num, int addr, int class_id,
-                        int vendor_id, int product_id,
+typedef int USBScanFunc(void *opaque, int bus_num, int addr, int devpath,
+                        int class_id, int vendor_id, int product_id,
                         const char *product_name, int speed);
 
 //#define DEBUG
@@ -132,6 +133,7 @@ typedef struct USBHostDevice {
     int       configuration;
     int       ninterfaces;
     int       closing;
+    Notifier  exit;
 
     struct ctrl_struct ctrl;
     struct endp_data endp_table[MAX_ENDPOINTS];
@@ -139,6 +141,7 @@ typedef struct USBHostDevice {
     /* Host side address */
     int bus_num;
     int addr;
+    int devpath;
     struct USBAutoFilter match;
 
     QTAILQ_ENTRY(USBHostDevice) next;
@@ -149,6 +152,8 @@ static QTAILQ_HEAD(, USBHostDevice) hostdevs = QTAILQ_HEAD_INITIALIZER(hostdevs)
 static int usb_host_close(USBHostDevice *dev);
 static int parse_filter(const char *spec, struct USBAutoFilter *f);
 static void usb_host_auto_check(void *unused);
+static int usb_host_read_file(char *line, size_t line_size,
+                            const char *device_file, const char *device_name);
 
 static int is_isoc(USBHostDevice *s, int ep)
 {
@@ -404,6 +409,7 @@ static void usb_host_handle_destroy(USBDevice *dev)
 
     usb_host_close(s);
     QTAILQ_REMOVE(&hostdevs, s, next);
+    qemu_remove_exit_notifier(&s->exit);
 }
 
 static int usb_linux_update_endp_table(USBHostDevice *s);
@@ -771,14 +777,29 @@ static int usb_host_handle_packet(USBDevice *s, USBPacket *p)
     }
 }
 
-/* returns 1 on problem encountered or 0 for success */
-static int usb_linux_update_endp_table(USBHostDevice *s)
+static int usb_linux_get_configuration(USBHostDevice *s)
 {
-    uint8_t *descriptors;
-    uint8_t devep, type, configuration, alt_interface;
+    uint8_t configuration;
     struct usb_ctrltransfer ct;
-    int interface, ret, length, i;
+    int ret;
 
+    if (usb_fs_type == USB_FS_SYS) {
+        char device_name[32], line[1024];
+        int configuration;
+
+        sprintf(device_name, "%d-%d", s->bus_num, s->devpath);
+
+        if (!usb_host_read_file(line, sizeof(line), "bConfigurationValue",
+                                device_name)) {
+            goto usbdevfs;
+        }
+        if (sscanf(line, "%d", &configuration) != 1) {
+            goto usbdevfs;
+        }
+        return configuration;
+    }
+
+usbdevfs:
     ct.bRequestType = USB_DIR_IN;
     ct.bRequest = USB_REQ_GET_CONFIGURATION;
     ct.wValue = 0;
@@ -789,14 +810,30 @@ static int usb_linux_update_endp_table(USBHostDevice *s)
 
     ret = ioctl(s->fd, USBDEVFS_CONTROL, &ct);
     if (ret < 0) {
-        perror("usb_linux_update_endp_table");
-        return 1;
+        perror("usb_linux_get_configuration");
+        return -1;
     }
 
     /* in address state */
     if (configuration == 0) {
-        return 1;
+        return -1;
     }
+
+    return configuration;
+}
+
+/* returns 1 on problem encountered or 0 for success */
+static int usb_linux_update_endp_table(USBHostDevice *s)
+{
+    uint8_t *descriptors;
+    uint8_t devep, type, configuration, alt_interface;
+    struct usb_ctrltransfer ct;
+    int interface, ret, length, i;
+
+    i = usb_linux_get_configuration(s);
+    if (i < 0)
+        return 1;
+    configuration = i;
 
     /* get the desired configuration, interface, and endpoint descriptors
      * from device description */
@@ -882,7 +919,7 @@ static int usb_linux_update_endp_table(USBHostDevice *s)
 }
 
 static int usb_host_open(USBHostDevice *dev, int bus_num,
-                         int addr, const char *prod_name)
+                         int addr, int devpath, const char *prod_name)
 {
     int fd = -1, ret;
     struct usbdevfs_connectinfo ci;
@@ -908,6 +945,7 @@ static int usb_host_open(USBHostDevice *dev, int bus_num,
 
     dev->bus_num = bus_num;
     dev->addr = addr;
+    dev->devpath = devpath;
     dev->fd = fd;
 
     /* read the device description */
@@ -991,9 +1029,19 @@ static int usb_host_close(USBHostDevice *dev)
     async_complete(dev);
     dev->closing = 0;
     usb_device_detach(&dev->dev);
+    ioctl(dev->fd, USBDEVFS_RESET);
     close(dev->fd);
     dev->fd = -1;
     return 0;
+}
+
+static void usb_host_exit_notifier(struct Notifier* n)
+{
+    USBHostDevice *s = container_of(n, USBHostDevice, exit);
+
+    if (s->fd != -1) {
+        ioctl(s->fd, USBDEVFS_RESET);
+    }
 }
 
 static int usb_host_initfn(USBDevice *dev)
@@ -1003,6 +1051,8 @@ static int usb_host_initfn(USBDevice *dev)
     dev->auto_attach = 0;
     s->fd = -1;
     QTAILQ_INSERT_TAIL(&hostdevs, s, next);
+    s->exit.notify = usb_host_exit_notifier;
+    qemu_add_exit_notifier(&s->exit);
     usb_host_auto_check(NULL);
     return 0;
 }
@@ -1158,7 +1208,7 @@ static int usb_host_scan_dev(void *opaque, USBScanFunc *func)
         if (line[0] == 'T' && line[1] == ':') {
             if (device_count && (vendor_id || product_id)) {
                 /* New device.  Add the previously discovered device.  */
-                ret = func(opaque, bus_num, addr, class_id, vendor_id,
+                ret = func(opaque, bus_num, addr, 0, class_id, vendor_id,
                            product_id, product_name, speed);
                 if (ret) {
                     goto the_end;
@@ -1211,7 +1261,7 @@ static int usb_host_scan_dev(void *opaque, USBScanFunc *func)
     }
     if (device_count && (vendor_id || product_id)) {
         /* Add the last device.  */
-        ret = func(opaque, bus_num, addr, class_id, vendor_id,
+        ret = func(opaque, bus_num, addr, 0, class_id, vendor_id,
                    product_id, product_name, speed);
     }
  the_end:
@@ -1260,7 +1310,7 @@ static int usb_host_scan_sys(void *opaque, USBScanFunc *func)
 {
     DIR *dir = NULL;
     char line[1024];
-    int bus_num, addr, speed, class_id, product_id, vendor_id;
+    int bus_num, addr, devpath, speed, class_id, product_id, vendor_id;
     int ret = 0;
     char product_name[512];
     struct dirent *de;
@@ -1277,7 +1327,9 @@ static int usb_host_scan_sys(void *opaque, USBScanFunc *func)
             if (!strncmp(de->d_name, "usb", 3)) {
                 tmpstr += 3;
             }
-            bus_num = atoi(tmpstr);
+            if (sscanf(tmpstr, "%d-%d", &bus_num, &devpath) < 1) {
+                goto the_end;
+            }
 
             if (!usb_host_read_file(line, sizeof(line), "devnum", de->d_name)) {
                 goto the_end;
@@ -1328,7 +1380,7 @@ static int usb_host_scan_sys(void *opaque, USBScanFunc *func)
                 speed = USB_SPEED_FULL;
             }
 
-            ret = func(opaque, bus_num, addr, class_id, vendor_id,
+            ret = func(opaque, bus_num, addr, devpath, class_id, vendor_id,
                        product_id, product_name, speed);
             if (ret) {
                 goto the_end;
@@ -1419,7 +1471,7 @@ static int usb_host_scan(void *opaque, USBScanFunc *func)
 
 static QEMUTimer *usb_auto_timer;
 
-static int usb_host_auto_scan(void *opaque, int bus_num, int addr,
+static int usb_host_auto_scan(void *opaque, int bus_num, int addr, int devpath,
                               int class_id, int vendor_id, int product_id,
                               const char *product_name, int speed)
 {
@@ -1455,7 +1507,7 @@ static int usb_host_auto_scan(void *opaque, int bus_num, int addr,
         }
         DPRINTF("husb: auto open: bus_num %d addr %d\n", bus_num, addr);
 
-        usb_host_open(s, bus_num, addr, product_name);
+        usb_host_open(s, bus_num, addr, devpath, product_name);
     }
 
     return 0;
@@ -1615,7 +1667,7 @@ static void usb_info_device(Monitor *mon, int bus_num, int addr, int class_id,
 }
 
 static int usb_host_info_device(void *opaque, int bus_num, int addr,
-                                int class_id,
+                                int devpath, int class_id,
                                 int vendor_id, int product_id,
                                 const char *product_name,
                                 int speed)

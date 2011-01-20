@@ -14,7 +14,6 @@
 #ifndef QEMU_KVM_H
 #define QEMU_KVM_H
 
-#include <stdbool.h>
 #include <errno.h>
 #include "config-host.h"
 #include "qemu-queue.h"
@@ -41,6 +40,8 @@ int kvm_has_sync_mmu(void);
 int kvm_has_vcpu_events(void);
 int kvm_has_robust_singlestep(void);
 int kvm_has_debugregs(void);
+int kvm_has_xsave(void);
+int kvm_has_xcrs(void);
 
 #ifdef NEED_CPU_H
 int kvm_init_vcpu(CPUState *env);
@@ -90,6 +91,8 @@ int kvm_arch_handle_exit(CPUState *env, struct kvm_run *run);
 
 int kvm_arch_pre_run(CPUState *env, struct kvm_run *run);
 
+int kvm_arch_process_irqchip_events(CPUState *env);
+
 int kvm_arch_get_registers(CPUState *env);
 
 /* state subset only touched by the VCPU itself during runtime */
@@ -106,6 +109,9 @@ int kvm_arch_init(KVMState *s, int smp_cpus);
 int kvm_arch_init_vcpu(CPUState *env);
 
 void kvm_arch_reset_vcpu(CPUState *env);
+
+int kvm_on_sigbus_vcpu(CPUState *env, int code, void *addr);
+int kvm_on_sigbus(int code, void *addr);
 
 struct kvm_guest_debug;
 struct kvm_debug_exit_arch;
@@ -138,10 +144,12 @@ void kvm_arch_remove_all_hw_breakpoints(void);
 
 void kvm_arch_update_guest_debug(CPUState *env, struct kvm_guest_debug *dbg);
 
+bool kvm_arch_stop_on_emulation_error(CPUState *env);
+
 int kvm_check_extension(KVMState *s, unsigned int extension);
 
 uint32_t kvm_arch_get_supported_cpuid(CPUState *env, uint32_t function,
-                                      int reg);
+                                      uint32_t index, int reg);
 void kvm_cpu_synchronize_state(CPUState *env);
 void kvm_cpu_synchronize_post_reset(CPUState *env);
 void kvm_cpu_synchronize_post_init(CPUState *env);
@@ -169,7 +177,14 @@ static inline void cpu_synchronize_post_init(CPUState *env)
     }
 }
 
+
+#if !defined(CONFIG_USER_ONLY)
+int kvm_physical_memory_addr_from_ram(KVMState *s, ram_addr_t ram_addr,
+                                      target_phys_addr_t *phys_addr);
 #endif
+
+#endif
+int kvm_set_ioeventfd_mmio_long(int fd, uint32_t adr, uint32_t val, bool assign);
 
 int kvm_set_ioeventfd_pio_word(int fd, uint16_t adr, uint16_t val, bool assign);
 #endif

@@ -1,5 +1,5 @@
 /*
- * QError: QEMU Error data-type.
+ * QError Module
  *
  * Copyright (C) 2009 Red Hat Inc.
  *
@@ -82,7 +82,7 @@ static const QErrorStringTable qerror_table[] = {
     },
     {
         .error_fmt = QERR_DEVICE_NOT_ACTIVE,
-        .desc      = "Device '%(device)' has not been activated by the guest",
+        .desc      = "Device '%(device)' has not been activated",
     },
     {
         .error_fmt = QERR_DEVICE_NOT_ENCRYPTED,
@@ -141,6 +141,10 @@ static const QErrorStringTable qerror_table[] = {
         .desc      = "Using KVM without %(capability), %(feature) unavailable",
     },
     {
+        .error_fmt = QERR_MIGRATION_EXPECTED,
+        .desc      = "An incoming migration is expected before this command can be executed",
+    },
+    {
         .error_fmt = QERR_MISSING_PARAMETER,
         .desc      = "Parameter '%(name)' is missing",
     },
@@ -177,6 +181,10 @@ static const QErrorStringTable qerror_table[] = {
         .desc      = "QMP input object member '%(member)' expects '%(expected)'",
     },
     {
+        .error_fmt = QERR_QMP_EXTRA_MEMBER,
+        .desc      = "QMP input object member '%(member)' is unexpected",
+    },
+    {
         .error_fmt = QERR_SET_PASSWD_FAILED,
         .desc      = "Could not set password",
     },
@@ -210,7 +218,8 @@ QError *qerror_new(void)
     return qerr;
 }
 
-static void qerror_abort(const QError *qerr, const char *fmt, ...)
+static void GCC_FMT_ATTR(2, 3) qerror_abort(const QError *qerr,
+                                            const char *fmt, ...)
 {
     va_list ap;
 
@@ -225,7 +234,8 @@ static void qerror_abort(const QError *qerr, const char *fmt, ...)
     abort();
 }
 
-static void qerror_set_data(QError *qerr, const char *fmt, va_list *va)
+static void GCC_FMT_ATTR(2, 0) qerror_set_data(QError *qerr,
+                                               const char *fmt, va_list *va)
 {
     QObject *obj;
 

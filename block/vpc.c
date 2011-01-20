@@ -110,8 +110,6 @@ struct vhd_dyndisk_header {
 };
 
 typedef struct BDRVVPCState {
-    BlockDriverState *hd;
-
     uint8_t footer_buf[HEADER_SIZE];
     uint64_t free_data_block_offset;
     int max_table_entries;
@@ -261,7 +259,7 @@ static inline int64_t get_sector_offset(BlockDriverState *bs,
 
         s->last_bitmap_offset = bitmap_offset;
         memset(bitmap, 0xff, s->bitmap_size);
-        bdrv_pwrite(bs->file, bitmap_offset, bitmap, s->bitmap_size);
+        bdrv_pwrite_sync(bs->file, bitmap_offset, bitmap, s->bitmap_size);
     }
 
 //    printf("sector: %" PRIx64 ", index: %x, offset: %x, bioff: %" PRIx64 ", bloff: %" PRIx64 "\n",
@@ -311,7 +309,7 @@ static int rewrite_footer(BlockDriverState* bs)
     BDRVVPCState *s = bs->opaque;
     int64_t offset = s->free_data_block_offset;
 
-    ret = bdrv_pwrite(bs->file, offset, s->footer_buf, HEADER_SIZE);
+    ret = bdrv_pwrite_sync(bs->file, offset, s->footer_buf, HEADER_SIZE);
     if (ret < 0)
         return ret;
 
@@ -346,7 +344,8 @@ static int64_t alloc_block(BlockDriverState* bs, int64_t sector_num)
 
     // Initialize the block's bitmap
     memset(bitmap, 0xff, s->bitmap_size);
-    bdrv_pwrite(bs->file, s->free_data_block_offset, bitmap, s->bitmap_size);
+    bdrv_pwrite_sync(bs->file, s->free_data_block_offset, bitmap,
+        s->bitmap_size);
 
     // Write new footer (the old one will be overwritten)
     s->free_data_block_offset += s->block_size + s->bitmap_size;
@@ -357,7 +356,7 @@ static int64_t alloc_block(BlockDriverState* bs, int64_t sector_num)
     // Write BAT entry to disk
     bat_offset = s->bat_offset + (4 * index);
     bat_value = be32_to_cpu(s->pagetable[index]);
-    ret = bdrv_pwrite(bs->file, bat_offset, &bat_value, 4);
+    ret = bdrv_pwrite_sync(bs->file, bat_offset, &bat_value, 4);
     if (ret < 0)
         goto fail;
 
@@ -371,23 +370,33 @@ fail:
 static int vpc_read(BlockDriverState *bs, int64_t sector_num,
                     uint8_t *buf, int nb_sectors)
 {
+    BDRVVPCState *s = bs->opaque;
     int ret;
     int64_t offset;
+    int64_t sectors, sectors_per_block;
 
     while (nb_sectors > 0) {
         offset = get_sector_offset(bs, sector_num, 0);
 
-        if (offset == -1) {
-            memset(buf, 0, 512);
-        } else {
-            ret = bdrv_pread(bs->file, offset, buf, 512);
-            if (ret != 512)
-                return -1;
+        sectors_per_block = s->block_size >> BDRV_SECTOR_BITS;
+        sectors = sectors_per_block - (sector_num % sectors_per_block);
+        if (sectors > nb_sectors) {
+            sectors = nb_sectors;
         }
 
-        nb_sectors--;
-        sector_num++;
-        buf += 512;
+        if (offset == -1) {
+            memset(buf, 0, sectors * BDRV_SECTOR_SIZE);
+        } else {
+            ret = bdrv_pread(bs->file, offset, buf,
+                sectors * BDRV_SECTOR_SIZE);
+            if (ret != sectors * BDRV_SECTOR_SIZE) {
+                return -1;
+            }
+        }
+
+        nb_sectors -= sectors;
+        sector_num += sectors;
+        buf += sectors * BDRV_SECTOR_SIZE;
     }
     return 0;
 }
@@ -395,11 +404,19 @@ static int vpc_read(BlockDriverState *bs, int64_t sector_num,
 static int vpc_write(BlockDriverState *bs, int64_t sector_num,
     const uint8_t *buf, int nb_sectors)
 {
+    BDRVVPCState *s = bs->opaque;
     int64_t offset;
+    int64_t sectors, sectors_per_block;
     int ret;
 
     while (nb_sectors > 0) {
         offset = get_sector_offset(bs, sector_num, 1);
+
+        sectors_per_block = s->block_size >> BDRV_SECTOR_BITS;
+        sectors = sectors_per_block - (sector_num % sectors_per_block);
+        if (sectors > nb_sectors) {
+            sectors = nb_sectors;
+        }
 
         if (offset == -1) {
             offset = alloc_block(bs, sector_num);
@@ -407,18 +424,23 @@ static int vpc_write(BlockDriverState *bs, int64_t sector_num,
                 return -1;
         }
 
-        ret = bdrv_pwrite(bs->file, offset, buf, 512);
-        if (ret != 512)
+        ret = bdrv_pwrite(bs->file, offset, buf, sectors * BDRV_SECTOR_SIZE);
+        if (ret != sectors * BDRV_SECTOR_SIZE) {
             return -1;
+        }
 
-        nb_sectors--;
-        sector_num++;
-        buf += 512;
+        nb_sectors -= sectors;
+        sector_num += sectors;
+        buf += sectors * BDRV_SECTOR_SIZE;
     }
 
     return 0;
 }
 
+static int vpc_flush(BlockDriverState *bs)
+{
+    return bdrv_flush(bs->file);
+}
 
 /*
  * Calculates the number of cylinders, heads and sectors per cylinder
@@ -463,9 +485,7 @@ static int calculate_geometry(int64_t total_sectors, uint16_t* cyls,
         }
     }
 
-    // Note: Rounding up deviates from the Virtual PC behaviour
-    // However, we need this to avoid truncating images in qemu-img convert
-    *cyls = (cyls_times_heads + *heads - 1) / *heads;
+    *cyls = cyls_times_heads / *heads;
 
     return 0;
 }
@@ -477,9 +497,9 @@ static int vpc_create(const char *filename, QEMUOptionParameter *options)
     struct vhd_dyndisk_header* dyndisk_header =
         (struct vhd_dyndisk_header*) buf;
     int fd, i;
-    uint16_t cyls;
-    uint8_t heads;
-    uint8_t secs_per_cyl;
+    uint16_t cyls = 0;
+    uint8_t heads = 0;
+    uint8_t secs_per_cyl = 0;
     size_t block_size, num_bat_entries;
     int64_t total_sectors = 0;
 
@@ -496,9 +516,14 @@ static int vpc_create(const char *filename, QEMUOptionParameter *options)
     if (fd < 0)
         return -EIO;
 
-    // Calculate matching total_size and geometry
-    if (calculate_geometry(total_sectors, &cyls, &heads, &secs_per_cyl))
-        return -EFBIG;
+    /* Calculate matching total_size and geometry. Increase the number of
+       sectors requested until we get enough (or fail). */
+    for (i = 0; total_sectors > (int64_t)cyls * heads * secs_per_cyl; i++) {
+        if (calculate_geometry(total_sectors + i,
+                               &cyls, &heads, &secs_per_cyl)) {
+            return -EFBIG;
+        }
+    }
     total_sectors = (int64_t) cyls * heads * secs_per_cyl;
 
     // Prepare the Hard Disk Footer
@@ -595,14 +620,15 @@ static QEMUOptionParameter vpc_create_options[] = {
 };
 
 static BlockDriver bdrv_vpc = {
-    .format_name	= "vpc",
-    .instance_size	= sizeof(BDRVVPCState),
-    .bdrv_probe		= vpc_probe,
-    .bdrv_open		= vpc_open,
-    .bdrv_read		= vpc_read,
-    .bdrv_write		= vpc_write,
-    .bdrv_close		= vpc_close,
-    .bdrv_create	= vpc_create,
+    .format_name    = "vpc",
+    .instance_size  = sizeof(BDRVVPCState),
+    .bdrv_probe     = vpc_probe,
+    .bdrv_open      = vpc_open,
+    .bdrv_read      = vpc_read,
+    .bdrv_write     = vpc_write,
+    .bdrv_flush     = vpc_flush,
+    .bdrv_close     = vpc_close,
+    .bdrv_create    = vpc_create,
 
     .create_options = vpc_create_options,
 };

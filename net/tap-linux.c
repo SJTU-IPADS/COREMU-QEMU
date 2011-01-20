@@ -33,14 +33,16 @@
 #include "qemu-common.h"
 #include "qemu-error.h"
 
+#define PATH_NET_TUN "/dev/net/tun"
+
 int tap_open(char *ifname, int ifname_size, int *vnet_hdr, int vnet_hdr_required)
 {
     struct ifreq ifr;
     int fd, ret;
 
-    TFR(fd = open("/dev/net/tun", O_RDWR));
+    TFR(fd = open(PATH_NET_TUN, O_RDWR));
     if (fd < 0) {
-        fprintf(stderr, "warning: could not open /dev/net/tun: no virtual network emulation\n");
+        error_report("could not open %s: %m", PATH_NET_TUN);
         return -1;
     }
     memset(&ifr, 0, sizeof(ifr));
@@ -71,7 +73,7 @@ int tap_open(char *ifname, int ifname_size, int *vnet_hdr, int vnet_hdr_required
         pstrcpy(ifr.ifr_name, IFNAMSIZ, "tap%d");
     ret = ioctl(fd, TUNSETIFF, (void *) &ifr);
     if (ret != 0) {
-        fprintf(stderr, "warning: could not configure /dev/net/tun: no virtual network emulation\n");
+        error_report("could not configure %s (%s): %m", PATH_NET_TUN, ifr.ifr_name);
         close(fd);
         return -1;
     }
@@ -125,6 +127,35 @@ int tap_probe_has_ufo(int fd)
         return 0;
 
     return 1;
+}
+
+/* Verify that we can assign given length */
+int tap_probe_vnet_hdr_len(int fd, int len)
+{
+    int orig;
+    if (ioctl(fd, TUNGETVNETHDRSZ, &orig) == -1) {
+        return 0;
+    }
+    if (ioctl(fd, TUNSETVNETHDRSZ, &len) == -1) {
+        return 0;
+    }
+    /* Restore original length: we can't handle failure. */
+    if (ioctl(fd, TUNSETVNETHDRSZ, &orig) == -1) {
+        fprintf(stderr, "TUNGETVNETHDRSZ ioctl() failed: %s. Exiting.\n",
+                strerror(errno));
+        assert(0);
+        return -errno;
+    }
+    return 1;
+}
+
+void tap_fd_set_vnet_hdr_len(int fd, int len)
+{
+    if (ioctl(fd, TUNSETVNETHDRSZ, &len) == -1) {
+        fprintf(stderr, "TUNSETVNETHDRSZ ioctl() failed: %s. Exiting.\n",
+                strerror(errno));
+        assert(0);
+    }
 }
 
 void tap_fd_set_offload(int fd, int csum, int tso4,

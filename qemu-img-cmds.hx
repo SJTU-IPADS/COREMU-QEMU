@@ -7,7 +7,7 @@ HXCOMM HXCOMM can be used for comments, discarded from both texi and C
 
 STEXI
 @table @option
-STEXI
+ETEXI
 
 DEF("check", img_check,
     "check [-f fmt] filename")
@@ -28,9 +28,9 @@ STEXI
 ETEXI
 
 DEF("convert", img_convert,
-    "convert [-c] [-f fmt] [-O output_fmt] [-o options] filename [filename2 [...]] output_filename")
+    "convert [-c] [-f fmt] [-O output_fmt] [-o options] [-s snapshot_name] filename [filename2 [...]] output_filename")
 STEXI
-@item convert [-c] [-f @var{fmt}] [-O @var{output_fmt}] [-o @var{options}] @var{filename} [@var{filename2} [...]] @var{output_filename}
+@item convert [-c] [-f @var{fmt}] [-O @var{output_fmt}] [-o @var{options}] [-s @var{snapshot_name}] @var{filename} [@var{filename2} [...]] @var{output_filename}
 ETEXI
 
 DEF("info", img_info,
@@ -54,6 +54,6 @@ ETEXI
 DEF("resize", img_resize,
     "resize filename [+ | -]size")
 STEXI
-@item rebase @var{filename} [+ | -]@var{size}
+@item resize @var{filename} [+ | -]@var{size}
 @end table
 ETEXI

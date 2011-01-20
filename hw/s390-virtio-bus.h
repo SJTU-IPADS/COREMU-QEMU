@@ -17,6 +17,8 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "virtio-net.h"
+
 #define VIRTIO_DEV_OFFS_TYPE		0	/* 8 bits */
 #define VIRTIO_DEV_OFFS_NUM_VQ		1	/* 8 bits */
 #define VIRTIO_DEV_OFFS_FEATURE_LEN	2	/* 8 bits */
@@ -43,6 +45,7 @@ typedef struct VirtIOS390Device {
     uint32_t host_features;
     /* Max. number of ports we can have for a the virtio-serial device */
     uint32_t max_virtserial_ports;
+    virtio_net_conf net;
 } VirtIOS390Device;
 
 typedef struct VirtIOS390Bus {

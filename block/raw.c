@@ -39,9 +39,9 @@ static void raw_close(BlockDriverState *bs)
 {
 }
 
-static void raw_flush(BlockDriverState *bs)
+static int raw_flush(BlockDriverState *bs)
 {
-    bdrv_flush(bs->file);
+    return bdrv_flush(bs->file);
 }
 
 static BlockDriverAIOCB *raw_aio_flush(BlockDriverState *bs,
@@ -63,6 +63,11 @@ static int raw_truncate(BlockDriverState *bs, int64_t offset)
 static int raw_probe(const uint8_t *buf, int buf_size, const char *filename)
 {
    return 1; /* everything can be opened as raw image */
+}
+
+static int raw_discard(BlockDriverState *bs, int64_t sector_num, int nb_sectors)
+{
+    return bdrv_discard(bs->file, sector_num, nb_sectors);
 }
 
 static int raw_is_inserted(BlockDriverState *bs)
@@ -107,6 +112,11 @@ static QEMUOptionParameter raw_create_options[] = {
     { NULL }
 };
 
+static int raw_has_zero_init(BlockDriverState *bs)
+{
+    return bdrv_has_zero_init(bs->file);
+}
+
 static BlockDriver bdrv_raw = {
     .format_name        = "raw",
 
@@ -125,6 +135,7 @@ static BlockDriver bdrv_raw = {
     .bdrv_aio_readv     = raw_aio_readv,
     .bdrv_aio_writev    = raw_aio_writev,
     .bdrv_aio_flush     = raw_aio_flush,
+    .bdrv_discard       = raw_discard,
 
     .bdrv_is_inserted   = raw_is_inserted,
     .bdrv_eject         = raw_eject,
@@ -134,6 +145,7 @@ static BlockDriver bdrv_raw = {
 
     .bdrv_create        = raw_create,
     .create_options     = raw_create_options,
+    .bdrv_has_zero_init = raw_has_zero_init,
 };
 
 static void bdrv_raw_init(void)

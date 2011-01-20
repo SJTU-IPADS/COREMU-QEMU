@@ -26,9 +26,6 @@
 #include "cpu.h"
 #include "exec-all.h"
 
-/* Precise emulation is needed to correctly emulate exception flags */
-#define USE_PRECISE_EMULATION 1
-
 register struct CPUPPCState *env asm(AREG0);
 
 #if !defined(CONFIG_USER_ONLY)
@@ -50,6 +47,11 @@ static inline int cpu_halted(CPUState *env)
         return 0;
     }
     return EXCP_HALTED;
+}
+
+static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock *tb)
+{
+    env->nip = tb->pc;
 }
 
 #endif /* !defined (__PPC_H__) */

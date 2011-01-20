@@ -167,7 +167,7 @@ void vga_hw_update(void)
 
 void vga_hw_invalidate(void)
 {
-    if (active_console->hw_invalidate)
+    if (active_console && active_console->hw_invalidate)
         active_console->hw_invalidate(active_console->hw);
 }
 
@@ -1060,8 +1060,10 @@ void console_select(unsigned int index)
 
     if (index >= MAX_CONSOLES)
         return;
-    active_console->g_width = ds_get_width(active_console->ds);
-    active_console->g_height = ds_get_height(active_console->ds);
+    if (active_console) {
+        active_console->g_width = ds_get_width(active_console->ds);
+        active_console->g_height = ds_get_height(active_console->ds);
+    }
     s = consoles[index];
     if (s) {
         DisplayState *ds = s->ds;
@@ -1621,6 +1623,22 @@ PixelFormat qemu_default_pixelformat(int bpp)
     pf.depth = bpp == 32 ? 24 : bpp;
 
     switch (bpp) {
+        case 15:
+            pf.bits_per_pixel = 16;
+            pf.bytes_per_pixel = 2;
+            pf.rmask = 0x00007c00;
+            pf.gmask = 0x000003E0;
+            pf.bmask = 0x0000001F;
+            pf.rmax = 31;
+            pf.gmax = 31;
+            pf.bmax = 31;
+            pf.rshift = 10;
+            pf.gshift = 5;
+            pf.bshift = 0;
+            pf.rbits = 5;
+            pf.gbits = 5;
+            pf.bbits = 5;
+            break;
         case 16:
             pf.rmask = 0x0000F800;
             pf.gmask = 0x000007E0;

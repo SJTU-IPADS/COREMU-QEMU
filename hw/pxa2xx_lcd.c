@@ -929,7 +929,7 @@ PXA2xxLCDState *pxa2xx_lcdc_init(target_phys_addr_t base, qemu_irq irq)
     pxa2xx_lcdc_orientation(s, graphic_rotate);
 
     iomemtype = cpu_register_io_memory(pxa2xx_lcdc_readfn,
-                    pxa2xx_lcdc_writefn, s);
+                    pxa2xx_lcdc_writefn, s, DEVICE_NATIVE_ENDIAN);
     cpu_register_physical_memory(base, 0x00100000, iomemtype);
 
     s->ds = graphic_console_init(pxa2xx_update_display,
@@ -970,7 +970,7 @@ PXA2xxLCDState *pxa2xx_lcdc_init(target_phys_addr_t base, qemu_irq irq)
         exit(1);
     }
 
-    register_savevm("pxa2xx_lcdc", 0, 0,
+    register_savevm(NULL, "pxa2xx_lcdc", 0, 0,
                     pxa2xx_lcdc_save, pxa2xx_lcdc_load, s);
 
     return s;

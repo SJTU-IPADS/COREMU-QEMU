@@ -348,15 +348,13 @@ void helper_dcbz_970(target_ulong addr)
 
 void helper_icbi(target_ulong addr)
 {
-    uint32_t tmp;
-
     addr &= ~(env->dcache_line_size - 1);
     /* Invalidate one cache line :
      * PowerPC specification says this is to be treated like a load
      * (not a fetch) by the MMU. To be sure it will be so,
      * do the load "by hand".
      */
-    tmp = ldl(addr);
+    ldl(addr);
     tb_invalidate_page_range(addr, addr + env->icache_line_size);
 }
 
@@ -548,7 +546,7 @@ uint32_t helper_compute_fprf (uint64_t arg, uint32_t set_fprf)
     int ret;
     farg.ll = arg;
     isneg = float64_is_neg(farg.d);
-    if (unlikely(float64_is_nan(farg.d))) {
+    if (unlikely(float64_is_quiet_nan(farg.d))) {
         if (float64_is_signaling_nan(farg.d)) {
             /* Signaling NaN: flags are undefined */
             ret = 0x00;
@@ -645,7 +643,7 @@ static inline uint64_t fload_invalid_op_excp(int op)
         env->fpscr &= ~((1 << FPSCR_FR) | (1 << FPSCR_FI));
         if (ve == 0) {
             /* Set the result to quiet NaN */
-            ret = 0xFFF8000000000000ULL;
+            ret = 0x7FF8000000000000ULL;
             env->fpscr &= ~(0xF << FPSCR_FPCC);
             env->fpscr |= 0x11 << FPSCR_FPCC;
         }
@@ -656,7 +654,7 @@ static inline uint64_t fload_invalid_op_excp(int op)
         env->fpscr &= ~((1 << FPSCR_FR) | (1 << FPSCR_FI));
         if (ve == 0) {
             /* Set the result to quiet NaN */
-            ret = 0xFFF8000000000000ULL;
+            ret = 0x7FF8000000000000ULL;
             env->fpscr &= ~(0xF << FPSCR_FPCC);
             env->fpscr |= 0x11 << FPSCR_FPCC;
         }
@@ -976,7 +974,7 @@ uint64_t helper_fadd (uint64_t arg1, uint64_t arg2)
 
     farg1.ll = arg1;
     farg2.ll = arg2;
-#if USE_PRECISE_EMULATION
+
     if (unlikely(float64_is_signaling_nan(farg1.d) ||
                  float64_is_signaling_nan(farg2.d))) {
         /* sNaN addition */
@@ -988,9 +986,7 @@ uint64_t helper_fadd (uint64_t arg1, uint64_t arg2)
     } else {
         farg1.d = float64_add(farg1.d, farg2.d, &env->fp_status);
     }
-#else
-    farg1.d = float64_add(farg1.d, farg2.d, &env->fp_status);
-#endif
+
     return farg1.ll;
 }
 
@@ -1001,8 +997,7 @@ uint64_t helper_fsub (uint64_t arg1, uint64_t arg2)
 
     farg1.ll = arg1;
     farg2.ll = arg2;
-#if USE_PRECISE_EMULATION
-{
+
     if (unlikely(float64_is_signaling_nan(farg1.d) ||
                  float64_is_signaling_nan(farg2.d))) {
         /* sNaN subtraction */
@@ -1014,10 +1009,7 @@ uint64_t helper_fsub (uint64_t arg1, uint64_t arg2)
     } else {
         farg1.d = float64_sub(farg1.d, farg2.d, &env->fp_status);
     }
-}
-#else
-    farg1.d = float64_sub(farg1.d, farg2.d, &env->fp_status);
-#endif
+
     return farg1.ll;
 }
 
@@ -1028,7 +1020,7 @@ uint64_t helper_fmul (uint64_t arg1, uint64_t arg2)
 
     farg1.ll = arg1;
     farg2.ll = arg2;
-#if USE_PRECISE_EMULATION
+
     if (unlikely(float64_is_signaling_nan(farg1.d) ||
                  float64_is_signaling_nan(farg2.d))) {
         /* sNaN multiplication */
@@ -1040,9 +1032,7 @@ uint64_t helper_fmul (uint64_t arg1, uint64_t arg2)
     } else {
         farg1.d = float64_mul(farg1.d, farg2.d, &env->fp_status);
     }
-#else
-    farg1.d = float64_mul(farg1.d, farg2.d, &env->fp_status);
-#endif
+
     return farg1.ll;
 }
 
@@ -1053,7 +1043,7 @@ uint64_t helper_fdiv (uint64_t arg1, uint64_t arg2)
 
     farg1.ll = arg1;
     farg2.ll = arg2;
-#if USE_PRECISE_EMULATION
+
     if (unlikely(float64_is_signaling_nan(farg1.d) ||
                  float64_is_signaling_nan(farg2.d))) {
         /* sNaN division */
@@ -1067,9 +1057,7 @@ uint64_t helper_fdiv (uint64_t arg1, uint64_t arg2)
     } else {
         farg1.d = float64_div(farg1.d, farg2.d, &env->fp_status);
     }
-#else
-    farg1.d = float64_div(farg1.d, farg2.d, &env->fp_status);
-#endif
+
     return farg1.ll;
 }
 
@@ -1113,17 +1101,15 @@ uint64_t helper_fctiw (uint64_t arg)
     if (unlikely(float64_is_signaling_nan(farg.d))) {
         /* sNaN conversion */
         farg.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXSNAN | POWERPC_EXCP_FP_VXCVI);
-    } else if (unlikely(float64_is_nan(farg.d) || float64_is_infinity(farg.d))) {
+    } else if (unlikely(float64_is_quiet_nan(farg.d) || float64_is_infinity(farg.d))) {
         /* qNan / infinity conversion */
         farg.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXCVI);
     } else {
         farg.ll = float64_to_int32(farg.d, &env->fp_status);
-#if USE_PRECISE_EMULATION
         /* XXX: higher bits are not supposed to be significant.
          *     to make tests easier, return the same as a real PowerPC 750
          */
         farg.ll |= 0xFFF80000ULL << 32;
-#endif
     }
     return farg.ll;
 }
@@ -1137,17 +1123,15 @@ uint64_t helper_fctiwz (uint64_t arg)
     if (unlikely(float64_is_signaling_nan(farg.d))) {
         /* sNaN conversion */
         farg.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXSNAN | POWERPC_EXCP_FP_VXCVI);
-    } else if (unlikely(float64_is_nan(farg.d) || float64_is_infinity(farg.d))) {
+    } else if (unlikely(float64_is_quiet_nan(farg.d) || float64_is_infinity(farg.d))) {
         /* qNan / infinity conversion */
         farg.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXCVI);
     } else {
         farg.ll = float64_to_int32_round_to_zero(farg.d, &env->fp_status);
-#if USE_PRECISE_EMULATION
         /* XXX: higher bits are not supposed to be significant.
          *     to make tests easier, return the same as a real PowerPC 750
          */
         farg.ll |= 0xFFF80000ULL << 32;
-#endif
     }
     return farg.ll;
 }
@@ -1170,7 +1154,7 @@ uint64_t helper_fctid (uint64_t arg)
     if (unlikely(float64_is_signaling_nan(farg.d))) {
         /* sNaN conversion */
         farg.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXSNAN | POWERPC_EXCP_FP_VXCVI);
-    } else if (unlikely(float64_is_nan(farg.d) || float64_is_infinity(farg.d))) {
+    } else if (unlikely(float64_is_quiet_nan(farg.d) || float64_is_infinity(farg.d))) {
         /* qNan / infinity conversion */
         farg.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXCVI);
     } else {
@@ -1188,7 +1172,7 @@ uint64_t helper_fctidz (uint64_t arg)
     if (unlikely(float64_is_signaling_nan(farg.d))) {
         /* sNaN conversion */
         farg.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXSNAN | POWERPC_EXCP_FP_VXCVI);
-    } else if (unlikely(float64_is_nan(farg.d) || float64_is_infinity(farg.d))) {
+    } else if (unlikely(float64_is_quiet_nan(farg.d) || float64_is_infinity(farg.d))) {
         /* qNan / infinity conversion */
         farg.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXCVI);
     } else {
@@ -1207,7 +1191,7 @@ static inline uint64_t do_fri(uint64_t arg, int rounding_mode)
     if (unlikely(float64_is_signaling_nan(farg.d))) {
         /* sNaN round */
         farg.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXSNAN | POWERPC_EXCP_FP_VXCVI);
-    } else if (unlikely(float64_is_nan(farg.d) || float64_is_infinity(farg.d))) {
+    } else if (unlikely(float64_is_quiet_nan(farg.d) || float64_is_infinity(farg.d))) {
         /* qNan / infinity round */
         farg.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXCVI);
     } else {
@@ -1247,7 +1231,7 @@ uint64_t helper_fmadd (uint64_t arg1, uint64_t arg2, uint64_t arg3)
     farg1.ll = arg1;
     farg2.ll = arg2;
     farg3.ll = arg3;
-#if USE_PRECISE_EMULATION
+
     if (unlikely(float64_is_signaling_nan(farg1.d) ||
                  float64_is_signaling_nan(farg2.d) ||
                  float64_is_signaling_nan(farg3.d))) {
@@ -1279,10 +1263,7 @@ uint64_t helper_fmadd (uint64_t arg1, uint64_t arg2, uint64_t arg3)
         farg1.d = (farg1.d * farg2.d) + farg3.d;
 #endif
     }
-#else
-    farg1.d = float64_mul(farg1.d, farg2.d, &env->fp_status);
-    farg1.d = float64_add(farg1.d, farg3.d, &env->fp_status);
-#endif
+
     return farg1.ll;
 }
 
@@ -1294,7 +1275,7 @@ uint64_t helper_fmsub (uint64_t arg1, uint64_t arg2, uint64_t arg3)
     farg1.ll = arg1;
     farg2.ll = arg2;
     farg3.ll = arg3;
-#if USE_PRECISE_EMULATION
+
     if (unlikely(float64_is_signaling_nan(farg1.d) ||
                  float64_is_signaling_nan(farg2.d) ||
                  float64_is_signaling_nan(farg3.d))) {
@@ -1326,10 +1307,6 @@ uint64_t helper_fmsub (uint64_t arg1, uint64_t arg2, uint64_t arg3)
         farg1.d = (farg1.d * farg2.d) - farg3.d;
 #endif
     }
-#else
-    farg1.d = float64_mul(farg1.d, farg2.d, &env->fp_status);
-    farg1.d = float64_sub(farg1.d, farg3.d, &env->fp_status);
-#endif
     return farg1.ll;
 }
 
@@ -1352,7 +1329,6 @@ uint64_t helper_fnmadd (uint64_t arg1, uint64_t arg2, uint64_t arg3)
         /* Multiplication of zero by infinity */
         farg1.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXIMZ);
     } else {
-#if USE_PRECISE_EMULATION
 #ifdef FLOAT128
         /* This is the way the PowerPC specification defines it */
         float128 ft0_128, ft1_128;
@@ -1373,11 +1349,7 @@ uint64_t helper_fnmadd (uint64_t arg1, uint64_t arg2, uint64_t arg3)
         /* This is OK on x86 hosts */
         farg1.d = (farg1.d * farg2.d) + farg3.d;
 #endif
-#else
-        farg1.d = float64_mul(farg1.d, farg2.d, &env->fp_status);
-        farg1.d = float64_add(farg1.d, farg3.d, &env->fp_status);
-#endif
-        if (likely(!float64_is_nan(farg1.d)))
+        if (likely(!float64_is_quiet_nan(farg1.d)))
             farg1.d = float64_chs(farg1.d);
     }
     return farg1.ll;
@@ -1402,7 +1374,6 @@ uint64_t helper_fnmsub (uint64_t arg1, uint64_t arg2, uint64_t arg3)
         /* Multiplication of zero by infinity */
         farg1.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXIMZ);
     } else {
-#if USE_PRECISE_EMULATION
 #ifdef FLOAT128
         /* This is the way the PowerPC specification defines it */
         float128 ft0_128, ft1_128;
@@ -1423,11 +1394,7 @@ uint64_t helper_fnmsub (uint64_t arg1, uint64_t arg2, uint64_t arg3)
         /* This is OK on x86 hosts */
         farg1.d = (farg1.d * farg2.d) - farg3.d;
 #endif
-#else
-        farg1.d = float64_mul(farg1.d, farg2.d, &env->fp_status);
-        farg1.d = float64_sub(farg1.d, farg3.d, &env->fp_status);
-#endif
-        if (likely(!float64_is_nan(farg1.d)))
+        if (likely(!float64_is_quiet_nan(farg1.d)))
             farg1.d = float64_chs(farg1.d);
     }
     return farg1.ll;
@@ -1440,7 +1407,6 @@ uint64_t helper_frsp (uint64_t arg)
     float32 f32;
     farg.ll = arg;
 
-#if USE_PRECISE_EMULATION
     if (unlikely(float64_is_signaling_nan(farg.d))) {
         /* sNaN square root */
        farg.ll = fload_invalid_op_excp(POWERPC_EXCP_FP_VXSNAN);
@@ -1448,10 +1414,6 @@ uint64_t helper_frsp (uint64_t arg)
        f32 = float64_to_float32(farg.d, &env->fp_status);
        farg.d = float32_to_float64(f32, &env->fp_status);
     }
-#else
-    f32 = float64_to_float32(farg.d, &env->fp_status);
-    farg.d = float32_to_float64(f32, &env->fp_status);
-#endif
     return farg.ll;
 }
 
@@ -1535,7 +1497,7 @@ uint64_t helper_fsel (uint64_t arg1, uint64_t arg2, uint64_t arg3)
 
     farg1.ll = arg1;
 
-    if ((!float64_is_neg(farg1.d) || float64_is_zero(farg1.d)) && !float64_is_nan(farg1.d))
+    if ((!float64_is_neg(farg1.d) || float64_is_zero(farg1.d)) && !float64_is_quiet_nan(farg1.d))
         return arg2;
     else
         return arg3;
@@ -1548,8 +1510,8 @@ void helper_fcmpu (uint64_t arg1, uint64_t arg2, uint32_t crfD)
     farg1.ll = arg1;
     farg2.ll = arg2;
 
-    if (unlikely(float64_is_nan(farg1.d) ||
-                 float64_is_nan(farg2.d))) {
+    if (unlikely(float64_is_quiet_nan(farg1.d) ||
+                 float64_is_quiet_nan(farg2.d))) {
         ret = 0x01UL;
     } else if (float64_lt(farg1.d, farg2.d, &env->fp_status)) {
         ret = 0x08UL;
@@ -1577,8 +1539,8 @@ void helper_fcmpo (uint64_t arg1, uint64_t arg2, uint32_t crfD)
     farg1.ll = arg1;
     farg2.ll = arg2;
 
-    if (unlikely(float64_is_nan(farg1.d) ||
-                 float64_is_nan(farg2.d))) {
+    if (unlikely(float64_is_quiet_nan(farg1.d) ||
+                 float64_is_quiet_nan(farg2.d))) {
         ret = 0x01UL;
     } else if (float64_lt(farg1.d, farg2.d, &env->fp_status)) {
         ret = 0x08UL;
@@ -1646,20 +1608,20 @@ static inline void do_rfi(target_ulong nip, target_ulong msr,
 void helper_rfi (void)
 {
     do_rfi(env->spr[SPR_SRR0], env->spr[SPR_SRR1],
-           ~((target_ulong)0x0), 1);
+           ~((target_ulong)0x783F0000), 1);
 }
 
 #if defined(TARGET_PPC64)
 void helper_rfid (void)
 {
     do_rfi(env->spr[SPR_SRR0], env->spr[SPR_SRR1],
-           ~((target_ulong)0x0), 0);
+           ~((target_ulong)0x783F0000), 0);
 }
 
 void helper_hrfid (void)
 {
     do_rfi(env->spr[SPR_HSRR0], env->spr[SPR_HSRR1],
-           ~((target_ulong)0x0), 0);
+           ~((target_ulong)0x783F0000), 0);
 }
 #endif
 #endif
@@ -1940,7 +1902,7 @@ target_ulong helper_dlmzb (target_ulong high, target_ulong low, uint32_t update_
 /* If X is a NaN, store the corresponding QNaN into RESULT.  Otherwise,
  * execute the following block.  */
 #define DO_HANDLE_NAN(result, x)                \
-    if (float32_is_nan(x) || float32_is_signaling_nan(x)) {     \
+    if (float32_is_any_nan(x)) {                                \
         CPU_FloatU __f;                                         \
         __f.f = x;                                              \
         __f.l = __f.l | (1 << 22);  /* Set QNaN bit. */         \
@@ -1955,14 +1917,14 @@ target_ulong helper_dlmzb (target_ulong high, target_ulong low, uint32_t update_
     DO_HANDLE_NAN(result, x) DO_HANDLE_NAN(result, y) DO_HANDLE_NAN(result, z)
 
 /* Saturating arithmetic helpers.  */
-#define SATCVT(from, to, from_type, to_type, min, max, use_min, use_max) \
+#define SATCVT(from, to, from_type, to_type, min, max)                  \
     static inline to_type cvt##from##to(from_type x, int *sat)          \
     {                                                                   \
         to_type r;                                                      \
-        if (use_min && x < min) {                                       \
+        if (x < (from_type)min) {                                       \
             r = min;                                                    \
             *sat = 1;                                                   \
-        } else if (use_max && x > max) {                                \
+        } else if (x > (from_type)max) {                                \
             r = max;                                                    \
             *sat = 1;                                                   \
         } else {                                                        \
@@ -1970,30 +1932,30 @@ target_ulong helper_dlmzb (target_ulong high, target_ulong low, uint32_t update_
         }                                                               \
         return r;                                                       \
     }
-SATCVT(sh, sb, int16_t, int8_t, INT8_MIN, INT8_MAX, 1, 1)
-SATCVT(sw, sh, int32_t, int16_t, INT16_MIN, INT16_MAX, 1, 1)
-SATCVT(sd, sw, int64_t, int32_t, INT32_MIN, INT32_MAX, 1, 1)
-
-/* Work around gcc problems with the macro version */
-static inline uint8_t cvtuhub(uint16_t x, int *sat)
-{
-    uint8_t r;
-
-    if (x > UINT8_MAX) {
-        r = UINT8_MAX;
-        *sat = 1;
-    } else {
-        r = x;
+#define SATCVTU(from, to, from_type, to_type, min, max)                 \
+    static inline to_type cvt##from##to(from_type x, int *sat)          \
+    {                                                                   \
+        to_type r;                                                      \
+        if (x > (from_type)max) {                                       \
+            r = max;                                                    \
+            *sat = 1;                                                   \
+        } else {                                                        \
+            r = x;                                                      \
+        }                                                               \
+        return r;                                                       \
     }
-    return r;
-}
-//SATCVT(uh, ub, uint16_t, uint8_t, 0, UINT8_MAX, 0, 1)
-SATCVT(uw, uh, uint32_t, uint16_t, 0, UINT16_MAX, 0, 1)
-SATCVT(ud, uw, uint64_t, uint32_t, 0, UINT32_MAX, 0, 1)
-SATCVT(sh, ub, int16_t, uint8_t, 0, UINT8_MAX, 1, 1)
-SATCVT(sw, uh, int32_t, uint16_t, 0, UINT16_MAX, 1, 1)
-SATCVT(sd, uw, int64_t, uint32_t, 0, UINT32_MAX, 1, 1)
+SATCVT(sh, sb, int16_t, int8_t, INT8_MIN, INT8_MAX)
+SATCVT(sw, sh, int32_t, int16_t, INT16_MIN, INT16_MAX)
+SATCVT(sd, sw, int64_t, int32_t, INT32_MIN, INT32_MAX)
+
+SATCVTU(uh, ub, uint16_t, uint8_t, 0, UINT8_MAX)
+SATCVTU(uw, uh, uint32_t, uint16_t, 0, UINT16_MAX)
+SATCVTU(ud, uw, uint64_t, uint32_t, 0, UINT32_MAX)
+SATCVT(sh, ub, int16_t, uint8_t, 0, UINT8_MAX)
+SATCVT(sw, uh, int32_t, uint16_t, 0, UINT16_MAX)
+SATCVT(sd, uw, int64_t, uint32_t, 0, UINT32_MAX)
 #undef SATCVT
+#undef SATCVTU
 
 #define LVE(name, access, swap, element)                        \
     void helper_##name (ppc_avr_t *r, target_ulong addr)        \
@@ -2285,8 +2247,7 @@ void helper_vcmpbfp_dot (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b)
         float_status s = env->vec_status;                               \
         set_float_rounding_mode(float_round_to_zero, &s);               \
         for (i = 0; i < ARRAY_SIZE(r->f); i++) {                        \
-            if (float32_is_nan(b->f[i]) ||                              \
-                float32_is_signaling_nan(b->f[i])) {                    \
+            if (float32_is_any_nan(b->f[i])) {                          \
                 r->element[i] = 0;                                      \
             } else {                                                    \
                 float64 t = float32_to_float64(b->f[i], &s);            \
@@ -2713,6 +2674,16 @@ void helper_vsel (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b, ppc_avr_t *c)
     r->u64[1] = (a->u64[1] & ~c->u64[1]) | (b->u64[1] & c->u64[1]);
 }
 
+void helper_vexptefp (ppc_avr_t *r, ppc_avr_t *b)
+{
+    int i;
+    for (i = 0; i < ARRAY_SIZE(r->f); i++) {
+        HANDLE_NAN1(r->f[i], b->f[i]) {
+            r->f[i] = float32_exp2(b->f[i], &env->vec_status);
+        }
+    }
+}
+
 void helper_vlogefp (ppc_avr_t *r, ppc_avr_t *b)
 {
     int i;
@@ -3124,7 +3095,7 @@ static inline int32_t efsctsi(uint32_t val)
 
     u.l = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float32_is_nan(u.f)))
+    if (unlikely(float32_is_quiet_nan(u.f)))
         return 0;
 
     return float32_to_int32(u.f, &env->vec_status);
@@ -3136,7 +3107,7 @@ static inline uint32_t efsctui(uint32_t val)
 
     u.l = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float32_is_nan(u.f)))
+    if (unlikely(float32_is_quiet_nan(u.f)))
         return 0;
 
     return float32_to_uint32(u.f, &env->vec_status);
@@ -3148,7 +3119,7 @@ static inline uint32_t efsctsiz(uint32_t val)
 
     u.l = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float32_is_nan(u.f)))
+    if (unlikely(float32_is_quiet_nan(u.f)))
         return 0;
 
     return float32_to_int32_round_to_zero(u.f, &env->vec_status);
@@ -3160,7 +3131,7 @@ static inline uint32_t efsctuiz(uint32_t val)
 
     u.l = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float32_is_nan(u.f)))
+    if (unlikely(float32_is_quiet_nan(u.f)))
         return 0;
 
     return float32_to_uint32_round_to_zero(u.f, &env->vec_status);
@@ -3197,7 +3168,7 @@ static inline uint32_t efsctsf(uint32_t val)
 
     u.l = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float32_is_nan(u.f)))
+    if (unlikely(float32_is_quiet_nan(u.f)))
         return 0;
     tmp = uint64_to_float32(1ULL << 32, &env->vec_status);
     u.f = float32_mul(u.f, tmp, &env->vec_status);
@@ -3212,7 +3183,7 @@ static inline uint32_t efsctuf(uint32_t val)
 
     u.l = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float32_is_nan(u.f)))
+    if (unlikely(float32_is_quiet_nan(u.f)))
         return 0;
     tmp = uint64_to_float32(1ULL << 32, &env->vec_status);
     u.f = float32_mul(u.f, tmp, &env->vec_status);
@@ -3466,7 +3437,7 @@ uint32_t helper_efdctsi (uint64_t val)
 
     u.ll = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float64_is_nan(u.d)))
+    if (unlikely(float64_is_quiet_nan(u.d)))
         return 0;
 
     return float64_to_int32(u.d, &env->vec_status);
@@ -3478,7 +3449,7 @@ uint32_t helper_efdctui (uint64_t val)
 
     u.ll = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float64_is_nan(u.d)))
+    if (unlikely(float64_is_quiet_nan(u.d)))
         return 0;
 
     return float64_to_uint32(u.d, &env->vec_status);
@@ -3490,7 +3461,7 @@ uint32_t helper_efdctsiz (uint64_t val)
 
     u.ll = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float64_is_nan(u.d)))
+    if (unlikely(float64_is_quiet_nan(u.d)))
         return 0;
 
     return float64_to_int32_round_to_zero(u.d, &env->vec_status);
@@ -3502,7 +3473,7 @@ uint64_t helper_efdctsidz (uint64_t val)
 
     u.ll = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float64_is_nan(u.d)))
+    if (unlikely(float64_is_quiet_nan(u.d)))
         return 0;
 
     return float64_to_int64_round_to_zero(u.d, &env->vec_status);
@@ -3514,7 +3485,7 @@ uint32_t helper_efdctuiz (uint64_t val)
 
     u.ll = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float64_is_nan(u.d)))
+    if (unlikely(float64_is_quiet_nan(u.d)))
         return 0;
 
     return float64_to_uint32_round_to_zero(u.d, &env->vec_status);
@@ -3526,7 +3497,7 @@ uint64_t helper_efdctuidz (uint64_t val)
 
     u.ll = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float64_is_nan(u.d)))
+    if (unlikely(float64_is_quiet_nan(u.d)))
         return 0;
 
     return float64_to_uint64_round_to_zero(u.d, &env->vec_status);
@@ -3563,7 +3534,7 @@ uint32_t helper_efdctsf (uint64_t val)
 
     u.ll = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float64_is_nan(u.d)))
+    if (unlikely(float64_is_quiet_nan(u.d)))
         return 0;
     tmp = uint64_to_float64(1ULL << 32, &env->vec_status);
     u.d = float64_mul(u.d, tmp, &env->vec_status);
@@ -3578,7 +3549,7 @@ uint32_t helper_efdctuf (uint64_t val)
 
     u.ll = val;
     /* NaN are not treated the same way IEEE 754 does */
-    if (unlikely(float64_is_nan(u.d)))
+    if (unlikely(float64_is_quiet_nan(u.d)))
         return 0;
     tmp = uint64_to_float64(1ULL << 32, &env->vec_status);
     u.d = float64_mul(u.d, tmp, &env->vec_status);
@@ -3804,6 +3775,7 @@ static void do_6xx_tlb (target_ulong new_EPN, int is_code)
         EPN = env->spr[SPR_DMISS];
     }
     way = (env->spr[SPR_SRR1] >> 17) & 1;
+    (void)EPN; /* avoid a compiler warning */
     LOG_SWTLB("%s: EPN " TARGET_FMT_lx " " TARGET_FMT_lx " PTE0 " TARGET_FMT_lx
               " PTE1 " TARGET_FMT_lx " way %d\n", __func__, new_EPN, EPN, CMP,
               RPN, way);
@@ -3832,6 +3804,7 @@ static void do_74xx_tlb (target_ulong new_EPN, int is_code)
     CMP = env->spr[SPR_PTEHI];
     EPN = env->spr[SPR_TLBMISS] & ~0x3;
     way = env->spr[SPR_TLBMISS] & 0x3;
+    (void)EPN; /* avoid a compiler warning */
     LOG_SWTLB("%s: EPN " TARGET_FMT_lx " " TARGET_FMT_lx " PTE0 " TARGET_FMT_lx
               " PTE1 " TARGET_FMT_lx " way %d\n", __func__, new_EPN, EPN, CMP,
               RPN, way);
@@ -3919,37 +3892,56 @@ static inline int booke_page_size_to_tlb(target_ulong page_size)
 }
 
 /* Helpers for 4xx TLB management */
-target_ulong helper_4xx_tlbre_lo (target_ulong entry)
-{
-    ppcemb_tlb_t *tlb;
-    target_ulong ret;
-    int size;
+#define PPC4XX_TLB_ENTRY_MASK       0x0000003f  /* Mask for 64 TLB entries */
 
-    entry &= 0x3F;
-    tlb = &env->tlb[entry].tlbe;
-    ret = tlb->EPN;
-    if (tlb->prot & PAGE_VALID)
-        ret |= 0x400;
-    size = booke_page_size_to_tlb(tlb->size);
-    if (size < 0 || size > 0x7)
-        size = 1;
-    ret |= size << 7;
-    env->spr[SPR_40x_PID] = tlb->PID;
-    return ret;
-}
+#define PPC4XX_TLBHI_V              0x00000040
+#define PPC4XX_TLBHI_E              0x00000020
+#define PPC4XX_TLBHI_SIZE_MIN       0
+#define PPC4XX_TLBHI_SIZE_MAX       7
+#define PPC4XX_TLBHI_SIZE_DEFAULT   1
+#define PPC4XX_TLBHI_SIZE_SHIFT     7
+#define PPC4XX_TLBHI_SIZE_MASK      0x00000007
+
+#define PPC4XX_TLBLO_EX             0x00000200
+#define PPC4XX_TLBLO_WR             0x00000100
+#define PPC4XX_TLBLO_ATTR_MASK      0x000000FF
+#define PPC4XX_TLBLO_RPN_MASK       0xFFFFFC00
 
 target_ulong helper_4xx_tlbre_hi (target_ulong entry)
 {
     ppcemb_tlb_t *tlb;
     target_ulong ret;
+    int size;
 
-    entry &= 0x3F;
+    entry &= PPC4XX_TLB_ENTRY_MASK;
+    tlb = &env->tlb[entry].tlbe;
+    ret = tlb->EPN;
+    if (tlb->prot & PAGE_VALID) {
+        ret |= PPC4XX_TLBHI_V;
+    }
+    size = booke_page_size_to_tlb(tlb->size);
+    if (size < PPC4XX_TLBHI_SIZE_MIN || size > PPC4XX_TLBHI_SIZE_MAX) {
+        size = PPC4XX_TLBHI_SIZE_DEFAULT;
+    }
+    ret |= size << PPC4XX_TLBHI_SIZE_SHIFT;
+    env->spr[SPR_40x_PID] = tlb->PID;
+    return ret;
+}
+
+target_ulong helper_4xx_tlbre_lo (target_ulong entry)
+{
+    ppcemb_tlb_t *tlb;
+    target_ulong ret;
+
+    entry &= PPC4XX_TLB_ENTRY_MASK;
     tlb = &env->tlb[entry].tlbe;
     ret = tlb->RPN;
-    if (tlb->prot & PAGE_EXEC)
-        ret |= 0x200;
-    if (tlb->prot & PAGE_WRITE)
-        ret |= 0x100;
+    if (tlb->prot & PAGE_EXEC) {
+        ret |= PPC4XX_TLBLO_EX;
+    }
+    if (tlb->prot & PAGE_WRITE) {
+        ret |= PPC4XX_TLBLO_WR;
+    }
     return ret;
 }
 
@@ -3960,30 +3952,32 @@ void helper_4xx_tlbwe_hi (target_ulong entry, target_ulong val)
 
     LOG_SWTLB("%s entry %d val " TARGET_FMT_lx "\n", __func__, (int)entry,
               val);
-    entry &= 0x3F;
+    entry &= PPC4XX_TLB_ENTRY_MASK;
     tlb = &env->tlb[entry].tlbe;
     /* Invalidate previous TLB (if it's valid) */
     if (tlb->prot & PAGE_VALID) {
         end = tlb->EPN + tlb->size;
         LOG_SWTLB("%s: invalidate old TLB %d start " TARGET_FMT_lx " end "
                   TARGET_FMT_lx "\n", __func__, (int)entry, tlb->EPN, end);
-        for (page = tlb->EPN; page < end; page += TARGET_PAGE_SIZE)
+        for (page = tlb->EPN; page < end; page += TARGET_PAGE_SIZE) {
             tlb_flush_page(env, page);
+        }
     }
-    tlb->size = booke_tlb_to_page_size((val >> 7) & 0x7);
+    tlb->size = booke_tlb_to_page_size((val >> PPC4XX_TLBHI_SIZE_SHIFT)
+                                       & PPC4XX_TLBHI_SIZE_MASK);
     /* We cannot handle TLB size < TARGET_PAGE_SIZE.
      * If this ever occurs, one should use the ppcemb target instead
      * of the ppc or ppc64 one
      */
-    if ((val & 0x40) && tlb->size < TARGET_PAGE_SIZE) {
+    if ((val & PPC4XX_TLBHI_V) && tlb->size < TARGET_PAGE_SIZE) {
         cpu_abort(env, "TLB size " TARGET_FMT_lu " < %u "
                   "are not supported (%d)\n",
                   tlb->size, TARGET_PAGE_SIZE, (int)((val >> 7) & 0x7));
     }
     tlb->EPN = val & ~(tlb->size - 1);
-    if (val & 0x40) {
+    if (val & PPC4XX_TLBHI_V) {
         tlb->prot |= PAGE_VALID;
-        if (val & 0x20) {
+        if (val & PPC4XX_TLBHI_E) {
             /* XXX: TO BE FIXED */
             cpu_abort(env,
                       "Little-endian TLB entries are not supported by now\n");
@@ -4004,8 +3998,9 @@ void helper_4xx_tlbwe_hi (target_ulong entry, target_ulong val)
         end = tlb->EPN + tlb->size;
         LOG_SWTLB("%s: invalidate TLB %d start " TARGET_FMT_lx " end "
                   TARGET_FMT_lx "\n", __func__, (int)entry, tlb->EPN, end);
-        for (page = tlb->EPN; page < end; page += TARGET_PAGE_SIZE)
+        for (page = tlb->EPN; page < end; page += TARGET_PAGE_SIZE) {
             tlb_flush_page(env, page);
+        }
     }
 }
 
@@ -4015,15 +4010,17 @@ void helper_4xx_tlbwe_lo (target_ulong entry, target_ulong val)
 
     LOG_SWTLB("%s entry %i val " TARGET_FMT_lx "\n", __func__, (int)entry,
               val);
-    entry &= 0x3F;
+    entry &= PPC4XX_TLB_ENTRY_MASK;
     tlb = &env->tlb[entry].tlbe;
-    tlb->attr = val & 0xFF;
-    tlb->RPN = val & 0xFFFFFC00;
+    tlb->attr = val & PPC4XX_TLBLO_ATTR_MASK;
+    tlb->RPN = val & PPC4XX_TLBLO_RPN_MASK;
     tlb->prot = PAGE_READ;
-    if (val & 0x200)
+    if (val & PPC4XX_TLBLO_EX) {
         tlb->prot |= PAGE_EXEC;
-    if (val & 0x100)
+    }
+    if (val & PPC4XX_TLBLO_WR) {
         tlb->prot |= PAGE_WRITE;
+    }
     LOG_SWTLB("%s: set up TLB %d RPN " TARGET_FMT_plx " EPN " TARGET_FMT_lx
               " size " TARGET_FMT_lx " prot %c%c%c%c PID %d\n", __func__,
               (int)entry, tlb->RPN, tlb->EPN, tlb->size,

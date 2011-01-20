@@ -128,9 +128,7 @@ MigrationState *tcp_start_outgoing_migration(Monitor *mon,
 
     if (ret < 0 && ret != -EINPROGRESS && ret != -EWOULDBLOCK) {
         DPRINTF("connect failed\n");
-        close(s->fd);
-        qemu_free(s);
-        return NULL;
+        migrate_fd_error(s);
     } else if (ret >= 0)
         migrate_fd_connect(s);
 
@@ -143,7 +141,7 @@ static void tcp_accept_incoming_migration(void *opaque)
     socklen_t addrlen = sizeof(addr);
     int s = (unsigned long)opaque;
     QEMUFile *f;
-    int c, ret;
+    int c;
 
     do {
         c = qemu_accept(s, (struct sockaddr *)&addr, &addrlen);
@@ -153,7 +151,7 @@ static void tcp_accept_incoming_migration(void *opaque)
 
     if (c == -1) {
         fprintf(stderr, "could not accept migration connection\n");
-        return;
+        goto out2;
     }
 
     f = qemu_fopen_socket(c);
@@ -162,23 +160,13 @@ static void tcp_accept_incoming_migration(void *opaque)
         goto out;
     }
 
-    ret = qemu_loadvm_state(f);
-    if (ret < 0) {
-        fprintf(stderr, "load of migration failed\n");
-        goto out_fopen;
-    }
-    qemu_announce_self();
-    DPRINTF("successfully loaded vm state\n");
-
-    if (autostart)
-        vm_start();
-
-out_fopen:
+    process_incoming_migration(f);
     qemu_fclose(f);
 out:
+    close(c);
+out2:
     qemu_set_fd_handler2(s, NULL, NULL, NULL, NULL);
     close(s);
-    close(c);
 }
 
 int tcp_start_incoming_migration(const char *host_port)

@@ -33,7 +33,9 @@ DEF_HELPER_1(atomic_neg##type, void, tl)
 __GEN_HEADER(b)
 __GEN_HEADER(w)
 __GEN_HEADER(l)
+#ifdef TARGET_X86_64
 __GEN_HEADER(q)
+#endif
 
 DEF_HELPER_1(atomic_cmpxchg8b, void, tl)
 DEF_HELPER_1(atomic_cmpxchg16b, void, tl)

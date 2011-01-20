@@ -46,6 +46,12 @@
 #define REG_LH_OFFSET 4
 #endif
 
+#ifdef TARGET_X86_64
+#define X86_64_DEF(...)  __VA_ARGS__
+#else
+#define X86_64_DEF(...)
+#endif
+
 #define REG_LOW_MASK (~(uint64_t)0x0>>32)
 
 /* gen_op instructions */
@@ -61,14 +67,15 @@ enum {
     OP_CMPL,
 };
 
+/* */
 static target_ulong cm_get_reg_val(int ot, int hregs, int reg)
 {
     target_ulong val, offset;
     CPUState *env1 = cpu_single_env;
 
     switch(ot) {
-    case 0:  /*OT_BYTE*/
-        if (reg < 4 || reg >= 8 || hregs) {
+    case 0:  /* OT_BYTE */
+        if (reg < 4 X86_64_DEF( || reg >= 8 || hregs)) {
             goto std_case;
         } else {
             offset = offsetof(CPUState, regs[reg - 4]) + REG_H_OFFSET;
@@ -92,7 +99,7 @@ static void cm_set_reg_val(int ot, int hregs, int reg, target_ulong val)
 
       switch(ot) {
       case 0: /* OT_BYTE */
-          if (reg < 4 || reg >= 8 || hregs) {
+          if (reg < 4 X86_64_DEF (|| reg >= 8 || hregs)) {
               offset = offsetof(CPUState, regs[reg]) + REG_B_OFFSET;
               *(((uint8_t *) env1) + offset) = (uint8_t)val;
           } else {
@@ -121,7 +128,7 @@ static void cm_set_reg_val(int ot, int hregs, int reg, target_ulong val)
 
 /* Lightweight transactional memory. */
 #define TX(vaddr, type, value, command) \
-    target_ulong __q_addr;                                    \
+    unsigned long __q_addr;                                   \
     DATA_##type __oldv;                                       \
     DATA_##type value;                                        \
                                                               \
@@ -164,7 +171,9 @@ void helper_atomic_inc##type(target_ulong a0, int c)                  \
 GEN_ATOMIC_INC(b, B);
 GEN_ATOMIC_INC(w, W);
 GEN_ATOMIC_INC(l, L);
+#ifdef TARGET_X86_64
 GEN_ATOMIC_INC(q, Q);
+#endif
 
 #define OT_b 0
 #define OT_w 1
@@ -175,7 +184,7 @@ GEN_ATOMIC_INC(q, Q);
 void helper_xchg##type(target_ulong a0, int reg, int hreg)    \
 {                                                             \
     DATA_##type val, out;                                     \
-    target_ulong q_addr;                                      \
+    unsigned long q_addr;                                     \
                                                               \
     CM_GET_QEMU_ADDR(q_addr, a0);                             \
     val = (DATA_##type)cm_get_reg_val(OT_##type, hreg, reg);  \
@@ -188,7 +197,9 @@ void helper_xchg##type(target_ulong a0, int reg, int hreg)    \
 GEN_ATOMIC_XCHG(b);
 GEN_ATOMIC_XCHG(w);
 GEN_ATOMIC_XCHG(l);
+#ifdef TARGET_X86_64
 GEN_ATOMIC_XCHG(q);
+#endif
 
 #define GEN_ATOMIC_OP(type, TYPE) \
 void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
@@ -251,7 +262,9 @@ void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
 GEN_ATOMIC_OP(b, B);
 GEN_ATOMIC_OP(w, W);
 GEN_ATOMIC_OP(l, L);
+#ifdef TARGET_X86_64
 GEN_ATOMIC_OP(q, Q);
+#endif
 
 /* xadd */
 #define GEN_ATOMIC_XADD(type, TYPE) \
@@ -282,7 +295,9 @@ void helper_atomic_xadd##type(target_ulong a0, int reg,   \
 GEN_ATOMIC_XADD(b, B);
 GEN_ATOMIC_XADD(w, W);
 GEN_ATOMIC_XADD(l, L);
+#ifdef TARGET_X86_64
 GEN_ATOMIC_XADD(q, Q);
+#endif
 
 /* cmpxchg */
 #define GEN_ATOMIC_CMPXCHG(type, TYPE) \
@@ -291,7 +306,7 @@ void helper_atomic_cmpxchg##type(target_ulong a0, int reg,       \
 {                                                                \
     DATA_##type reg_v, eax_v, res;                               \
     int eflags;                                                  \
-    target_ulong q_addr;                                         \
+    unsigned long q_addr;                                        \
                                                                  \
     CM_GET_QEMU_ADDR(q_addr, a0);                                \
     reg_v = (DATA_##type)cm_get_reg_val(OT_##type, hreg, reg);   \
@@ -314,14 +329,16 @@ void helper_atomic_cmpxchg##type(target_ulong a0, int reg,       \
 GEN_ATOMIC_CMPXCHG(b, B);
 GEN_ATOMIC_CMPXCHG(w, W);
 GEN_ATOMIC_CMPXCHG(l, L);
+#ifdef TARGET_X86_64
 GEN_ATOMIC_CMPXCHG(q, Q);
+#endif
 
 /* cmpxchgb (8, 16) */
 void helper_atomic_cmpxchg8b(target_ulong a0)
 {
     uint64_t edx_eax, ecx_ebx, res;
     int eflags;
-    target_ulong q_addr;
+    unsigned long q_addr;
 
     eflags = helper_cc_compute_all(CC_OP);
     CM_GET_QEMU_ADDR(q_addr, a0);
@@ -347,7 +364,7 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
 {
     uint8_t res;
     int eflags;
-    target_ulong q_addr;
+    unsigned long q_addr;
 
     eflags = helper_cc_compute_all(CC_OP);
     CM_GET_QEMU_ADDR(q_addr, a0);
@@ -380,7 +397,9 @@ void helper_atomic_not##type(target_ulong a0)  \
 GEN_ATOMIC_NOT(b);
 GEN_ATOMIC_NOT(w);
 GEN_ATOMIC_NOT(l);
+#ifdef TARGET_X86_64
 GEN_ATOMIC_NOT(q);
+#endif
 
 /* neg */
 #define GEN_ATOMIC_NEG(type, TYPE) \
@@ -402,14 +421,16 @@ void helper_atomic_neg##type(target_ulong a0)        \
 GEN_ATOMIC_NEG(b, B);
 GEN_ATOMIC_NEG(w, W);
 GEN_ATOMIC_NEG(l, L);
+#ifdef TARGET_X86_64
 GEN_ATOMIC_NEG(q, Q);
+#endif
 
 /* This is only used in BTX instruction, with an additional offset.
  * Note that, when using register bitoffset, the value can be larger than
  * operand size - 1 (operand size can be 16/32/64), refer to intel manual 2A
  * page 3-11. */
 #define TX2(vaddr, type, value, offset, command) \
-    target_ulong __q_addr;                                    \
+    unsigned long __q_addr;                                   \
     DATA_##type __oldv;                                       \
     DATA_##type value;                                        \
                                                               \

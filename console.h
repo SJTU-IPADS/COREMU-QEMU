@@ -42,6 +42,7 @@ typedef struct QEMUPutLEDEntry {
 } QEMUPutLEDEntry;
 
 void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque);
+void qemu_remove_kbd_event_handler(void);
 QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
                                                 void *opaque, int absolute,
                                                 const char *name);
@@ -126,6 +127,27 @@ struct DisplaySurface {
     struct PixelFormat pf;
 };
 
+/* cursor data format is 32bit RGBA */
+typedef struct QEMUCursor {
+    int                 width, height;
+    int                 hot_x, hot_y;
+    int                 refcount;
+    uint32_t            data[];
+} QEMUCursor;
+
+QEMUCursor *cursor_alloc(int width, int height);
+void cursor_get(QEMUCursor *c);
+void cursor_put(QEMUCursor *c);
+QEMUCursor *cursor_builtin_hidden(void);
+QEMUCursor *cursor_builtin_left_ptr(void);
+void cursor_print_ascii_art(QEMUCursor *c, const char *prefix);
+int cursor_get_mono_bpl(QEMUCursor *c);
+void cursor_set_mono(QEMUCursor *c,
+                     uint32_t foreground, uint32_t background, uint8_t *image,
+                     int transparent, uint8_t *mask);
+void cursor_get_mono_image(QEMUCursor *c, int foreground, uint8_t *mask);
+void cursor_get_mono_mask(QEMUCursor *c, int transparent, uint8_t *mask);
+
 struct DisplayChangeListener {
     int idle;
     uint64_t gui_timer_interval;
@@ -158,8 +180,7 @@ struct DisplayState {
     struct DisplayChangeListener* listeners;
 
     void (*mouse_set)(int x, int y, int on);
-    void (*cursor_define)(int width, int height, int bpp, int hot_x, int hot_y,
-                          uint8_t *image, uint8_t *mask);
+    void (*cursor_define)(QEMUCursor *cursor);
 
     struct DisplayState *next;
 };
@@ -306,7 +327,9 @@ static inline int ds_get_bytes_per_pixel(DisplayState *ds)
 typedef unsigned long console_ch_t;
 static inline void console_write_ch(console_ch_t *dest, uint32_t ch)
 {
-    cpu_to_le32wu((uint32_t *) dest, ch);
+    if (!(ch & 0xff))
+        ch |= ' ';
+    *dest = ch;
 }
 
 typedef void (*vga_hw_update_ptr)(void *);
@@ -346,6 +369,7 @@ void vnc_display_init(DisplayState *ds);
 void vnc_display_close(DisplayState *ds);
 int vnc_display_open(DisplayState *ds, const char *display);
 int vnc_display_password(DisplayState *ds, const char *password);
+int vnc_display_pw_expire(DisplayState *ds, time_t expires);
 void do_info_vnc_print(Monitor *mon, const QObject *data);
 void do_info_vnc(Monitor *mon, QObject **ret_data);
 char *vnc_display_local_addr(DisplayState *ds);

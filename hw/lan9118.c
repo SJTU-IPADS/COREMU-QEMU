@@ -7,9 +7,17 @@
  * This code is licenced under the GNU GPL v2
  */
 
+#include <sys/syscall.h>
+#include <pthread.h>
+#include "coremu-config.h"
+#include "coremu-spinlock.h"
+#include "cm-target-intr.h"
+#include "coremu-hw.h"
+
 #include "sysbus.h"
 #include "net.h"
 #include "devices.h"
+#include "sysemu.h"
 /* For crc32 */
 #include <zlib.h>
 
@@ -194,16 +202,16 @@ typedef struct {
 
     int tx_status_fifo_used;
     int tx_status_fifo_head;
-    uint32_t tx_status_fifo[512];
+    uint32_t tx_status_fifo[128]; /* fixed to 512 bytes, 128 words */
 
     int rx_status_fifo_size;
     int rx_status_fifo_used;
     int rx_status_fifo_head;
-    uint32_t rx_status_fifo[896];
+    uint32_t rx_status_fifo[224]; /* max size 896 bytes, 224 words */
     int rx_fifo_size;
     int rx_fifo_used;
     int rx_fifo_head;
-    uint32_t rx_fifo[3360];
+    uint32_t rx_fifo[3360]; /* max size 13440 bytes, 3360 words */
     int rx_packet_size_head;
     int rx_packet_size_tail;
     int rx_packet_size[1024];
@@ -217,6 +225,9 @@ static void lan9118_update(lan9118_state *s)
 {
     int level;
 
+    DPRINTF("%d: RX fifo used: %d, RX status fifo used: %d\n",
+	    (int)syscall(SYS_gettid),
+	    (int)s->rx_fifo_used, (int)s->rx_status_fifo_used);
     /* TODO: Implement FIFO level IRQs.  */
     level = (s->int_sts & s->int_en) != 0;
     if (level) {
@@ -303,15 +314,19 @@ static void lan9118_reset(DeviceState *d)
     s->hw_cfg = 0x00050000;
     s->pmt_ctrl &= 0x45;
     s->gpio_cfg = 0;
-    s->txp->fifo_used = 0;
     s->txp->state = TX_IDLE;
     s->txp->cmd_a = 0xffffffffu;
     s->txp->cmd_b = 0xffffffffu;
     s->txp->len = 0;
     s->txp->fifo_used = 0;
+    /* TX_FIF_SZ=5
+     * tx data fifo: 4608 bytes, 1152 words
+     * tx status fifo: 512 bytes, 128 words
+     * rx data fifo: 10560 bytes, 2640 words
+     * rx status fifo: 704 bytes, 176 words
+     */
     s->tx_fifo_size = 4608;
     s->tx_status_fifo_used = 0;
-    s->rx_status_fifo_size = 704;
     s->rx_fifo_size = 2640;
     s->rx_fifo_used = 0;
     s->rx_status_fifo_size = 176;
@@ -319,7 +334,7 @@ static void lan9118_reset(DeviceState *d)
     s->rxp_offset = 0;
     s->rxp_size = 0;
     s->rxp_pad = 0;
-    s->rx_packet_size_tail = s->rx_packet_size_head;
+    s->rx_packet_size_tail = s->rx_packet_size_head = 0;
     s->rx_packet_size[s->rx_packet_size_head] = 0;
     s->mac_cmd = 0;
     s->mac_data = 0;
@@ -357,6 +372,7 @@ static void rx_fifo_push(lan9118_state *s, uint32_t val)
     if (fifo_pos >= s->rx_fifo_size)
       fifo_pos -= s->rx_fifo_size;
     s->rx_fifo[fifo_pos] = val;
+    assert(s->rx_fifo_used < s->rx_fifo_size);
     s->rx_fifo_used++;
 }
 
@@ -411,21 +427,46 @@ static ssize_t lan9118_receive(VLANClientState *nc, const uint8_t *buf,
     uint32_t crc;
     uint32_t status;
 
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_lock(&cm_hw_lock);
+#endif
+
+    DPRINTF("%d: RX fifo used: %d, RX status fifo used: %d\n",
+	    (int)syscall(SYS_gettid),
+	    (int)s->rx_fifo_used, (int)s->rx_status_fifo_used);
+
     if ((s->mac_cr & MAC_CR_RXEN) == 0) {
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_unlock(&cm_hw_lock);
+#endif
         return -1;
     }
 
     if (size >= 2048 || size < 14) {
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_unlock(&cm_hw_lock);
+#endif
         return -1;
     }
 
     /* TODO: Implement FIFO overflow notification.  */
     if (s->rx_status_fifo_used == s->rx_status_fifo_size) {
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_unlock(&cm_hw_lock);
+#endif
         return -1;
     }
 
     filter = lan9118_filter(s, buf);
     if (!filter && (s->mac_cr & MAC_CR_RXALL) == 0) {
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_unlock(&cm_hw_lock);
+#endif
         return size;
     }
 
@@ -435,6 +476,12 @@ static ssize_t lan9118_receive(VLANClientState *nc, const uint8_t *buf,
     /* Add a word for the CRC.  */
     fifo_len++;
     if (s->rx_fifo_size - s->rx_fifo_used < fifo_len) {
+	DPRINTF("RX fifo used: %d, fifo len: %d\n",
+		(int)s->rx_fifo_used, (int)fifo_len);
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_unlock(&cm_hw_lock);
+#endif
         return -1;
     }
 
@@ -466,6 +513,7 @@ static ssize_t lan9118_receive(VLANClientState *nc, const uint8_t *buf,
     }
     s->rx_packet_size[s->rx_packet_size_tail] = fifo_len;
     s->rx_packet_size_tail = (s->rx_packet_size_tail + 1023) & 1023;
+    assert(s->rx_status_fifo_used < s->rx_status_fifo_size);
     s->rx_status_fifo_used++;
 
     status = (size + 4) << 16;
@@ -483,6 +531,10 @@ static ssize_t lan9118_receive(VLANClientState *nc, const uint8_t *buf,
     if (s->rx_status_fifo_used > (s->fifo_int & 0xff)) {
         s->int_sts |= RSFL_INT;
     }
+#ifdef CONFIG_COREMU
+    if(coremu_hw_thr_p())
+        coremu_spin_unlock(&cm_hw_lock);
+#endif
     lan9118_update(s);
 
     return size;
@@ -525,6 +577,7 @@ static uint32_t rx_fifo_pop(lan9118_state *s)
         if (s->rx_fifo_head >= s->rx_fifo_size) {
             s->rx_fifo_head -= s->rx_fifo_size;
         }
+	assert(s->rx_fifo_used > 0);
         s->rx_fifo_used--;
     } else if (s->rxp_pad > 0) {
         s->rxp_pad--;
@@ -552,17 +605,19 @@ static void do_tx_packet(lan9118_state *s)
     }
     s->txp->fifo_used = 0;
 
-    if (s->tx_status_fifo_used == 512) {
+    assert(s->tx_status_fifo_used <= 128);
+    if (s->tx_status_fifo_used == 128) {
         /* Status FIFO full */
         return;
     }
     /* Add entry to status FIFO.  */
     status = s->txp->cmd_b & 0xffff0000u;
     DPRINTF("Sent packet tag:%04x len %d\n", status >> 16, s->txp->len);
-    n = (s->tx_status_fifo_head + s->tx_status_fifo_used) & 511;
+    n = (s->tx_status_fifo_head + s->tx_status_fifo_used) & 127;
     s->tx_status_fifo[n] = status;
+    assert(s->tx_status_fifo_used < 128);
     s->tx_status_fifo_used++;
-    if (s->tx_status_fifo_used == 512) {
+    if (s->tx_status_fifo_used == 128) {
         s->int_sts |= TSFF_INT;
         /* TODO: Stop transmission.  */
     }
@@ -574,6 +629,7 @@ static uint32_t rx_status_fifo_pop(lan9118_state *s)
 
     val = s->rx_status_fifo[s->rx_status_fifo_head];
     if (s->rx_status_fifo_used != 0) {
+	assert(s->rx_status_fifo_used > 0);
         s->rx_status_fifo_used--;
         s->rx_status_fifo_head++;
         if (s->rx_status_fifo_head >= s->rx_status_fifo_size) {
@@ -591,8 +647,9 @@ static uint32_t tx_status_fifo_pop(lan9118_state *s)
 
     val = s->tx_status_fifo[s->tx_status_fifo_head];
     if (s->tx_status_fifo_used != 0) {
+	assert(s->tx_status_fifo_used > 0);
         s->tx_status_fifo_used--;
-        s->tx_status_fifo_head = (s->tx_status_fifo_head + 1) & 511;
+        s->tx_status_fifo_head = (s->tx_status_fifo_head + 1) & 127;
         /* ??? What value should be returned when the FIFO is empty?  */
     }
     return val;
@@ -602,6 +659,7 @@ static void tx_fifo_push(lan9118_state *s, uint32_t val)
 {
     int n;
 
+    assert(s->txp->fifo_used < s->tx_fifo_size);
     if (s->txp->fifo_used == s->tx_fifo_size) {
         s->int_sts |= TDFO_INT;
         return;
@@ -609,14 +667,14 @@ static void tx_fifo_push(lan9118_state *s, uint32_t val)
     switch (s->txp->state) {
     case TX_IDLE:
         s->txp->cmd_a = val & 0x831f37ff;
-        s->txp->fifo_used++;
+        s->txp->fifo_used += 4;
         s->txp->state = TX_B;
         break;
     case TX_B:
         if (s->txp->cmd_a & 0x2000) {
             /* First segment */
             s->txp->cmd_b = val;
-            s->txp->fifo_used++;
+            s->txp->fifo_used += 4;
             s->txp->buffer_size = s->txp->cmd_a & 0x7ff;
             s->txp->offset = (s->txp->cmd_a >> 16) & 0x1f;
             /* End alignment does not include command words.  */
@@ -663,7 +721,7 @@ static void tx_fifo_push(lan9118_state *s, uint32_t val)
                 val >>= 8;
                 s->txp->buffer_size--;
             }
-            s->txp->fifo_used++;
+            s->txp->fifo_used += 4;
         }
         if (s->txp->buffer_size <= 0 && s->txp->pad == 0) {
             if (s->txp->cmd_a & 0x1000) {
@@ -1123,7 +1181,8 @@ static int lan9118_init1(SysBusDevice *dev)
     int i;
 
     s->mmio_index = cpu_register_io_memory(lan9118_readfn,
-                                           lan9118_writefn, s);
+                                           lan9118_writefn, s,
+                                           DEVICE_NATIVE_ENDIAN);
     sysbus_init_mmio(dev, 0x100, s->mmio_index);
     sysbus_init_irq(dev, &s->irq);
     qemu_macaddr_default_if_unset(&s->conf.macaddr);

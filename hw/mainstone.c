@@ -17,6 +17,7 @@
 #include "mainstone.h"
 #include "sysemu.h"
 #include "flash.h"
+#include "blockdev.h"
 
 static struct keymap map[0xE0] = {
     [0 ... 0xDF] = { -1, -1 },
@@ -87,10 +88,8 @@ static void mainstone_common_init(ram_addr_t ram_size,
     /* Setup CPU & memory */
     cpu = pxa270_init(mainstone_binfo.ram_size, cpu_model);
     cpu_register_physical_memory(0, MAINSTONE_ROM,
-                    qemu_ram_alloc(MAINSTONE_ROM) | IO_MEM_ROM);
-
-    /* Setup initial (reset) machine state */
-    cpu->env->regs[15] = mainstone_binfo.loader_start;
+                    qemu_ram_alloc(NULL, "mainstone.rom",
+                                   MAINSTONE_ROM) | IO_MEM_ROM);
 
 #ifdef TARGET_WORDS_BIGENDIAN
     be = 1;
@@ -107,7 +106,8 @@ static void mainstone_common_init(ram_addr_t ram_size,
         }
 
         if (!pflash_cfi01_register(mainstone_flash_base[i],
-                                   qemu_ram_alloc(MAINSTONE_FLASH),
+                                   qemu_ram_alloc(NULL, "mainstone.flash",
+                                                  MAINSTONE_FLASH),
                                    dinfo->bdrv, sector_len,
                                    MAINSTONE_FLASH / sector_len, 4, 0, 0, 0, 0,
                                    be)) {

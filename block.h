@@ -33,12 +33,18 @@ typedef struct QEMUSnapshotInfo {
 #define BDRV_O_CACHE_WB    0x0040 /* use write-back caching */
 #define BDRV_O_NATIVE_AIO  0x0080 /* use native AIO instead of the thread pool */
 #define BDRV_O_NO_BACKING  0x0100 /* don't open the backing file */
+#define BDRV_O_NO_FLUSH    0x0200 /* disable flushing on this disk */
 
-#define BDRV_O_CACHE_MASK  (BDRV_O_NOCACHE | BDRV_O_CACHE_WB)
+#define BDRV_O_CACHE_MASK  (BDRV_O_NOCACHE | BDRV_O_CACHE_WB | BDRV_O_NO_FLUSH)
 
 #define BDRV_SECTOR_BITS   9
-#define BDRV_SECTOR_SIZE   (1 << BDRV_SECTOR_BITS)
-#define BDRV_SECTOR_MASK   ~(BDRV_SECTOR_SIZE - 1);
+#define BDRV_SECTOR_SIZE   (1ULL << BDRV_SECTOR_BITS)
+#define BDRV_SECTOR_MASK   ~(BDRV_SECTOR_SIZE - 1)
+
+typedef enum {
+    BLOCK_ERR_REPORT, BLOCK_ERR_IGNORE, BLOCK_ERR_STOP_ENOSPC,
+    BLOCK_ERR_STOP_ANY
+} BlockErrorAction;
 
 typedef enum {
     BDRV_ACTION_REPORT, BDRV_ACTION_IGNORE, BDRV_ACTION_STOP
@@ -53,6 +59,7 @@ void bdrv_info_stats(Monitor *mon, QObject **ret_data);
 
 void bdrv_init(void);
 void bdrv_init_with_whitelist(void);
+BlockDriver *bdrv_find_protocol(const char *filename);
 BlockDriver *bdrv_find_format(const char *format_name);
 BlockDriver *bdrv_find_whitelisted_format(const char *format_name);
 int bdrv_create(BlockDriver *drv, const char* filename,
@@ -64,7 +71,9 @@ int bdrv_file_open(BlockDriverState **pbs, const char *filename, int flags);
 int bdrv_open(BlockDriverState *bs, const char *filename, int flags,
               BlockDriver *drv);
 void bdrv_close(BlockDriverState *bs);
-int bdrv_check(BlockDriverState *bs);
+int bdrv_attach(BlockDriverState *bs, DeviceState *qdev);
+void bdrv_detach(BlockDriverState *bs, DeviceState *qdev);
+DeviceState *bdrv_get_attached(BlockDriverState *bs);
 int bdrv_read(BlockDriverState *bs, int64_t sector_num,
               uint8_t *buf, int nb_sectors);
 int bdrv_write(BlockDriverState *bs, int64_t sector_num,
@@ -73,14 +82,28 @@ int bdrv_pread(BlockDriverState *bs, int64_t offset,
                void *buf, int count);
 int bdrv_pwrite(BlockDriverState *bs, int64_t offset,
                 const void *buf, int count);
+int bdrv_pwrite_sync(BlockDriverState *bs, int64_t offset,
+    const void *buf, int count);
+int bdrv_write_sync(BlockDriverState *bs, int64_t sector_num,
+    const uint8_t *buf, int nb_sectors);
 int bdrv_truncate(BlockDriverState *bs, int64_t offset);
 int64_t bdrv_getlength(BlockDriverState *bs);
 void bdrv_get_geometry(BlockDriverState *bs, uint64_t *nb_sectors_ptr);
 void bdrv_guess_geometry(BlockDriverState *bs, int *pcyls, int *pheads, int *psecs);
 int bdrv_commit(BlockDriverState *bs);
+void bdrv_commit_all(void);
 int bdrv_change_backing_file(BlockDriverState *bs,
     const char *backing_file, const char *backing_fmt);
 void bdrv_register(BlockDriver *bdrv);
+
+
+typedef struct BdrvCheckResult {
+    int corruptions;
+    int leaks;
+    int check_errors;
+} BdrvCheckResult;
+
+int bdrv_check(BlockDriverState *bs, BdrvCheckResult *res);
 
 /* async block I/O */
 typedef struct BlockDriverAIOCB BlockDriverAIOCB;
@@ -119,9 +142,11 @@ BlockDriverAIOCB *bdrv_aio_ioctl(BlockDriverState *bs,
         BlockDriverCompletionFunc *cb, void *opaque);
 
 /* Ensure contents are flushed to disk.  */
-void bdrv_flush(BlockDriverState *bs);
+int bdrv_flush(BlockDriverState *bs);
 void bdrv_flush_all(void);
+void bdrv_close_all(void);
 
+int bdrv_discard(BlockDriverState *bs, int64_t sector_num, int nb_sectors);
 int bdrv_has_zero_init(BlockDriverState *bs);
 int bdrv_is_allocated(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
 	int *pnum);
@@ -143,6 +168,10 @@ void bdrv_get_geometry_hint(BlockDriverState *bs,
                             int *pcyls, int *pheads, int *psecs);
 int bdrv_get_type_hint(BlockDriverState *bs);
 int bdrv_get_translation_hint(BlockDriverState *bs);
+void bdrv_set_on_error(BlockDriverState *bs, BlockErrorAction on_read_error,
+                       BlockErrorAction on_write_error);
+BlockErrorAction bdrv_get_on_error(BlockDriverState *bs, int is_read);
+void bdrv_set_removable(BlockDriverState *bs, int removable);
 int bdrv_is_removable(BlockDriverState *bs);
 int bdrv_is_read_only(BlockDriverState *bs);
 int bdrv_is_sg(BlockDriverState *bs);
@@ -156,6 +185,7 @@ void bdrv_set_change_cb(BlockDriverState *bs,
                         void (*change_cb)(void *opaque), void *opaque);
 void bdrv_get_format(BlockDriverState *bs, char *buf, int buf_size);
 BlockDriverState *bdrv_find(const char *name);
+BlockDriverState *bdrv_next(BlockDriverState *bs);
 void bdrv_iterate(void (*it)(void *opaque, BlockDriverState *bs),
                   void *opaque);
 int bdrv_is_encrypted(BlockDriverState *bs);
@@ -172,6 +202,9 @@ int bdrv_get_info(BlockDriverState *bs, BlockDriverInfo *bdi);
 const char *bdrv_get_encrypted_filename(BlockDriverState *bs);
 void bdrv_get_backing_filename(BlockDriverState *bs,
                                char *filename, int filename_size);
+int bdrv_can_snapshot(BlockDriverState *bs);
+int bdrv_is_snapshot(BlockDriverState *bs);
+BlockDriverState *bdrv_snapshots(void);
 int bdrv_snapshot_create(BlockDriverState *bs,
                          QEMUSnapshotInfo *sn_info);
 int bdrv_snapshot_goto(BlockDriverState *bs,
@@ -179,6 +212,8 @@ int bdrv_snapshot_goto(BlockDriverState *bs,
 int bdrv_snapshot_delete(BlockDriverState *bs, const char *snapshot_id);
 int bdrv_snapshot_list(BlockDriverState *bs,
                        QEMUSnapshotInfo **psn_info);
+int bdrv_snapshot_load_tmp(BlockDriverState *bs,
+                           const char *snapshot_name);
 char *bdrv_snapshot_dump(char *buf, int buf_size, QEMUSnapshotInfo *sn);
 
 char *get_human_readable_size(char *buf, int buf_size, int64_t size);
@@ -192,6 +227,10 @@ int bdrv_save_vmstate(BlockDriverState *bs, const uint8_t *buf,
 
 int bdrv_load_vmstate(BlockDriverState *bs, uint8_t *buf,
                       int64_t pos, int size);
+
+int bdrv_img_create(const char *filename, const char *fmt,
+                    const char *base_filename, const char *base_fmt,
+                    char *options, uint64_t img_size, int flags);
 
 #define BDRV_SECTORS_PER_DIRTY_CHUNK 2048
 

@@ -13,6 +13,7 @@
 #include "qemu-common.h"
 #include "sysemu.h"
 #include "hw/hw.h"
+#include "exec-all.h"
 #include "gdbstub.h"
 #include "kvm.h"
 
@@ -134,4 +135,14 @@ int kvm_set_signal_mask(CPUState *env, const sigset_t *sigset)
 int kvm_set_ioeventfd_pio_word(int fd, uint16_t addr, uint16_t val, bool assign)
 {
     return -ENOSYS;
+}
+
+int kvm_set_ioeventfd_mmio_long(int fd, uint32_t adr, uint32_t val, bool assign)
+{
+    return -ENOSYS;
+}
+
+int kvm_on_sigbus(int code, void *addr)
+{
+    return 1;
 }

@@ -12,7 +12,7 @@ MAKEFLAGS += -rR
 %.mak:
 
 # Flags for dependency generation
-QEMU_DGFLAGS += -MMD -MP -MT $@
+QEMU_DGFLAGS += -MMD -MP -MT $@ -MF $(*D)/$(*F).d
 
 %.o: %.c
 	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
@@ -41,6 +41,15 @@ cc-option = $(if $(shell $(CC) $1 $2 -S -o /dev/null -xc /dev/null \
 
 VPATH_SUFFIXES = %.c %.h %.S %.m %.mak %.texi
 set-vpath = $(if $1,$(foreach PATTERN,$(VPATH_SUFFIXES),$(eval vpath $(PATTERN) $1)))
+
+# find-in-path
+# Usage: $(call find-in-path, prog)
+# Looks in the PATH if the argument contains no slash, else only considers one
+# specific directory.  Returns an # empty string if the program doesn't exist
+# there.
+find-in-path = $(if $(find-string /, $1), \
+        $(wildcard $1), \
+        $(wildcard $(patsubst %, %/$1, $(subst :, ,$(PATH)))))
 
 # Generate timestamp files for .h include files
 

@@ -9,11 +9,7 @@
 #ifndef DIS_ASM_H
 #define DIS_ASM_H
 
-#include <stdlib.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
-#include <inttypes.h>
+#include "qemu-common.h"
 
 typedef void *PTR;
 typedef uint64_t bfd_vma;
@@ -237,8 +233,6 @@ typedef struct symbol_cache_entry
     } udata;
 } asymbol;
 
-typedef int (*fprintf_ftype) (FILE*, const char*, ...);
-
 enum dis_insn_type {
   dis_noninsn,			/* Not a valid instruction */
   dis_nonbranch,		/* Not a branch instruction */
@@ -261,7 +255,7 @@ enum dis_insn_type {
    by hand, or using one of the initialization macros below.  */
 
 typedef struct disassemble_info {
-  fprintf_ftype fprintf_func;
+  fprintf_function fprintf_func;
   FILE *stream;
   PTR application_data;
 
@@ -403,6 +397,7 @@ extern int print_insn_tic30		(bfd_vma, disassemble_info*);
 extern int print_insn_ppc		(bfd_vma, disassemble_info*);
 extern int print_insn_s390		(bfd_vma, disassemble_info*);
 extern int print_insn_crisv32           (bfd_vma, disassemble_info*);
+extern int print_insn_crisv10           (bfd_vma, disassemble_info*);
 extern int print_insn_microblaze        (bfd_vma, disassemble_info*);
 extern int print_insn_ia64              (bfd_vma, disassemble_info*);
 

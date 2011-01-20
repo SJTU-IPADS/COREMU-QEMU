@@ -61,7 +61,6 @@ typedef struct {
 #define L2_CACHE_SIZE 16
 
 typedef struct BDRVVmdkState {
-    BlockDriverState *hd;
     int64_t l1_table_offset;
     int64_t l1_backup_table_offset;
     uint32_t *l1_table;
@@ -150,7 +149,7 @@ static int vmdk_write_cid(BlockDriverState *bs, uint32_t cid)
         pstrcat(desc, sizeof(desc), tmp_desc);
     }
 
-    if (bdrv_pwrite(bs->file, 0x200, desc, DESC_SIZE) != DESC_SIZE)
+    if (bdrv_pwrite_sync(bs->file, 0x200, desc, DESC_SIZE) < 0)
         return -1;
     return 0;
 }
@@ -471,14 +470,14 @@ static int vmdk_L2update(BlockDriverState *bs, VmdkMetaData *m_data)
     BDRVVmdkState *s = bs->opaque;
 
     /* update L2 table */
-    if (bdrv_pwrite(bs->file, ((int64_t)m_data->l2_offset * 512) + (m_data->l2_index * sizeof(m_data->offset)),
-                    &(m_data->offset), sizeof(m_data->offset)) != sizeof(m_data->offset))
+    if (bdrv_pwrite_sync(bs->file, ((int64_t)m_data->l2_offset * 512) + (m_data->l2_index * sizeof(m_data->offset)),
+                    &(m_data->offset), sizeof(m_data->offset)) < 0)
         return -1;
     /* update backup L2 table */
     if (s->l1_backup_table_offset != 0) {
         m_data->l2_offset = s->l1_backup_table[m_data->l1_index];
-        if (bdrv_pwrite(bs->file, ((int64_t)m_data->l2_offset * 512) + (m_data->l2_index * sizeof(m_data->offset)),
-                        &(m_data->offset), sizeof(m_data->offset)) != sizeof(m_data->offset))
+        if (bdrv_pwrite_sync(bs->file, ((int64_t)m_data->l2_offset * 512) + (m_data->l2_index * sizeof(m_data->offset)),
+                        &(m_data->offset), sizeof(m_data->offset)) < 0)
             return -1;
     }
 
@@ -823,9 +822,9 @@ static void vmdk_close(BlockDriverState *bs)
     qemu_free(s->l2_cache);
 }
 
-static void vmdk_flush(BlockDriverState *bs)
+static int vmdk_flush(BlockDriverState *bs)
 {
-    bdrv_flush(bs->file);
+    return bdrv_flush(bs->file);
 }
 
 

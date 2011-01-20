@@ -71,8 +71,7 @@ static void cm_code_gen_alloc_all(void)
     code_gen_buffer_size = (unsigned long)(cm_bufsize / (smp_cpus));
     coremu_assert(code_gen_buffer_size >= MIN_CODE_GEN_BUFFER_SIZE,
               "code buffer size too small");
-
-    code_gen_buffer_max_size = code_gen_buffer_size - code_gen_max_block_size();
+    code_gen_buffer_max_size = code_gen_buffer_size - (TCG_MAX_OP_SIZE * OPC_MAX_SIZE);
     code_gen_max_blocks = code_gen_buffer_size / CODE_GEN_AVG_BLOCK_SIZE;
 }
 
@@ -88,7 +87,7 @@ static void cm_code_gen_alloc(void)
     /* Allocate space for TBs. */
     tbs = qemu_malloc(code_gen_max_blocks * sizeof(TranslationBlock));
 
-   /* cm_print("CORE[%u] TC [%lu MB] at %p", cpu_single_env->cpu_index,
+   /* coremu_print("CORE[%u] TC [%lu MB] at %p", cpu_single_env->cpu_index,
              (code_gen_buffer_size) / (1024 * 1024), code_gen_buffer); */
 }
 

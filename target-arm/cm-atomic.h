@@ -32,3 +32,5 @@ __GEN_HEADER(q)
 
 DEF_HELPER_0(clear_exclusive, void)
 
+DEF_HELPER_3(swpb, void, i32, i32, i32)
+DEF_HELPER_3(swp, void, i32, i32, i32)

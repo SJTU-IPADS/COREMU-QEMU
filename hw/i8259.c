@@ -30,6 +30,13 @@
 /* debug PIC */
 //#define DEBUG_PIC
 
+#ifdef DEBUG_PIC
+#define DPRINTF(fmt, ...)                                       \
+    do { printf("pic: " fmt , ## __VA_ARGS__); } while (0)
+#else
+#define DPRINTF(fmt, ...)
+#endif
+
 //#define DEBUG_IRQ_LATENCY
 //#define DEBUG_IRQ_COUNT
 #include "coremu-config.h"
@@ -186,9 +193,7 @@ static void i8259_set_irq(void *opaque, int irq, int level)
 
 #if defined(DEBUG_PIC) || defined(DEBUG_IRQ_COUNT)
     if (level != irq_level[irq]) {
-#if defined(DEBUG_PIC)
-        printf("i8259_set_irq: irq=%d level=%d\n", irq, level);
-#endif
+        DPRINTF("i8259_set_irq: irq=%d level=%d\n", irq, level);
         irq_level[irq] = level;
 #ifdef DEBUG_IRQ_COUNT
 	if (level == 1)
@@ -260,9 +265,7 @@ int pic_read_irq(PicState2 *s)
            (double)(qemu_get_clock(vm_clock) -
                     irq_time[irq]) * 1000000.0 / get_ticks_per_sec());
 #endif
-#if defined(DEBUG_PIC)
-    printf("pic_interrupt: irq=%d\n", irq);
-#endif
+    DPRINTF("pic_interrupt: irq=%d\n", irq);
     return intno;
 }
 
@@ -293,9 +296,7 @@ static void pic_ioport_write(void *opaque, uint32_t addr, uint32_t val)
     PicState *s = opaque;
     int priority, cmd, irq;
 
-#ifdef DEBUG_PIC
-    printf("pic_write: addr=0x%02x val=0x%02x\n", addr, val);
-#endif
+    DPRINTF("write: addr=0x%02x val=0x%02x\n", addr, val);
     addr &= 1;
     if (addr == 0) {
         if (val & 0x10) {
@@ -423,9 +424,7 @@ static uint32_t pic_ioport_read(void *opaque, uint32_t addr1)
             ret = s->imr;
         }
     }
-#ifdef DEBUG_PIC
-    printf("pic_read: addr=0x%02x val=0x%02x\n", addr1, ret);
-#endif
+    DPRINTF("read: addr=0x%02x val=0x%02x\n", addr1, ret);
     return ret;
 }
 
@@ -491,7 +490,7 @@ static void pic_init1(int io_addr, int elcr_addr, PicState *s)
         register_ioport_write(elcr_addr, 1, 1, elcr_ioport_write, s);
         register_ioport_read(elcr_addr, 1, 1, elcr_ioport_read, s);
     }
-    vmstate_register(io_addr, &vmstate_pic, s);
+    vmstate_register(NULL, io_addr, &vmstate_pic, s);
     qemu_register_reset(pic_reset, s);
 }
 

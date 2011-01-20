@@ -16,16 +16,13 @@
 typedef struct QEMUTimer QEMUTimer;
 typedef struct QEMUFile QEMUFile;
 typedef struct QEMUBH QEMUBH;
-
-/* Hack around the mess dyngen-exec.h causes: We need QEMU_NORETURN in files that
-   cannot include the following headers without conflicts. This condition has
-   to be removed once dyngen is gone. */
-#ifndef __DYNGEN_EXEC_H__
+typedef struct DeviceState DeviceState;
 
 /* we put basic includes here to avoid repeating them in device drivers */
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <string.h>
 #include <strings.h>
 #include <inttypes.h>
@@ -37,6 +34,8 @@ typedef struct QEMUBH QEMUBH;
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <assert.h>
+
+#include "coremu-config.h"
 
 #ifndef O_LARGEFILE
 #define O_LARGEFILE 0
@@ -53,6 +52,9 @@ typedef struct QEMUBH QEMUBH;
 #if !defined(ENOTSUP)
 #define ENOTSUP 4096
 #endif
+#ifndef TIME_MAX
+#define TIME_MAX LONG_MAX
+#endif
 
 #ifndef CONFIG_IOVEC
 #define CONFIG_IOVEC
@@ -67,6 +69,25 @@ struct iovec {
 #else
 #include <sys/uio.h>
 #endif
+
+#if defined __GNUC__
+# if (__GNUC__ < 4) || \
+     defined(__GNUC_MINOR__) && (__GNUC__ == 4) && (__GNUC_MINOR__ < 4)
+   /* gcc versions before 4.4.x don't support gnu_printf, so use printf. */
+#  define GCC_ATTR __attribute__((__unused__, format(printf, 1, 2)))
+#  define GCC_FMT_ATTR(n, m) __attribute__((format(printf, n, m)))
+# else
+   /* Use gnu_printf when supported (qemu uses standard format strings). */
+#  define GCC_ATTR __attribute__((__unused__, format(gnu_printf, 1, 2)))
+#  define GCC_FMT_ATTR(n, m) __attribute__((format(gnu_printf, n, m)))
+# endif
+#else
+#define GCC_ATTR /**/
+#define GCC_FMT_ATTR(n, m)
+#endif
+
+typedef int (*fprintf_function)(FILE *f, const char *fmt, ...)
+    GCC_FMT_ATTR(2, 3);
 
 #ifdef _WIN32
 #define fsync _commit
@@ -120,8 +141,6 @@ void qemu_bh_delete(QEMUBH *bh);
 int qemu_bh_poll(void);
 void qemu_bh_update_timeout(int *timeout);
 
-uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c);
-
 void qemu_get_timedate(struct tm *tm, int offset);
 int qemu_timedate_diff(struct tm *tm);
 
@@ -135,6 +154,14 @@ time_t mktimegm(struct tm *tm);
 int qemu_fls(int i);
 int qemu_fdatasync(int fd);
 int fcntl_setfl(int fd, int flag);
+
+#define STRTOSZ_DEFSUFFIX_TB	'T'
+#define STRTOSZ_DEFSUFFIX_GB	'G'
+#define STRTOSZ_DEFSUFFIX_MB	'M'
+#define STRTOSZ_DEFSUFFIX_KB	'K'
+#define STRTOSZ_DEFSUFFIX_B	'B'
+ssize_t strtosz(const char *nptr, char **end);
+ssize_t strtosz_suffix(const char *nptr, char **end, const char default_suffix);
 
 /* path.c */
 void init_paths(const char *prefix);
@@ -156,15 +183,18 @@ const char *path(const char *pathname);
 #define qemu_isascii(c)		isascii((unsigned char)(c))
 #define qemu_toascii(c)		toascii((unsigned char)(c))
 
+#ifdef _WIN32
+/* ffs() in oslib-win32.c for WIN32, strings.h for the rest of the world */
+int ffs(int i);
+#endif
+
+void *qemu_oom_check(void *ptr);
 void *qemu_malloc(size_t size);
 void *qemu_realloc(void *ptr, size_t size);
 void *qemu_mallocz(size_t size);
 void qemu_free(void *ptr);
 char *qemu_strdup(const char *str);
 char *qemu_strndup(const char *str, size_t size);
-
-void *get_mmap_addr(unsigned long size);
-
 
 void qemu_mutex_lock_iothread(void);
 void qemu_mutex_unlock_iothread(void);
@@ -181,8 +211,7 @@ int qemu_pipe(int pipefd[2]);
 
 /* Error handling.  */
 
-void QEMU_NORETURN hw_error(const char *fmt, ...)
-    __attribute__ ((__format__ (__printf__, 1, 2)));
+void QEMU_NORETURN hw_error(const char *fmt, ...) GCC_FMT_ATTR(1, 2);
 
 /* IO callbacks.  */
 typedef void IOReadHandler(void *opaque, const uint8_t *buf, int size);
@@ -202,6 +231,7 @@ typedef struct NICInfo NICInfo;
 typedef struct HCIInfo HCIInfo;
 typedef struct AudioState AudioState;
 typedef struct BlockDriverState BlockDriverState;
+typedef struct DriveInfo DriveInfo;
 typedef struct DisplayState DisplayState;
 typedef struct DisplayChangeListener DisplayChangeListener;
 typedef struct DisplaySurface DisplaySurface;
@@ -220,18 +250,30 @@ typedef struct PCIHostState PCIHostState;
 typedef struct PCIExpressHost PCIExpressHost;
 typedef struct PCIBus PCIBus;
 typedef struct PCIDevice PCIDevice;
+typedef struct PCIExpressDevice PCIExpressDevice;
+typedef struct PCIBridge PCIBridge;
+typedef struct PCIEAERMsg PCIEAERMsg;
+typedef struct PCIEAERLog PCIEAERLog;
+typedef struct PCIEAERErr PCIEAERErr;
+typedef struct PCIEPort PCIEPort;
+typedef struct PCIESlot PCIESlot;
 typedef struct SerialState SerialState;
 typedef struct IRQState *qemu_irq;
 typedef struct PCMCIACardState PCMCIACardState;
 typedef struct MouseTransformInfo MouseTransformInfo;
 typedef struct uWireSlave uWireSlave;
 typedef struct I2SCodec I2SCodec;
-typedef struct DeviceState DeviceState;
 typedef struct SSIBus SSIBus;
 typedef struct EventNotifier EventNotifier;
 typedef struct VirtIODevice VirtIODevice;
 
 typedef uint64_t pcibus_t;
+
+typedef enum {
+    IF_NONE,
+    IF_IDE, IF_SCSI, IF_FLOPPY, IF_PFLASH, IF_MTD, IF_SD, IF_VIRTIO, IF_XEN,
+    IF_COUNT
+} BlockInterfaceType;
 
 void cpu_exec_init_all(unsigned long tb_size);
 
@@ -249,6 +291,14 @@ void qemu_notify_event(void);
 void qemu_cpu_kick(void *env);
 int qemu_cpu_self(void *env);
 
+/* work queue */
+struct qemu_work_item {
+    struct qemu_work_item *next;
+    void (*func)(void *data);
+    void *data;
+    int done;
+};
+
 #ifdef CONFIG_USER_ONLY
 #define qemu_init_vcpu(env) do { } while (0)
 #else
@@ -260,16 +310,24 @@ typedef struct QEMUIOVector {
     int niov;
     int nalloc;
     size_t size;
+#ifdef CONFIG_COREMU
+    /* Mark this vector is used to emulate sync. io. I didn't find a better
+     * place to hold this information. */
+    int em_sync_io;
+#endif
 } QEMUIOVector;
 
 void qemu_iovec_init(QEMUIOVector *qiov, int alloc_hint);
 void qemu_iovec_init_external(QEMUIOVector *qiov, struct iovec *iov, int niov);
 void qemu_iovec_add(QEMUIOVector *qiov, void *base, size_t len);
+void qemu_iovec_copy(QEMUIOVector *dst, QEMUIOVector *src, uint64_t skip,
+    size_t size);
 void qemu_iovec_concat(QEMUIOVector *dst, QEMUIOVector *src, size_t size);
 void qemu_iovec_destroy(QEMUIOVector *qiov);
 void qemu_iovec_reset(QEMUIOVector *qiov);
 void qemu_iovec_to_buffer(QEMUIOVector *qiov, void *buf);
 void qemu_iovec_from_buffer(QEMUIOVector *qiov, const void *buf, size_t count);
+void qemu_iovec_memset(QEMUIOVector *qiov, int c, size_t count);
 
 struct Monitor;
 typedef struct Monitor Monitor;
@@ -285,8 +343,30 @@ static inline uint8_t from_bcd(uint8_t val)
     return ((val >> 4) * 10) + (val & 0x0f);
 }
 
-#include "module.h"
+/* compute with 96 bit intermediate result: (a*b)/c */
+static inline uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c)
+{
+    union {
+        uint64_t ll;
+        struct {
+#ifdef HOST_WORDS_BIGENDIAN
+            uint32_t high, low;
+#else
+            uint32_t low, high;
+#endif
+        } l;
+    } u, res;
+    uint64_t rl, rh;
 
-#endif /* dyngen-exec.h hack */
+    u.ll = a;
+    rl = (uint64_t)u.l.low * (uint64_t)b;
+    rh = (uint64_t)u.l.high * (uint64_t)b;
+    rh += (rl >> 32);
+    res.l.high = rh / c;
+    res.l.low = (((rh % c) << 32) + (rl & 0xffffffff)) / c;
+    return res.ll;
+}
+
+#include "module.h"
 
 #endif
