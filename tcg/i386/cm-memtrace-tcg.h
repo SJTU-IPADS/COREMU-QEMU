@@ -13,7 +13,7 @@ inline void tcg_out_Dst_event(TCGContext *s,int length)
 {
     if(!cachesim_enable)
         return;
-    tcg_out_goto(s, 1, (uint8_t*)_cm_trigger_Dst[length]);
+    tcg_out_branch(s, 1, (tcg_target_long)_cm_trigger_Dst[length]);
 }
 
 
@@ -22,7 +22,7 @@ inline void tcg_out_Dld_event(TCGContext *s,int length)
 {
     if(!cachesim_enable)
         return;
-    tcg_out_goto(s, 1, (uint8_t*)_cm_trigger_Dld[length]);
+    tcg_out_branch(s, 1, (tcg_target_long)_cm_trigger_Dld[length]);
 }
 
 inline void tcg_out_memtrace(TCGContext *s, int write);
@@ -89,7 +89,7 @@ inline void tcg_out_memtrace(TCGContext *s, int write)
     s->code_ptr++;
 
 	/* call buf_full */
-	tcg_out_goto(s, 1, (uint8_t*)cm_memtrace_buf_full);
+	tcg_out_branch(s, 1, (tcg_target_long)cm_memtrace_buf_full);
 
 	/* label_finish: */
     *label_finish = s->code_ptr - label_finish - 1;

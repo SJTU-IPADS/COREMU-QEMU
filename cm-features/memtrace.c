@@ -70,7 +70,8 @@ static void cm_print_memtrace(FILE *file, void *bufv)
     }
 #endif
     /* Retrive an record from buffer */
-    uint64_t addr = qemu_ram_addr_from_host((void*)buf[1]);
+    uint64_t addr;
+    assert(qemu_ram_addr_from_host((void*)buf[1], &addr) == 0);
     uint64_t cnt = buf[0];
     int write=cnt&1;
     cnt >>= 1;
@@ -170,17 +171,19 @@ void helper_memtrace_hypercall(void)
 int memcnt;
 
 #define MEM_DATA_LOAD_TRIGGER(SUFFIX)                       \
-void glue(cm_trigger_Dld,SUFFIX)(unsigned long addr) {       \
-    if(memcnt++%1000000!=0)return;\
-    addr = qemu_ram_addr_from_host((void*)addr);            \
-    printf("%08lx LD %s\n" ,addr,""#SUFFIX);                 \
+void glue(cm_trigger_Dld,SUFFIX)(unsigned long addr) {      \
+    if(memcnt++%1000000!=0)return;                          \
+    ram_addr_t ramaddr;                                     \
+    assert(qemu_ram_addr_from_host((void*)addr, &ramaddr) == 0);  \
+    printf("%08lx LD %s\n" ,ramaddr,""#SUFFIX);             \
 }
 
 #define MEM_DATA_STORE_TRIGGER(SUFFIX)                      \
-void glue(cm_trigger_Dst,SUFFIX)(unsigned long addr) {       \
-    if(memcnt++%1000000!=0)return;\
-    addr = qemu_ram_addr_from_host((void*)addr);            \
-    printf("%08lx ST %s\n" ,addr,""#SUFFIX);                \
+void glue(cm_trigger_Dst,SUFFIX)(unsigned long addr) {      \
+    if(memcnt++%1000000!=0)return;                          \
+    ram_addr_t ramaddr;                                     \
+    assert(qemu_ram_addr_from_host((void*)addr, &ramaddr) == 0);  \
+    printf("%08lx ST %s\n" ,ramaddr,""#SUFFIX);             \
 }
 
 

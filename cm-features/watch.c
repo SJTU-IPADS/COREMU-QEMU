@@ -37,7 +37,7 @@ extern CMWatch_Trigger trigger_func[MAX_TRIGGER_FUNC_NUM];
 
 static int cm_watch_index;
 static CMWatchPage *cm_watch_p;
-static target_ulong cm_watch_cnt;
+static long cm_watch_cnt;
 static queue_t *cm_inval_wqueue;
 
 #define inline __attribute__ (( always_inline )) __inline__
@@ -137,7 +137,7 @@ static CPUWriteMemoryFunc * const cm_watch_mem_write[3] = {
     cm_watch_mem_writel,
 };
 
-static ram_addr_t cm_get_page_addr(CPUState *env1, target_ulong addr)
+static int cm_get_page_addr(CPUState *env1, target_ulong addr, ram_addr_t *ramaddr)
 {
     int mmu_idx, page_index;
     void *p;
@@ -151,7 +151,7 @@ static ram_addr_t cm_get_page_addr(CPUState *env1, target_ulong addr)
 
     p = (void *)(unsigned long)addr
         + env1->tlb_table[mmu_idx][page_index].addend;
-    return qemu_ram_addr_from_host(p);
+    return qemu_ram_addr_from_host(p, ramaddr);
 }
 
 static void cm_watch_page_init(CMWatchPage *wpage)
@@ -295,7 +295,7 @@ static void cm_insert_watch_point(CMTriggerID id, target_ulong start, target_ulo
         return;
 
     self = cpu_single_env;
-    ram_start = cm_get_page_addr(self, start);
+    assert(cm_get_page_addr(self, start, &ram_start) == 0);
     wpage = &cm_watch_p[ram_start >> TARGET_PAGE_BITS];
 
     //printf("%s : id[%ld] start[0x%lx] len[%ld] phys-start[0x%lx]\n",
@@ -306,7 +306,7 @@ static void cm_insert_watch_point(CMTriggerID id, target_ulong start, target_ulo
     CMWatchEntry *wentry = cm_insert_watch_entry(wpage->cm_watch_q,
                                                 id, ram_start, start, len);
     cnt = 1;
-    atomic_xaddq((uint64_t *)&cnt, (uint64_t *)&wpage->cnt);
+    atomic_xaddq((uint64_t *)&cnt, (uint64_t)&wpage->cnt);
     if (cnt == 0) {
     //printf("reset tlb\n");
         cm_tlb_set_watch(start, ram_start);
@@ -333,7 +333,7 @@ static void cm_remove_watch_point(CMTriggerID id, target_ulong start, target_ulo
         return;
     
     self = cpu_single_env;
-    ram_start = cm_get_page_addr(self, start);
+    assert(cm_get_page_addr(self, start, &ram_start) == 0);
     wpage = &cm_watch_p[ram_start >> TARGET_PAGE_BITS];
     //assert(wpage->cm_watch_q);
     if (!wpage->cm_watch_q)
@@ -341,7 +341,7 @@ static void cm_remove_watch_point(CMTriggerID id, target_ulong start, target_ulo
     wentry = cm_invalidate_watch_entry(wpage->cm_watch_q, ram_start, start, len);
     if (wentry != NULL) {
         enqueue(cm_inval_wqueue, (long)wentry);
-        atomic_decq(&wpage->cnt);
+        atomic_decq((uint64_t *)&wpage->cnt);
     }
     assert(wpage->cnt >= 0);
     if(wpage->cnt == 0) {
@@ -356,12 +356,12 @@ static void cm_remove_watch_point(CMTriggerID id, target_ulong start, target_ulo
 
 static void cm_start_watch(void)
 {
-    atomic_incq(&cm_watch_cnt);
+    atomic_incq((uint64_t *)&cm_watch_cnt);
 }
 
 static void cm_stop_watch(void)
 {
-    atomic_decq(&cm_watch_cnt);
+    atomic_decq((uint64_t *)&cm_watch_cnt);
     assert(cm_watch_cnt >= 0);
     if (cm_watch_cnt == 0) {
         CMWatchEntry *wentry;
@@ -405,7 +405,7 @@ void cm_watch_init(ram_addr_t ram_offset, ram_addr_t size)
            (size >> TARGET_PAGE_BITS) * sizeof(CMWatchPage));
 
     cm_watch_index = cpu_register_io_memory(cm_watch_mem_read,
-                                            cm_watch_mem_write, NULL);
+                                            cm_watch_mem_write, NULL, DEVICE_NATIVE_ENDIAN);
     cm_wtrigger_init();
 
     cm_watch_cnt = 0;

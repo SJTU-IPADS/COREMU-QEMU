@@ -46,7 +46,7 @@ typedef struct CMWatchEntry {
 
 typedef struct CMWatchPage {
     queue_t *cm_watch_q;
-    target_ulong cnt;
+    long cnt;
 } CMWatchPage;
 
 typedef struct CMWatchReq {
