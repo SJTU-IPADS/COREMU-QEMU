@@ -28,7 +28,6 @@
 #include <stdio.h>
 #include "cpu.h"
 
-#include "coremu-intr.h"
 #include "coremu-core.h"
 #include "coremu-malloc.h"
 #include "cm-intr.h"

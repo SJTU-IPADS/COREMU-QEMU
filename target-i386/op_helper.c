@@ -21,6 +21,9 @@
 #include "exec-all.h"
 #include "host-utils.h"
 #include "ioport.h"
+#include "coremu-config.h"
+#define DEBUG_COREMU
+#include "coremu-debug.h"
 
 //#define DEBUG_PCALL
 
@@ -1208,6 +1211,10 @@ static void handle_even_inj(int intno, int is_int, int error_code,
 }
 #endif
 
+#ifdef CONFIG_REPLAY
+uint64_t cm_intr_cnt;
+#endif
+
 /*
  * Begin execution of an interruption. is_int is TRUE if coming from
  * the int instruction. next_eip is the EIP value AFTER the interrupt
@@ -1216,6 +1223,12 @@ static void handle_even_inj(int intno, int is_int, int error_code,
 void do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw)
 {
+#ifdef CONFIG_REPLAY
+    if (!is_int && (intno >= 32 || intno == 2)) {
+        cm_intr_cnt++;
+        coremu_debug("intcnt: %lu, intno: %d, tb_exec_cnt: %lu", cm_intr_cnt, intno, cm_tb_exec_cnt);
+    }
+#endif
     if (qemu_loglevel_mask(CPU_LOG_INT)) {
         if ((env->cr[0] & CR0_PE_MASK)) {
             static int count;
