@@ -50,5 +50,9 @@ DEF_HELPER_0(fence, void)
 /* pause */
 DEF_HELPER_0(pause, void)
 
+/* lock */
+DEF_HELPER_2(lock_check, void, tl, tl)
+DEF_HELPER_0(lock_release, void)
+
 DEF_HELPER_0(watch_server, void)
 DEF_HELPER_0(memtrace_hypercall, void)

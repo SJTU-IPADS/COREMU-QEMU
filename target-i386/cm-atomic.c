@@ -26,9 +26,11 @@
 
 #include <stdlib.h>
 #include <pthread.h>
+#include <assert.h>
 #include "coremu-atomic.h"
 #include "coremu-sched.h"
 #include "coremu-types.h"
+#include "coremu-thread.h"
 #include "cm-mmu.h"
 
 /* These definitions are copied from translate.c */
@@ -484,4 +486,26 @@ void helper_fence(void)
 void helper_pause(void)
 {
     coremu_cpu_sched(CM_EVENT_PAUSE);
+}
+
+COREMU_THREAD int locked;
+
+void helper_lock_check(target_ulong a1, target_ulong a2)
+{   
+    unsigned char b1=a1;
+    unsigned char b2=a2;
+        
+    if(b1==b2) {
+        locked++;
+        coremu_thread_setpriority(PRIO_PROCESS, 0, high_prio);
+    }
+}
+
+void helper_lock_release(void)
+{
+    coremu_thread_setpriority(PRIO_PROCESS, 0, avg_prio);
+    if(locked>0) {
+        locked--;
+        coremu_thread_setpriority(PRIO_PROCESS, 0, avg_prio);
+    }
 }
