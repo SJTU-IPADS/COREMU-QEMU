@@ -59,9 +59,9 @@
 
 //#define MACRO_TEST   1
 
-//#define LOCK_DETECT
+//#define COREMU_LOCK_DETECT
 
-#if defined(CONFIG_COREMU) && defined(LOCK_DETECT)
+#if defined(CONFIG_COREMU) && defined(COREMU_LOCK_DETECT)
 /* lock detection */
 static COREMU_THREAD target_ulong last_xadd;
 #endif
@@ -1437,7 +1437,7 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
         s1->cc_op = CC_OP_LOGICB + ot;
         break;
     case OP_CMPL:
-#if defined(CONFIG_COREMU) && defined(LOCK_DETECT)
+#if defined(CONFIG_COREMU) && defined(COREMU_LOCK_DETECT)
         if(s1->pc-last_xadd>0 && s1->pc-last_xadd<5) {
             gen_helper_lock_check(cpu_T[0], cpu_T[1]);
         }
@@ -1452,7 +1452,7 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
 static void gen_inc(DisasContext *s1, int ot, int d, int c)
 {
 #ifdef CONFIG_COREMU
-#ifdef LOCK_DETECT
+#ifdef COREMU_LOCK_DETECT
         if(ot == 0)
             gen_helper_lock_release();
 #endif
@@ -4986,7 +4986,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                         tcg_const_i32(X86_64_HREGS));
                 break;
             case 1:
-#ifdef LOCK_DETECT
+#ifdef COREMU_LOCK_DETECT
                 last_xadd = s->pc;
 #endif
                 gen_helper_atomic_xaddw(cpu_A0, tcg_const_i32(reg),
