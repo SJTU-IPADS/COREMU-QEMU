@@ -1,6 +1,10 @@
-Latest version:
+0.1.2:
 
   - Support i386 target. Upstream qemu (i386 target) can only start Linux with 8
     cores, we have the same problem
   - Support qcow2 image format
   - Merge upstream 56779034530944eb6171d843f652f3fba710ed30
+
+0.1.1:
+
+  - Add watch point and cache profiling support.
