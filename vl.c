@@ -177,6 +177,7 @@ int main(int argc, char **argv)
 #include "cm-intr.h"
 #include "cm-init.h"
 #include "cm-timer.h"
+#include "cm-replay.h"
 
 //#include "cm-i386-intr.h"
 
@@ -2054,6 +2055,20 @@ int main(int argc, char **argv, char **envp)
                 exit(1);
             }
             switch(popt->index) {
+            case QEMU_OPTION_runmode:
+#ifdef CONFIG_REPLAY
+                if (strcmp(optarg, "normal") == 0)
+                    cm_run_mode = CM_RUNMODE_NORMAL;
+                else if (strcmp(optarg, "record") == 0)
+                    cm_run_mode = CM_RUNMODE_RECORD;
+                else if (strcmp(optarg, "replay") == 0)
+                    cm_run_mode = CM_RUNMODE_REPLAY;
+                else {
+                    printf("wrong mode\n");
+                    exit(1);
+                }
+#endif
+                break;
             case QEMU_OPTION_M:
                 machine = find_machine(optarg);
                 if (!machine) {

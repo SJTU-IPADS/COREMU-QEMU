@@ -27,6 +27,14 @@ STEXI
 Display version information and exit
 ETEXI
 
+DEF("runmode", HAS_ARG, QEMU_OPTION_runmode,
+    "-runmode mode   normal, record or replay\n", QEMU_ARCH_ALL)
+STEXI
+@item -runmode @var{runmode}
+@findex -runmode
+Set run mode
+ETEXI
+
 DEF("M", HAS_ARG, QEMU_OPTION_M,
     "-M machine      select emulated machine (-M ? for list)\n", QEMU_ARCH_ALL)
 STEXI

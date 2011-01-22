@@ -30,13 +30,16 @@
 #include <sys/types.h>
 #include <sys/mman.h>
 
-#define VERBOSE_COREMU
 #include "sysemu.h"
+#include "coremu-config.h"
 #include "coremu-sched.h"
-#include "coremu-debug.h"
 #include "coremu-init.h"
 #include "cm-timer.h"
 #include "cm-init.h"
+#include "cm-replay.h"
+
+#define VERBOSE_COREMU
+#include "coremu-debug.h"
 
 /* XXX How to clean up the following code? */
 
@@ -104,6 +107,9 @@ void cm_cpu_exec_init(void)
 
 void cm_cpu_exec_init_core(void)
 {
+#ifdef CONFIG_REPLAY
+    cm_replay_core_init();
+#endif
     cpu_gen_init();
     /* Get code cache. */
     cm_code_gen_alloc();

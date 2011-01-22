@@ -86,10 +86,6 @@ static COREMU_THREAD int nb_tbs;
 /* any access to the tbs or the page table must use this lock */
 spinlock_t tb_lock = SPIN_LOCK_UNLOCKED;
 
-#ifdef CONFIG_REPLAY
-COREMU_THREAD uint64_t cm_tb_exec_cnt;
-#endif
-
 #if defined(__arm__) || defined(__sparc_v9__)
 /* The prologue must be reachable with a direct jump. ARM and Sparc64
  have limited branch ranges (possibly also PPC) so place it in a

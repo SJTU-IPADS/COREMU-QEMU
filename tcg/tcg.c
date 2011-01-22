@@ -2222,6 +2222,7 @@ void cm_inject_invalidate_code(TranslationBlock *tb)
 #endif
 
 #ifdef CONFIG_REPLAY
+extern __thread uint64_t cm_tb_exec_cnt;
 /* Return the size of generated code. */
 void cm_tcg_gen_tb_exec_cnt(TCGContext *s)
 {

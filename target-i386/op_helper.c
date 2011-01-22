@@ -24,6 +24,7 @@
 #include "coremu-config.h"
 #define DEBUG_COREMU
 #include "coremu-debug.h"
+#include "cm-replay.h"
 
 //#define DEBUG_PCALL
 
@@ -1224,9 +1225,9 @@ void do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw)
 {
 #ifdef CONFIG_REPLAY
-    if (!is_int && (intno >= 32 || intno == 2)) {
+    if ((cm_run_mode == CM_RUNMODE_RECORD) && !is_int && (intno >= 32 || intno == 2)) {
         cm_intr_cnt++;
-        coremu_debug("intcnt: %lu, intno: %d, tb_exec_cnt: %lu", cm_intr_cnt, intno, cm_tb_exec_cnt);
+        cm_record_intr(intno);
     }
 #endif
     if (qemu_loglevel_mask(CPU_LOG_INT)) {
