@@ -27,7 +27,6 @@
 #include <pthread.h>
 #include "coremu-atomic.h"
 #include "coremu-sched.h"
-#include "coremu-types.h"
 #include "cm-mmu.h"
 
 COREMU_THREAD uint64_t cm_exclusive_val;

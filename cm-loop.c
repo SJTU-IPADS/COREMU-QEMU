@@ -32,7 +32,6 @@
 #include "coremu-intr.h"
 #include "coremu-debug.h"
 #include "coremu-sched.h"
-#include "coremu-types.h"
 #include "coremu-core.h"
 #include "cm-loop.h"
 #include "cm-timer.h"

@@ -22,7 +22,11 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
 #include <assert.h>
+
+#include "config-target.h"
+
 #include "coremu-malloc.h"
 #include "coremu-atomic.h"
 #include "coremu-hw.h"
@@ -81,8 +85,8 @@ void cm_invalidate_tb(target_phys_addr_t start, int len)
     if ((!cm_phys_page_tb_p(start)) || (cm_phys_page_tb_p(start) == count))
         goto done;
 
-#ifdef COREMU_CMC_SUPPORT
-    /* XXX: not finish need Lazy invalidate here! */
+#if defined(COREMU_CMC_SUPPORT) && defined(TARGET_I386)
+    /* XXX: only support x86 now, not finish need Lazy invalidate here! */
     int have_done = count;
     int cpu_idx = 0;
     for (cpu_idx = 0; cpu_idx < coremu_get_targetcpu(); cpu_idx++) {

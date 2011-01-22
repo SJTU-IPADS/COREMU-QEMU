@@ -28,7 +28,6 @@
 #include <pthread.h>
 #include "coremu-atomic.h"
 #include "coremu-sched.h"
-#include "coremu-types.h"
 #include "cm-mmu.h"
 
 /* These definitions are copied from translate.c */
