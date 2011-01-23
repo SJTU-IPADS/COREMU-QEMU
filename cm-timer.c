@@ -24,10 +24,14 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
-/* We include this file in qemu-timer.c qemu_alarm_timer is defined in it, and
- * there's lots of static function there. */
-#include "coremu-sched.h"
+/* We include this file in qemu-timer.c
+ * qemu_alarm_timer is defined in it, and there's lots of static functions. */
+
 #include <math.h>
+
+#include "coremu-sched.h"
+#include "cm-replay.h"
+
 int cm_pit_freq;
 
 static int64_t cm_local_next_deadline(void);
@@ -91,6 +95,11 @@ fail:
 */
 void cm_mod_local_timer(QEMUTimer *ts, int64_t expire_time)
 {
+#ifdef CONFIG_REPLAY
+    /* In replay mode, timer interrupt are injected by reading interrupt log. */
+    if (cm_run_mode == CM_RUNMODE_REPLAY)
+        return;
+#endif
     QEMUTimer **pt, *t;
 
     cm_del_local_timer(ts);

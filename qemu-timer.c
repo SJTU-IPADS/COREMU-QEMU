@@ -62,6 +62,7 @@
 #include "coremu-hw.h"
 #include "cm-intr.h"
 #include "cm-timer.h"
+#include "cm-replay.h"
 
 /* Conversion factor from emulated instructions to virtual clock ticks.  */
 int icount_time_shift;
@@ -203,6 +204,12 @@ static inline int alarm_has_dynticks(struct qemu_alarm_timer *t)
 
 static void qemu_rearm_alarm_timer(struct qemu_alarm_timer *t)
 {
+#ifdef CONFIG_REPLAY
+    /* XXX This will also be called by vm_state_notify (and others?), can we
+     * just disable it? */
+    if (cm_run_mode == CM_RUNMODE_REPLAY)
+        return;
+#endif
     if (!alarm_has_dynticks(t))
         return;
 
@@ -445,6 +452,11 @@ void qemu_del_timer(QEMUTimer *ts)
    >= expire_time. The corresponding callback will be called. */
 void qemu_mod_timer(QEMUTimer *ts, int64_t expire_time)
 {
+#ifdef CONFIG_REPLAY
+    /* In replay mode, timer event are injected by reading th log. */
+    if (cm_run_mode == CM_RUNMODE_REPLAY)
+        return;
+#endif
     QEMUTimer **pt, *t;
 
     qemu_del_timer(ts);

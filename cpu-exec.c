@@ -25,6 +25,7 @@
 
 #include "coremu-config.h"
 #include "coremu-intr.h"
+#include "cm-replay.h"
 
 #if !defined(CONFIG_SOFTMMU)
 #undef EAX
@@ -49,6 +50,9 @@
 #endif
 
 COREMU_THREAD int tb_invalidated_flag;
+
+// For debug
+extern COREMU_THREAD uint64_t cm_intr_cnt;
 
 //#define CONFIG_DEBUG_EXEC
 //#define DEBUG_SIGNAL
@@ -282,6 +286,9 @@ int cpu_exec(CPUState *env1)
     for(;;) {
         if (setjmp(env->jmp_env) == 0) {
 #ifdef CONFIG_COREMU
+#ifdef CONFIG_REPLAY
+            if (cm_run_mode != CM_RUNMODE_REPLAY)
+#endif
                 coremu_receive_intr();
 #endif
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)
@@ -562,6 +569,15 @@ int cpu_exec(CPUState *env1)
                     env->exception_index = EXCP_INTERRUPT;
                     cpu_loop_exit();
                 }
+#ifdef CONFIG_REPLAY
+                int inject_intno;
+                if (cm_run_mode == CM_RUNMODE_REPLAY && cm_intr_cnt == NINTR)
+                    exit(1);
+                if (cm_run_mode == CM_RUNMODE_REPLAY && (inject_intno = cm_replay_intr()) != -1) {
+                    assert(env->eip == cm_inject_eip);
+                    do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
+                }
+#endif
 #if defined(DEBUG_DISAS) || defined(CONFIG_DEBUG_EXEC)
                 if (qemu_loglevel_mask(CPU_LOG_TB_CPU)) {
                     /* restore flags in standard format */
@@ -599,9 +615,13 @@ int cpu_exec(CPUState *env1)
                 /* see if we can patch the calling TB. When the TB
                    spans two pages, we cannot safely do a direct
                    jump. */
+#ifndef CONFIG_REPLAY
+                /* XXX Disable tb linking so we can deliver interrupt at the
+                 * right time. We need to allow tb linking later. */
                 if (next_tb != 0 && tb->page_addr[1] == -1) {
                     tb_add_jump((TranslationBlock *)(next_tb & ~3), next_tb & 3, tb);
                 }
+#endif
                 spin_unlock(&tb_lock);
 
                 /* cpu_interrupt might be called while translating the
@@ -622,8 +642,14 @@ int cpu_exec(CPUState *env1)
 #ifdef CONFIG_COREMU
                     /* Receive interrupt before and after executing the
                      * translated code. */
+#ifdef CONFIG_REPLAY
+                    if (cm_run_mode != CM_RUNMODE_REPLAY)
+#endif
                     coremu_receive_intr();
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
+#ifdef CONFIG_REPLAY
+                    if (cm_run_mode != CM_RUNMODE_REPLAY)
+#endif
                     coremu_receive_intr();
 
 # ifdef COREMU_CMC_SUPPORT

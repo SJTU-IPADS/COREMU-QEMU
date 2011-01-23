@@ -1213,7 +1213,7 @@ static void handle_even_inj(int intno, int is_int, int error_code,
 #endif
 
 #ifdef CONFIG_REPLAY
-uint64_t cm_intr_cnt;
+COREMU_THREAD uint64_t cm_intr_cnt;
 #endif
 
 /*
@@ -1225,9 +1225,27 @@ void do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw)
 {
 #ifdef CONFIG_REPLAY
-    if ((cm_run_mode == CM_RUNMODE_RECORD) && !is_int && (intno >= 32 || intno == 2)) {
+    if (!is_int && (intno >= 32 || intno == 2)) {
         cm_intr_cnt++;
-        cm_record_intr(intno);
+
+        switch (cm_run_mode) {
+        case CM_RUNMODE_REPLAY:
+            /* Do not inject interrupt if not read from log. */
+            if (!(intno & CM_REPLAY_INT))
+                return;
+            else
+                intno &= ~CM_REPLAY_INT;
+            coremu_debug("injecting intr at: %lu, eip: %p", cm_tb_exec_cnt,
+                         (void *)(long)env->eip);
+            break;
+
+        case CM_RUNMODE_RECORD:
+            cm_record_intr(intno, env->eip);
+            // For debug
+            if (cm_intr_cnt == NINTR)
+                exit(1);
+            break;
+        }
     }
 #endif
     if (qemu_loglevel_mask(CPU_LOG_INT)) {

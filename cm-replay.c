@@ -22,30 +22,79 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include "coremu-core.h"
 #include "cm-replay.h"
 
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 #define MAXLOGLEN 256
 
+/* Whether the vm is being recorded or replayed. */
 int cm_run_mode;
 
 __thread uint64_t cm_tb_exec_cnt;
+/* Inject interrupt when cm_tb_exec_cnt reaches this value */
+static __thread uint64_t cm_inject_exec_cnt;
+static __thread int cm_inject_intno;
+__thread long cm_inject_eip;
 
 static __thread FILE *cm_intr_log;
-#define LOGFILEFMT "log/%d-intr", coremu_get_core_id()
+
+static void open_intr_log(const char *mode)
+{
+    char logpath[MAXLOGLEN];
+    snprintf(logpath, MAXLOGLEN, "log-intr/%d-intr", coremu_get_core_id());
+
+    cm_intr_log = fopen(logpath, mode);
+    if (!cm_intr_log) {
+        printf("Can't open interrupt log\n");
+        exit(1);
+    }
+}
+
+#define CM_INTR_LOG_FMT "%d %lu %p\n"
+
+static inline void cm_read_intr_log(void)
+{
+    if (fscanf(cm_intr_log, CM_INTR_LOG_FMT, &cm_inject_intno,
+               &cm_inject_exec_cnt, (void **)&cm_inject_eip) == EOF) {
+        printf("No more log entry\n");
+        exit(1);
+    }
+}
+
+static inline void cm_write_intr_log(int intno, long eip)
+{
+    fprintf(cm_intr_log, CM_INTR_LOG_FMT, intno, cm_tb_exec_cnt, (void *)(long)eip);
+}
 
 void cm_replay_core_init(void)
 {
-    char logpath[MAXLOGLEN];
-    snprintf(logpath, MAXLOGLEN, LOGFILEFMT);
-    cm_intr_log = fopen(logpath, "w");
+    switch (cm_run_mode) {
+    case CM_RUNMODE_REPLAY:
+        open_intr_log("r");
+        cm_read_intr_log();
+        break;
+    case CM_RUNMODE_RECORD:
+        open_intr_log("w");
+        break;
+    }
 }
 
-void cm_record_intr(int intno) {
-    fprintf(cm_intr_log, "%d %lu\n", intno, cm_tb_exec_cnt);
+void cm_record_intr(int intno, long eip) {
+    cm_write_intr_log(intno, eip);
 }
 
-void cm_replay_intr(void) {
-    
+int cm_replay_intr(void) {
+    int intno;
+
+    if (cm_tb_exec_cnt == cm_inject_exec_cnt) {
+        intno = cm_inject_intno;
+        cm_read_intr_log(); /* Read next log entry. */
+        return intno;
+    }
+    return -1;
 }
