@@ -1980,3 +1980,25 @@ static void tcg_target_init(TCGContext *s)
 
     tcg_add_target_add_op_defs(x86_op_defs);
 }
+
+#ifdef CONFIG_REPLAY
+extern __thread uint64_t cm_tb_exec_cnt;
+
+void cm_tcg_gen_tb_exec_cnt(TCGContext *s)
+{
+    uint8_t *ptr = s->code_ptr;
+    /* tcg_out_addi can only generate code which operate on register, but we
+     * want to directly operate on memory location.
+     * So I hard code the machine code which is platform dependent. The
+     * following binary code is extracted from object code compiled by gcc. */
+    tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_RAX, (long)&cm_tb_exec_cnt);
+
+    /* incq (%rax) */
+    tcg_out8(s, 0x48); /* insn. prefix REX.W */
+    tcg_out8(s, 0xff); /* inc */
+    tcg_out8(s, 0x00); /* modrm byte */
+
+    cm_tb_cnt_code_size = s->code_ptr - ptr;
+}
+#endif
+

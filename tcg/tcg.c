@@ -159,6 +159,10 @@ int gen_new_label(void)
     return idx;
 }
 
+#ifdef CONFIG_REPLAY
+/* Store the code size of increasing tb execution count.  */
+int cm_tb_cnt_code_size;
+#endif
 #include "tcg-target.c"
 
 /* pool based memory allocation */
@@ -2187,8 +2191,6 @@ void tcg_dump_info(FILE *f, fprintf_function cpu_fprintf)
 
 #ifdef CONFIG_COREMU
 
-#include <sys/types.h>
-#include <sys/mman.h>
 #include "cm-init.h"
 
 void cm_code_prologue_init(void)
@@ -2218,26 +2220,6 @@ void cm_inject_invalidate_code(TranslationBlock *tb)
 
     TCGArg args[] = { (long) tb + 3};
     tcg_out_op(&s, INDEX_op_exit_tb, args, NULL);
-}
-#endif
-
-#ifdef CONFIG_REPLAY
-extern __thread uint64_t cm_tb_exec_cnt;
-/* Return the size of generated code. */
-void cm_tcg_gen_tb_exec_cnt(TCGContext *s)
-{
-    /* tcg_out_addi can only generate code which operate on register, but we
-     * want to directly operate on memory location.
-     * So I hard code the machine code which is platform dependent. The
-     * following binary code is extracted from object code compiled by gcc. */
-#if defined(__x86_64__)
-    tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_RAX, (long)&cm_tb_exec_cnt);
-
-    /* incq (%rax) */
-    tcg_out8(s, 0x48); /* insn. prefix REX.W */
-    tcg_out8(s, 0xff); /* inc */
-    tcg_out8(s, 0x00); /* modrm byte */
-#endif
 }
 #endif
 
