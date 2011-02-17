@@ -19,4 +19,6 @@ void cm_replay_core_init(void);
 void cm_record_intr(int intno, long eip);
 int cm_replay_intr(void);
 
+void cm_replay_assert_pc(unsigned long eip);
+
 #endif /* _CM_REPLAY_H */

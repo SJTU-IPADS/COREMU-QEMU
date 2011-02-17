@@ -27,6 +27,9 @@
 #include "coremu-intr.h"
 #include "cm-replay.h"
 
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 #if !defined(CONFIG_SOFTMMU)
 #undef EAX
 #undef ECX
@@ -103,6 +106,12 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
     longjmp(env->jmp_env, 1);
 }
 
+#define EXIT_PC 0xf01007f6 // monitor
+/*#define EXIT_PC 0x7c00 // boot loader entry*/
+/*#define EXIT_PC 0x7d7d // boot loader jumping to kernel entry*/
+/*#define EXIT_PC 0x1000dd // i386_init*/
+/*#define EXIT_PC 0x800020 // user main*/
+
 /* Execute the code without caching the generated code. An interpreter
    could be used if available. */
 static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
@@ -119,7 +128,14 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
                      max_cycles);
     env->current_tb = tb;
     /* execute the generated code */
-    next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
+    if (cm_run_mode == CM_RUNMODE_RECORD && tb->pc == EXIT_PC)
+        exit(0);
+    assert(env->eip = tb->pc);
+    cm_replay_assert_pc(tb->pc);
+    if (tb->pc >= 0x100000)
+        next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
+    else
+        next_tb = tcg_qemu_tb_exec(tb->tc_ptr + cm_tb_cnt_code_size);
     env->current_tb = NULL;
 
     if ((next_tb & 3) == 2) {
@@ -571,10 +587,12 @@ int cpu_exec(CPUState *env1)
                 }
 #ifdef CONFIG_REPLAY
                 int inject_intno;
+                unsigned long inject_eip = cm_inject_eip;
                 if (cm_run_mode == CM_RUNMODE_REPLAY && cm_intr_cnt == NINTR)
                     exit(1);
                 if (cm_run_mode == CM_RUNMODE_REPLAY && (inject_intno = cm_replay_intr()) != -1) {
-                    assert(env->eip == cm_inject_eip);
+                    coremu_assert(env->eip == inject_eip, "abort: eip = %p, inject_eip = %p\n",
+                                  (void *)(long)env->eip, (void *)cm_inject_eip);
                     do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
                 }
 #endif
@@ -646,7 +664,15 @@ int cpu_exec(CPUState *env1)
                     if (cm_run_mode != CM_RUNMODE_REPLAY)
 #endif
                     coremu_receive_intr();
-                    next_tb = tcg_qemu_tb_exec(tc_ptr);
+                    assert(env->eip = tb->pc);
+                    cm_replay_assert_pc(tb->pc);
+                    if (cm_run_mode == CM_RUNMODE_RECORD && tb->pc == EXIT_PC)
+                        exit(0);
+
+                    if (tb->pc >= 0x100000)
+                        next_tb = tcg_qemu_tb_exec(tc_ptr);
+                    else
+                        next_tb = tcg_qemu_tb_exec(tc_ptr + cm_tb_cnt_code_size);
 #ifdef CONFIG_REPLAY
                     if (cm_run_mode != CM_RUNMODE_REPLAY)
 #endif

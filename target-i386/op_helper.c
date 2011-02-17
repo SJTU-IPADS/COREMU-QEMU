@@ -22,9 +22,10 @@
 #include "host-utils.h"
 #include "ioport.h"
 #include "coremu-config.h"
+#include "cm-replay.h"
+
 #define DEBUG_COREMU
 #include "coremu-debug.h"
-#include "cm-replay.h"
 
 //#define DEBUG_PCALL
 
