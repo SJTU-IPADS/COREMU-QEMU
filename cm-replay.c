@@ -43,11 +43,14 @@ __thread long cm_inject_eip;
 
 static __thread FILE *cm_intr_log;
 static __thread FILE *cm_pc_log;
+static __thread FILE *cm_in_log;
+static __thread FILE *cm_rdtsc_log;
 
-static void open_log(FILE **log, const char* logname, const char *mode)
+#define LOGDIR "replay-log/"
+static void open_log1(FILE **log, const char* logname, const char *mode)
 {
     char logpath[MAXLOGLEN];
-    snprintf(logpath, MAXLOGLEN, logname, coremu_get_core_id());
+    snprintf(logpath, MAXLOGLEN, LOGDIR"%s-%d", logname, coremu_get_core_id());
 
     *log = fopen(logpath, mode);
     if (!cm_intr_log) {
@@ -56,15 +59,23 @@ static void open_log(FILE **log, const char* logname, const char *mode)
     }
 }
 
-#define LOGDIR "replay-log/"
-
-static void open_intr_log(const char *mode) {
-    open_log(&cm_intr_log, LOGDIR"intr-%d", mode);
+static void cm_open_log(const char *mode) {
+    open_log1(&cm_intr_log, "intr", mode);
+    open_log1(&cm_pc_log, "pc", mode);
+    open_log1(&cm_in_log, "in", mode);
+    open_log1(&cm_rdtsc_log, "rdtsc", mode);
 }
 
-static void open_pc_log(const char *mode) {
-    open_log(&cm_pc_log, LOGDIR"pc-%d", mode);
+static inline void cm_read_intr_log(void);
+void cm_replay_core_init(void)
+{
+    const char *mode = cm_run_mode == CM_RUNMODE_RECORD ? "w" : "r";
+    cm_open_log(mode);
+    if (cm_run_mode == CM_RUNMODE_REPLAY)
+        cm_read_intr_log();
 }
+
+/* interrupt */
 
 #define CM_INTR_LOG_FMT "%d %lu %p\n"
 
@@ -81,56 +92,67 @@ static inline void cm_write_intr_log(int intno, long eip)
     fprintf(cm_intr_log, CM_INTR_LOG_FMT, intno, cm_tb_exec_cnt, (void *)(long)eip);
 }
 
-void cm_replay_core_init(void)
-{
-    switch (cm_run_mode) {
-    case CM_RUNMODE_REPLAY:
-        open_intr_log("r");
-        open_pc_log("r");
-        cm_read_intr_log();
-        break;
-    case CM_RUNMODE_RECORD:
-        open_intr_log("w");
-        open_pc_log("w");
-        break;
-    }
-}
-
 void cm_record_intr(int intno, long eip) {
     cm_write_intr_log(intno, eip);
-}
-
-#define PC_LOG_FMT "%lu\n"
-
-/* Check whether the next eip is the same as recorded. */
-void cm_replay_assert_pc(unsigned long eip) {
-    unsigned long next_eip;
-
-    switch (cm_run_mode) {
-    case CM_RUNMODE_REPLAY:
-        if (eip >= 0x100000) {
-            if (fscanf(cm_pc_log, PC_LOG_FMT, &next_eip) == EOF) {
-                printf("no more pc log\n");
-                exit(1);
-            }
-            coremu_assert(eip == next_eip, "eip = %p, recorded eip = %p\n",
-                          (void *)eip, (void *)next_eip);
-        }
-        break;
-    case CM_RUNMODE_RECORD:
-        if (eip >= 0x100000)
-            fprintf(cm_pc_log, PC_LOG_FMT, eip);
-        break;
-    }
 }
 
 int cm_replay_intr(void) {
     int intno;
 
     if (cm_tb_exec_cnt == cm_inject_exec_cnt) {
+        /*coremu_debug("injecting interrupt at %lu", cm_tb_exec_cnt);*/
         intno = cm_inject_intno;
         cm_read_intr_log(); /* Read next log entry. */
         return intno;
     }
     return -1;
 }
+
+/* input data */
+
+#define IN_LOG_FMT "%x %x\n"
+void cm_record_in(uint32_t address, uint32_t value) {
+    fprintf(cm_in_log, IN_LOG_FMT, address, value);
+}
+/* Returns 0 if ther's no more log entry. */
+int cm_replay_in(uint32_t *value) {
+    uint32_t address;
+    if (fscanf(cm_in_log, IN_LOG_FMT, &address, value) == EOF)
+        return 0;
+    return 1;
+}
+
+/* rdtsc */
+#define RDTSC_LOG_FMT "%lu\n"
+void cm_record_rdtsc(uint64_t value) {
+    fprintf(cm_rdtsc_log, RDTSC_LOG_FMT, value);
+}
+
+int cm_replay_rdtsc(uint64_t *value) {
+    if (fscanf(cm_rdtsc_log, RDTSC_LOG_FMT, value) == EOF)
+        return 0;
+    return 1;
+}
+
+/* Check whether the next eip is the same as recorded. This is used for
+ * debugging. */
+#define PC_LOG_FMT "%08lx\n"
+void cm_replay_assert_pc(unsigned long eip) {
+    unsigned long next_eip;
+
+    switch (cm_run_mode) {
+    case CM_RUNMODE_REPLAY:
+        if (fscanf(cm_pc_log, PC_LOG_FMT, &next_eip) == EOF) {
+            printf("no more pc log\n");
+            exit(1);
+        }
+        coremu_assert(eip == next_eip,
+                      "eip = %p, recorded eip = %p, cm_tb_exec_cnt = %lu",
+                      (void *)eip, (void *)next_eip, cm_tb_exec_cnt);
+        break;
+    case CM_RUNMODE_RECORD:
+        fprintf(cm_pc_log, PC_LOG_FMT, eip);
+        break;
+    }
+}
+

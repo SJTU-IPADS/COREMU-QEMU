@@ -132,10 +132,7 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
         exit(0);
     assert(env->eip = tb->pc);
     cm_replay_assert_pc(tb->pc);
-    if (tb->pc >= 0x100000)
-        next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
-    else
-        next_tb = tcg_qemu_tb_exec(tb->tc_ptr + cm_tb_cnt_code_size);
+    next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
     env->current_tb = NULL;
 
     if ((next_tb & 3) == 2) {
@@ -669,10 +666,7 @@ int cpu_exec(CPUState *env1)
                     if (cm_run_mode == CM_RUNMODE_RECORD && tb->pc == EXIT_PC)
                         exit(0);
 
-                    if (tb->pc >= 0x100000)
-                        next_tb = tcg_qemu_tb_exec(tc_ptr);
-                    else
-                        next_tb = tcg_qemu_tb_exec(tc_ptr + cm_tb_cnt_code_size);
+                    next_tb = tcg_qemu_tb_exec(tc_ptr);
 #ifdef CONFIG_REPLAY
                     if (cm_run_mode != CM_RUNMODE_REPLAY)
 #endif

@@ -1226,10 +1226,16 @@ void do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw)
 {
 #ifdef CONFIG_REPLAY
-    if (!is_int && (intno >= 32 || intno == 2)) {
+    if (!is_int && (intno >= 32 || intno == 2 || intno == 9)) {
         cm_intr_cnt++;
 
         switch (cm_run_mode) {
+        case CM_RUNMODE_RECORD:
+            cm_record_intr(intno, env->eip);
+            // For debug
+            if (cm_intr_cnt == NINTR)
+                exit(1);
+            break;
         case CM_RUNMODE_REPLAY:
             /* Do not inject interrupt if not read from log. */
             if (!(intno & CM_REPLAY_INT))
@@ -1238,13 +1244,6 @@ void do_interrupt(int intno, int is_int, int error_code,
                 intno &= ~CM_REPLAY_INT;
             coremu_debug("injecting intr at: %lu, eip: %p", cm_tb_exec_cnt,
                          (void *)(long)env->eip);
-            break;
-
-        case CM_RUNMODE_RECORD:
-            cm_record_intr(intno, env->eip);
-            // For debug
-            if (cm_intr_cnt == NINTR)
-                exit(1);
             break;
         }
     }
@@ -3007,7 +3006,21 @@ void helper_rdtsc(void)
     }
     helper_svm_check_intercept_param(SVM_EXIT_RDTSC, 0);
 
+#ifdef CONFIG_REPLAY
+    switch (cm_run_mode) {
+    case CM_RUNMODE_RECORD:
+        val = cpu_get_tsc(env) + env->tsc_offset;
+        cm_record_rdtsc(val);
+        break;
+    case CM_RUNMODE_REPLAY:
+        /* If no more log found, use the original method to get val. */
+        if (!cm_replay_rdtsc(&val))
+            val = cpu_get_tsc(env) + env->tsc_offset;
+        break;
+    }
+#else
     val = cpu_get_tsc(env) + env->tsc_offset;
+#endif
     EAX = (uint32_t)(val);
     EDX = (uint32_t)(val >> 32);
 }

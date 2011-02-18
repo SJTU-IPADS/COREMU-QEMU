@@ -28,6 +28,9 @@
 #include "ioport.h"
 #include "trace.h"
 
+#include "coremu-config.h"
+#include "cm-replay.h"
+
 /***********************************************************/
 /* IO Port */
 
@@ -55,7 +58,26 @@ static IOPortWriteFunc *ioport_write_table[3][MAX_IOPORTS];
 static IOPortReadFunc default_ioport_readb, default_ioport_readw, default_ioport_readl;
 static IOPortWriteFunc default_ioport_writeb, default_ioport_writew, default_ioport_writel;
 
+#ifdef CONFIG_REPLAY
+static inline int cm_ignore_address(uint32_t address) {
+    /*
+     *switch (address) {
+     *case 0x1f0: // primary ide master
+     *case 0x3f6: //             slave
+     *case 0x170: // secondary ide master
+     *case 0x376: //             slave
+     *    return 1;
+     *}
+     */
+    return 0;
+}
+#endif
+
+#ifdef CONFIG_REPLAY
+static uint32_t __ioport_read(int index, uint32_t address)
+#else
 static uint32_t ioport_read(int index, uint32_t address)
+#endif
 {
     static IOPortReadFunc * const default_func[3] = {
         default_ioport_readb,
@@ -67,6 +89,26 @@ static uint32_t ioport_read(int index, uint32_t address)
         func = default_func[index];
     return func(ioport_opaque[address], address);
 }
+
+int cm_ioport_read_cnt = 0;
+#ifdef CONFIG_REPLAY
+static uint32_t ioport_read(int index, uint32_t address)
+{
+    uint32_t value;
+    cm_ioport_read_cnt++;
+    /*printf("ioport read cnt = %d\n", cm_ioport_read_cnt);*/
+
+    if (cm_run_mode == CM_RUNMODE_REPLAY && !cm_ignore_address(address))
+        if (cm_replay_in(&value))
+            return value;
+
+    value = __ioport_read(index, address);
+    if (cm_run_mode == CM_RUNMODE_RECORD)
+        cm_record_in(address, value);
+
+    return value;
+}
+#endif
 
 static void ioport_write(int index, uint32_t address, uint32_t data)
 {
