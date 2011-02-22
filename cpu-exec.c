@@ -24,7 +24,7 @@
 #include "qemu-barrier.h"
 
 #include "coremu-config.h"
-#include "coremu-intr.h"
+#include "cm-intr.h"
 #include "cm-replay.h"
 
 #define DEBUG_COREMU
@@ -299,10 +299,7 @@ int cpu_exec(CPUState *env1)
     for(;;) {
         if (setjmp(env->jmp_env) == 0) {
 #ifdef CONFIG_COREMU
-#ifdef CONFIG_REPLAY
-            if (cm_run_mode != CM_RUNMODE_REPLAY)
-#endif
-                coremu_receive_intr();
+                cm_receive_intr();
 #endif
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)
 #undef env
@@ -657,20 +654,14 @@ int cpu_exec(CPUState *env1)
 #ifdef CONFIG_COREMU
                     /* Receive interrupt before and after executing the
                      * translated code. */
-#ifdef CONFIG_REPLAY
-                    if (cm_run_mode != CM_RUNMODE_REPLAY)
-#endif
-                    coremu_receive_intr();
+                    cm_receive_intr();
                     assert(env->eip = tb->pc);
                     cm_replay_assert_pc(tb->pc);
                     if (cm_run_mode == CM_RUNMODE_RECORD && tb->pc == EXIT_PC)
                         exit(0);
 
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
-#ifdef CONFIG_REPLAY
-                    if (cm_run_mode != CM_RUNMODE_REPLAY)
-#endif
-                    coremu_receive_intr();
+                    cm_receive_intr();
 
 # ifdef COREMU_CMC_SUPPORT
                     if ((next_tb & 3) == 3) {

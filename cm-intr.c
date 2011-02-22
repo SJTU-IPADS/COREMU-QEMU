@@ -30,7 +30,9 @@
 
 #include "coremu-core.h"
 #include "coremu-malloc.h"
+#include "coremu-intr.h"
 #include "cm-intr.h"
+#include "cm-replay.h"
 
 /* The common interface to handle the interrupt, this function should to
    be registered to coremu */
@@ -49,4 +51,10 @@ void cm_notify_event(void)
 {
     if (cpu_single_env)
         cpu_exit(cpu_single_env);
+}
+
+void cm_receive_intr(void)
+{
+    if (cm_run_mode != CM_RUNMODE_REPLAY)
+        coremu_receive_intr();
 }

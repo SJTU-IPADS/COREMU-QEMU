@@ -37,4 +37,6 @@ typedef struct CMIntr {
 
 void cm_common_intr_handler(CMIntr *opaque);
 void cm_notify_event(void);
+
+void cm_receive_intr(void);
 #endif

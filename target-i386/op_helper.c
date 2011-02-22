@@ -1226,7 +1226,7 @@ void do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw)
 {
 #ifdef CONFIG_REPLAY
-    if (!is_int && (intno >= 32 || intno == 2 || intno == 9)) {
+    if (!is_int && (intno >= 32 || intno == 2 || intno == 9 || intno == 8)) {
         cm_intr_cnt++;
 
         switch (cm_run_mode) {
