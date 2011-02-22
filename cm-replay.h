@@ -7,9 +7,10 @@ enum {
     CM_RUNMODE_REPLAY,
 };
 
-#define NINTR 15 // For debug
+#define NINTR 10 // For debug
 extern __thread long cm_inject_eip; // For debug
 
+/* Mark the interrupt being generated from the log. */
 #define CM_REPLAY_INT 0x80000000
 
 extern int cm_run_mode;

@@ -66,13 +66,18 @@ static void cm_open_log(const char *mode) {
     open_log1(&cm_rdtsc_log, "rdtsc", mode);
 }
 
+static int cm_replay_inited = 0;
+
 static inline void cm_read_intr_log(void);
 void cm_replay_core_init(void)
 {
-    const char *mode = cm_run_mode == CM_RUNMODE_RECORD ? "w" : "r";
+    if (cm_run_mode == CM_RUNMODE_NORMAL || cm_replay_inited)
+        return;
+    const char *mode = cm_run_mode == CM_RUNMODE_REPLAY ? "r" : "w";
     cm_open_log(mode);
     if (cm_run_mode == CM_RUNMODE_REPLAY)
         cm_read_intr_log();
+    cm_replay_inited = 1;
 }
 
 /* interrupt */
