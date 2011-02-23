@@ -3010,15 +3010,14 @@ void helper_rdtsc(void)
 
 #ifdef CONFIG_REPLAY
     switch (cm_run_mode) {
-    case CM_RUNMODE_RECORD:
-        val = cpu_get_tsc(env) + env->tsc_offset;
-        cm_record_rdtsc(val);
-        break;
     case CM_RUNMODE_REPLAY:
         /* If no more log found, use the original method to get val. */
-        if (!cm_replay_rdtsc(&val))
-            val = cpu_get_tsc(env) + env->tsc_offset;
-        break;
+        if (cm_replay_rdtsc(&val))
+            break;
+    default:
+        val = cpu_get_tsc(env) + env->tsc_offset;
+        if (cm_run_mode == CM_RUNMODE_RECORD)
+            cm_record_rdtsc(val);
     }
 #else
     val = cpu_get_tsc(env) + env->tsc_offset;
