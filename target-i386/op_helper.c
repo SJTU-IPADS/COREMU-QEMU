@@ -1238,11 +1238,13 @@ void do_interrupt(int intno, int is_int, int error_code,
             break;
         case CM_RUNMODE_REPLAY:
             /* Do not inject interrupt if not read from log. */
-            if (!(intno & CM_REPLAY_INT))
+            if (!(intno & CM_REPLAY_INT)) {
+                coremu_debug("ignore intr not from log");
                 return;
+            }
             else
                 intno &= ~CM_REPLAY_INT;
-            coremu_debug("injecting intr at: %lu, eip: %p", cm_tb_exec_cnt,
+            coremu_debug("inject intr at: %lu, eip: %p", cm_tb_exec_cnt,
                          (void *)(long)env->eip);
             break;
         }

@@ -98,6 +98,9 @@
 
 #include "qemu_socket.h"
 
+#include <pthread.h>
+#include "coremu-config.h"
+
 #define READ_BUF_LEN 4096
 
 /***********************************************************/
@@ -332,6 +335,12 @@ static void mux_chr_send_event(MuxDriver *d, int mux_nr, int event)
         d->chr_event[mux_nr](d->ext_opaque[mux_nr], event);
 }
 
+#ifdef CONFIG_COREMU
+/* Ugly hack to let CPU threads flush log out and call exit.
+ * Otherwise, the log may get corrupted. */
+int cm_exit_requested = 0;
+#endif
+
 static int mux_proc_byte(CharDriverState *chr, MuxDriver *d, int ch)
 {
     if (d->term_got_escape) {
@@ -347,6 +356,12 @@ static int mux_proc_byte(CharDriverState *chr, MuxDriver *d, int ch)
             {
                  const char *term =  "QEMU: Terminated\n\r";
                  chr->chr_write(chr,(uint8_t *)term,strlen(term));
+#ifdef CONFIG_COREMU
+                 cm_exit_requested = 1;
+                 /* Wait other CPU threads to call exit. */
+                 while (cm_exit_requested != smp_cpus + 1)
+                     pthread_yield();
+#endif
                  exit(0);
                  break;
             }

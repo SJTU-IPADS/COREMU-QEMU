@@ -27,6 +27,8 @@ int cm_replay_in(uint32_t *value);
 void cm_record_rdtsc(uint64_t value);
 int cm_replay_rdtsc(uint64_t *value);
 
+void cm_replay_flush_log(void);
+
 void cm_replay_assert_pc(unsigned long eip);
 
 #endif /* _CM_REPLAY_H */

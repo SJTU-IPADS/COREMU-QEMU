@@ -1218,7 +1218,7 @@ int vmstop_requested;
 #ifdef CONFIG_COREMU
 int cm_test_reset_request(void)
 {
-	return reset_requested;
+    return reset_requested;
 }
 #endif
 

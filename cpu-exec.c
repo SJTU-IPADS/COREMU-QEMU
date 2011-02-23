@@ -23,7 +23,9 @@
 #include "kvm.h"
 #include "qemu-barrier.h"
 
+#include <pthread.h>
 #include "coremu-config.h"
+#include "coremu-atomic.h"
 #include "cm-intr.h"
 #include "cm-replay.h"
 
@@ -240,6 +242,10 @@ static void cpu_handle_debug_exception(CPUState *env)
 
 /* main execution loop */
 
+#ifdef CONFIG_COREMU
+extern int cm_exit_requested;
+#endif
+
 volatile sig_atomic_t exit_request;
 
 int cpu_exec(CPUState *env1)
@@ -371,6 +377,14 @@ int cpu_exec(CPUState *env1)
 
             next_tb = 0; /* force lookup of first TB */
             for(;;) {
+#ifdef CONFIG_COREMU
+                /* Ugly hack to handle ctrl-x exit */
+                if (cm_exit_requested) {
+                    cm_replay_flush_log();
+                    atomic_incl((unsigned int *)&cm_exit_requested);
+                    while (1) pthread_yield();
+                }
+#endif
                 interrupt_request = env->interrupt_request;
                 if (unlikely(interrupt_request)) {
                     if (unlikely(env->singlestep_enabled & SSTEP_NOIRQ)) {
@@ -656,10 +670,10 @@ int cpu_exec(CPUState *env1)
                      * translated code. */
                     cm_receive_intr();
                     assert(env->eip = tb->pc);
-                    cm_replay_assert_pc(tb->pc);
                     if (cm_run_mode == CM_RUNMODE_RECORD && tb->pc == EXIT_PC)
                         exit(0);
 
+                    cm_replay_assert_pc(tb->pc);
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
                     cm_receive_intr();
 
