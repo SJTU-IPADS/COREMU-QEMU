@@ -71,6 +71,10 @@
 #include "coremu-atomic.h"
 #include "coremu-hw.h"
 #include "cm-tbinval.h"
+#include "cm-replay.h"
+
+#define DEBUG_COREMU
+#include "coremu-debug.h"
 
 #if !defined(CONFIG_USER_ONLY)
 /* TB consistency checks only implemented for usermode emulation.  */
@@ -3668,6 +3672,61 @@ static void swapendian_del(int io_index)
     }
 }
 
+#ifdef CONFIG_REPLAY
+#include <sys/mman.h>
+
+#define CM_MAGIC_CALL 0xdeadbeefdeadbeef
+static uint64_t cm_magic_call = CM_MAGIC_CALL;
+static uint64_t cm_call_offset = 0;
+
+static uint32_t cm_io_mem_read_template(void *opaque, target_phys_addr_t addr)
+{
+    uint32_t val;
+    switch (cm_run_mode) {
+    case CM_RUNMODE_REPLAY:
+        if (cm_replay_mmio(&val))
+            break;
+    default:
+        /* Use a magic number to mark the call location */
+        val = ((CPUReadMemoryFunc *)CM_MAGIC_CALL)(opaque, addr);
+        if (cm_run_mode == CM_RUNMODE_RECORD)
+            cm_record_mmio(val);
+    }
+    return val;
+}
+
+/* Hack to create closure to wrap the io_mem_read function */
+static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
+{
+    /* XXX the function size is not guaranteed to work */
+    uint64_t func_size = (uint64_t)cm_wrap_read_mem_func -
+        (uint64_t)cm_io_mem_read_template;
+    uint8 *code = mmap(0, func_size, PROT_WRITE | PROT_EXEC,
+                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (code == MAP_FAILED) {
+        printf("allocate memory for wrap function failed\n");
+        exit(1);
+    }
+    memcpy(code, cm_io_mem_read_template, func_size);
+
+    if (cm_call_offset == 0) {
+        void *l;
+        if ((l = memmem(cm_io_mem_read_template, func_size,
+                   &cm_magic_call, 8)) == NULL) {
+            printf("patch call location not found\n");
+            exit(1);
+        } else {
+            cm_call_offset = (uint64_t)l - (uint64_t)cm_io_mem_read_template;
+            coremu_debug("cm_call_offset = %lu", cm_call_offset);
+        }
+    }
+    /* Patch the wrap function */
+    *(uint64_t *)(code + cm_call_offset) = (uint64_t)func;
+
+    return (CPUReadMemoryFunc *)code;
+}
+#endif
+
 /* mem_read and mem_write are arrays of functions containing the
    function to access byte (index 0), word (index 1) and dword (index
    2). Functions can be omitted with a NULL function pointer.
@@ -3693,8 +3752,16 @@ static int cpu_register_io_memory_fixed(int io_index,
     }
 
     for (i = 0; i < 3; ++i) {
+#ifdef CONFIG_REPLAY
+        io_mem_read[io_index][i]
+            = (mem_read[i] ?
+               /*cm_wrap_read_mem_func(mem_read[i]) :*/
+               mem_read[i] :
+               unassigned_mem_read[i]);
+#else
         io_mem_read[io_index][i]
             = (mem_read[i] ? mem_read[i] : unassigned_mem_read[i]);
+#endif
     }
     for (i = 0; i < 3; ++i) {
         io_mem_write[io_index][i]

@@ -104,7 +104,7 @@ static uint32_t ioport_read(int index, uint32_t address)
 
     value = __ioport_read(index, address);
     if (cm_run_mode == CM_RUNMODE_RECORD)
-        cm_record_in(address, value);
+        cm_record_in(value);
 
     return value;
 }

@@ -21,14 +21,18 @@ void cm_replay_core_init(void);
 void cm_record_intr(int intno, long eip);
 int cm_replay_intr(void);
 
-void cm_record_in(uint32_t address, uint32_t value);
-int cm_replay_in(uint32_t *value);
+#define GEN_HEADER(name, type) \
+    void cm_record_##name(type arg); \
+    int cm_replay_##name(type *arg);
 
-void cm_record_rdtsc(uint64_t value);
-int cm_replay_rdtsc(uint64_t *value);
+GEN_HEADER(in, uint32_t);
+GEN_HEADER(mmio, uint32_t);
+GEN_HEADER(rdtsc, uint64_t);
+
+void cm_replay_assert_pc(unsigned long eip);
 
 void cm_replay_flush_log(void);
 
-void cm_replay_assert_pc(unsigned long eip);
+#undef GEN_HEADER
 
 #endif /* _CM_REPLAY_H */

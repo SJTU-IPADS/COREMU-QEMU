@@ -45,6 +45,7 @@ static __thread FILE *cm_log_intr;
 static __thread FILE *cm_log_pc;
 static __thread FILE *cm_log_in;
 static __thread FILE *cm_log_rdtsc;
+static __thread FILE *cm_log_mmio;
 
 #define LOGDIR "replay-log/"
 static void open_log1(FILE **log, const char* logname, const char *mode)
@@ -64,6 +65,7 @@ static void cm_open_log(const char *mode) {
     open_log1(&cm_log_pc, "pc", mode);
     open_log1(&cm_log_in, "in", mode);
     open_log1(&cm_log_rdtsc, "rdtsc", mode);
+    open_log1(&cm_log_mmio, "mmio", mode);
 }
 
 static int cm_replay_inited = 0;
@@ -84,21 +86,16 @@ void cm_replay_core_init(void)
 
 #define cm_log_intr_FMT "%d %lu %p\n"
 
+void cm_record_intr(int intno, long eip) {
+    fprintf(cm_log_intr, cm_log_intr_FMT, intno, cm_tb_exec_cnt, (void *)(long)eip);
+}
+
 static inline void cm_read_intr_log(void)
 {
     if (fscanf(cm_log_intr, cm_log_intr_FMT, &cm_inject_intno,
                &cm_inject_exec_cnt, (void **)&cm_inject_eip) == EOF) {
         cm_inject_exec_cnt = -1;
     }
-}
-
-static inline void cm_write_intr_log(int intno, long eip)
-{
-    fprintf(cm_log_intr, cm_log_intr_FMT, intno, cm_tb_exec_cnt, (void *)(long)eip);
-}
-
-void cm_record_intr(int intno, long eip) {
-    cm_write_intr_log(intno, eip);
 }
 
 int cm_replay_intr(void) {
@@ -113,34 +110,51 @@ int cm_replay_intr(void) {
     return -1;
 }
 
+#define GEN_RECORD_FUNC(name, type, log, fmt) \
+void cm_record_##name(type arg) { \
+    fprintf(log, fmt, arg); \
+}
+
+#define GEN_REPLAY_FUNC(name, type, log, fmt) \
+int cm_replay_##name(type *arg) { \
+    if (fscanf(log, fmt, arg) == EOF) \
+        return 0; \
+    return 1; \
+}
+
+#define GEN_FUNC(name, type, log, fmt) \
+    GEN_RECORD_FUNC(name, type, log, fmt) \
+    GEN_REPLAY_FUNC(name, type, log, fmt)
+
 /* input data */
 
-#define IN_LOG_FMT "%x %x\n"
-void cm_record_in(uint32_t address, uint32_t value) {
-    fprintf(cm_log_in, IN_LOG_FMT, address, value);
-}
-/* Returns 0 if ther's no more log entry. */
-int cm_replay_in(uint32_t *value) {
-    uint32_t address;
-    if (fscanf(cm_log_in, IN_LOG_FMT, &address, value) == EOF) {
-        printf("no more in log\n");
-        exit(0);
-        return 0;
-    }
-    return 1;
-}
+#define IN_LOG_FMT "%x\n"
+GEN_FUNC(in, uint32_t, cm_log_in, IN_LOG_FMT);
+/*
+ *#define IN_LOG_FMT "%x %x\n"
+ *[> XXX Recording address is only for debugging. <]
+ *void cm_record_in(uint32_t address, uint32_t value) {
+ *    fprintf(cm_log_in, IN_LOG_FMT, address, value);
+ *}
+ *[> Returns 0 if ther's no more log entry. <]
+ *int cm_replay_in(uint32_t *value) {
+ *    uint32_t address;
+ *    if (fscanf(cm_log_in, IN_LOG_FMT, &address, value) == EOF) {
+ *        printf("no more in log\n");
+ *        exit(0);
+ *        return 0;
+ *    }
+ *    return 1;
+ *}
+ */
+
+/* mmio */
+#define MMIO_LOG_FMT "%u\n"
+GEN_FUNC(mmio, uint32_t, cm_log_mmio, MMIO_LOG_FMT);
 
 /* rdtsc */
 #define RDTSC_LOG_FMT "%lu\n"
-void cm_record_rdtsc(uint64_t value) {
-    fprintf(cm_log_rdtsc, RDTSC_LOG_FMT, value);
-}
-
-int cm_replay_rdtsc(uint64_t *value) {
-    if (fscanf(cm_log_rdtsc, RDTSC_LOG_FMT, value) == EOF)
-        return 0;
-    return 1;
-}
+GEN_FUNC(rdtsc, uint64_t, cm_log_rdtsc, RDTSC_LOG_FMT);
 
 /* Check whether the next eip is the same as recorded. This is used for
  * debugging. */
@@ -168,6 +182,7 @@ void cm_replay_assert_pc(unsigned long eip) {
 void cm_replay_flush_log(void) {
     fflush(cm_log_intr);
     fflush(cm_log_in);
+    fflush(cm_log_mmio);
     fflush(cm_log_rdtsc);
     fflush(cm_log_pc);
 }
