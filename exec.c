@@ -3679,8 +3679,27 @@ static void swapendian_del(int io_index)
 static uint64_t cm_magic_call = CM_MAGIC_CALL;
 static uint64_t cm_call_offset = 0;
 
+/*
+ *static int cnt;
+ *static void inc(void) {
+ *    cnt++;
+ *}
+ */
+
+static uint32_t cm_io_mem_read_template(void *opaque, target_phys_addr_t addr)
+    __attribute__ ((section ("data")));
 static uint32_t cm_io_mem_read_template(void *opaque, target_phys_addr_t addr)
 {
+    /*
+     *[> This part works. <]
+     *uint64_t *fp = (uint64_t *)inc;
+     *((void (*)(void)) fp)();
+     *return ((CPUReadMemoryFunc *)CM_MAGIC_CALL)(opaque, addr);
+     */
+    /* XXX GCC uses RIP relative addressing to get global variable and do
+     * function call, but we must use absolute address here since we are coping
+     * this piece of code to heap and then execute. Hard to get this right.
+     * Try using TCC to do dynamic code generation. */
     uint32_t val;
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
@@ -3701,6 +3720,7 @@ static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
     /* XXX the function size is not guaranteed to work */
     uint64_t func_size = (uint64_t)cm_wrap_read_mem_func -
         (uint64_t)cm_io_mem_read_template;
+    coremu_debug("func_size: %lu", func_size);
     uint8 *code = mmap(0, func_size, PROT_WRITE | PROT_EXEC,
                       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (code == MAP_FAILED) {
