@@ -3673,77 +3673,67 @@ static void swapendian_del(int io_index)
 }
 
 #ifdef CONFIG_REPLAY
-#include <sys/mman.h>
 
-#define CM_MAGIC_CALL 0xdeadbeefdeadbeef
-static uint64_t cm_magic_call = CM_MAGIC_CALL;
-static uint64_t cm_call_offset = 0;
+#include <libtcc.h>
 
-/*
- *static int cnt;
- *static void inc(void) {
- *    cnt++;
- *}
- */
+char io_read_func[] =
+"enum {\n"
+"    CM_RUNMODE_NORMAL,\n"
+"    CM_RUNMODE_RECORD,\n"
+"    CM_RUNMODE_REPLAY,\n"
+"};\n"
+"unsigned int io_read_wrap(void *opaque, unsigned long addr)\n"
+"{\n"
+"    unsigned int val;\n"
+"    switch (cm_get_run_mode()) {\n"
+"    case CM_RUNMODE_REPLAY:\n"
+"        if (cm_replay_mmio(&val))\n"
+"            break;\n"
+"    default:\n"
+"        val = origin_func(opaque, addr);\n"
+"        if (cm_get_run_mode() == CM_RUNMODE_RECORD)\n"
+"            cm_record_mmio(val);\n"
+"    }\n"
+"    return val;\n"
+"}\n";
 
-static uint32_t cm_io_mem_read_template(void *opaque, target_phys_addr_t addr)
-    __attribute__ ((section ("data")));
-static uint32_t cm_io_mem_read_template(void *opaque, target_phys_addr_t addr)
-{
-    /*
-     *[> This part works. <]
-     *uint64_t *fp = (uint64_t *)inc;
-     *((void (*)(void)) fp)();
-     *return ((CPUReadMemoryFunc *)CM_MAGIC_CALL)(opaque, addr);
-     */
-    /* XXX GCC uses RIP relative addressing to get global variable and do
-     * function call, but we must use absolute address here since we are coping
-     * this piece of code to heap and then execute. Hard to get this right.
-     * Try using TCC to do dynamic code generation. */
-    uint32_t val;
-    switch (cm_run_mode) {
-    case CM_RUNMODE_REPLAY:
-        if (cm_replay_mmio(&val))
-            break;
-    default:
-        /* Use a magic number to mark the call location */
-        val = ((CPUReadMemoryFunc *)CM_MAGIC_CALL)(opaque, addr);
-        if (cm_run_mode == CM_RUNMODE_RECORD)
-            cm_record_mmio(val);
-    }
-    return val;
-}
-
-/* Hack to create closure to wrap the io_mem_read function */
+/* Use libtcc to generate the wrapped function.
+ * Refer to libtcc_test.c in TCC's source code for more details. */
 static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
 {
-    /* XXX the function size is not guaranteed to work */
-    uint64_t func_size = (uint64_t)cm_wrap_read_mem_func -
-        (uint64_t)cm_io_mem_read_template;
-    coremu_debug("func_size: %lu", func_size);
-    uint8 *code = mmap(0, func_size, PROT_WRITE | PROT_EXEC,
-                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (code == MAP_FAILED) {
-        printf("allocate memory for wrap function failed\n");
+    TCCState *s = tcc_new();
+    if (!s) {
+        printf("Could not create tcc state\n");
         exit(1);
     }
-    memcpy(code, cm_io_mem_read_template, func_size);
 
-    if (cm_call_offset == 0) {
-        void *l;
-        if ((l = memmem(cm_io_mem_read_template, func_size,
-                   &cm_magic_call, 8)) == NULL) {
-            printf("patch call location not found\n");
-            exit(1);
-        } else {
-            cm_call_offset = (uint64_t)l - (uint64_t)cm_io_mem_read_template;
-            coremu_debug("cm_call_offset = %lu", cm_call_offset);
-        }
+    tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
+    if (tcc_compile_string(s, io_read_func) == -1) {
+        printf("Can't compile io_read_func\n");
+        exit(1);
     }
-    /* Patch the wrap function */
-    *(uint64_t *)(code + cm_call_offset) = (uint64_t)func;
+    tcc_add_symbol(s, "cm_get_run_mode", cm_get_run_mode);
+    tcc_add_symbol(s, "cm_replay_mmio", cm_replay_mmio);
+    tcc_add_symbol(s, "cm_record_mmio", cm_record_mmio);
+    tcc_add_symbol(s, "origin_func", func);
 
-    return (CPUReadMemoryFunc *)code;
+    int size = tcc_relocate(s, NULL);
+    if (size == -1) {
+        printf("error in relocate\n");
+        exit(1);
+    }
+
+    void *mem = malloc(size);
+    tcc_relocate(s, mem);
+    CPUReadMemoryFunc *wrap_func = tcc_get_symbol(s, "io_read_wrap");
+    if (!wrap_func) {
+        printf("can't get entry to io_read_func\n");
+        exit(1);
+    }
+
+    tcc_delete(s);
+
+    return wrap_func;
 }
 #endif
 
@@ -3775,8 +3765,8 @@ static int cpu_register_io_memory_fixed(int io_index,
 #ifdef CONFIG_REPLAY
         io_mem_read[io_index][i]
             = (mem_read[i] ?
-               /*cm_wrap_read_mem_func(mem_read[i]) :*/
-               mem_read[i] :
+               cm_wrap_read_mem_func(mem_read[i]) :
+               /*mem_read[i] :*/
                unassigned_mem_read[i]);
 #else
         io_mem_read[io_index][i]

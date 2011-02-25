@@ -1234,7 +1234,7 @@ void do_interrupt(int intno, int is_int, int error_code,
             cm_record_intr(intno, env->eip);
             // For debug
             if (cm_intr_cnt == NINTR)
-                exit(1);
+                exit(0);
             break;
         case CM_RUNMODE_REPLAY:
             /* Do not inject interrupt if not read from log. */

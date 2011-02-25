@@ -34,6 +34,10 @@
 
 /* Whether the vm is being recorded or replayed. */
 int cm_run_mode;
+/* Seems that libtcc can only add function symbol. */
+int cm_get_run_mode(void) {
+    return cm_run_mode;
+}
 
 __thread uint64_t cm_tb_exec_cnt;
 /* Inject interrupt when cm_tb_exec_cnt reaches this value */

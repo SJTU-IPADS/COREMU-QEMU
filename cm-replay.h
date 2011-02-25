@@ -14,6 +14,7 @@ extern __thread long cm_inject_eip; // For debug
 #define CM_REPLAY_INT 0x80000000
 
 extern int cm_run_mode;
+int cm_get_run_mode(void);
 extern __thread uint64_t cm_tb_exec_cnt;
 
 void cm_replay_core_init(void);
