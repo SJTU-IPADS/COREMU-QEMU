@@ -7,7 +7,7 @@ enum {
     CM_RUNMODE_REPLAY,
 };
 
-#define NINTR 10 // For debug
+#define NINTR 20 // For debug
 extern __thread long cm_inject_eip; // For debug
 
 /* Mark the interrupt being generated from the log. */
@@ -29,6 +29,8 @@ int cm_replay_intr(void);
 GEN_HEADER(in, uint32_t);
 GEN_HEADER(mmio, uint32_t);
 GEN_HEADER(rdtsc, uint64_t);
+
+void cm_debug_mmio(void *);
 
 void cm_replay_assert_pc(unsigned long eip);
 

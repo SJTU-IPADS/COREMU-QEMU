@@ -45,11 +45,20 @@ static __thread uint64_t cm_inject_exec_cnt = -1;
 static __thread int cm_inject_intno;
 __thread long cm_inject_eip;
 
-static __thread FILE *cm_log_intr;
-static __thread FILE *cm_log_pc;
-static __thread FILE *cm_log_in;
-static __thread FILE *cm_log_rdtsc;
-static __thread FILE *cm_log_mmio;
+enum {
+    INTR,
+    PC,
+    IN,
+    RDTSC,
+    MMIO,
+    N_CM_LOG,
+};
+
+static const char *cm_log_name[] = {
+    "intr", "pc", "in", "rdtsc", "mmio"
+};
+
+static __thread FILE *cm_log[N_CM_LOG];
 
 #define LOGDIR "replay-log/"
 static void open_log1(FILE **log, const char* logname, const char *mode)
@@ -58,18 +67,16 @@ static void open_log1(FILE **log, const char* logname, const char *mode)
     snprintf(logpath, MAXLOGLEN, LOGDIR"%s-%d", logname, coremu_get_core_id());
 
     *log = fopen(logpath, mode);
-    if (!cm_log_intr) {
+    if (!cm_log[INTR]) {
         printf("Can't open log file %s\n", logpath);
         exit(1);
     }
 }
 
 static void cm_open_log(const char *mode) {
-    open_log1(&cm_log_intr, "intr", mode);
-    open_log1(&cm_log_pc, "pc", mode);
-    open_log1(&cm_log_in, "in", mode);
-    open_log1(&cm_log_rdtsc, "rdtsc", mode);
-    open_log1(&cm_log_mmio, "mmio", mode);
+    int i;
+    for (i = 0; i < N_CM_LOG; i++)
+        open_log1(&cm_log[i], cm_log_name[i], mode);
 }
 
 static int cm_replay_inited = 0;
@@ -88,15 +95,15 @@ void cm_replay_core_init(void)
 
 /* interrupt */
 
-#define cm_log_intr_FMT "%d %lu %p\n"
+#define LOG_INTR_FMT "%d %lu %p\n"
 
 void cm_record_intr(int intno, long eip) {
-    fprintf(cm_log_intr, cm_log_intr_FMT, intno, cm_tb_exec_cnt, (void *)(long)eip);
+    fprintf(cm_log[INTR], LOG_INTR_FMT, intno, cm_tb_exec_cnt, (void *)(long)eip);
 }
 
 static inline void cm_read_intr_log(void)
 {
-    if (fscanf(cm_log_intr, cm_log_intr_FMT, &cm_inject_intno,
+    if (fscanf(cm_log[INTR], LOG_INTR_FMT, &cm_inject_intno,
                &cm_inject_exec_cnt, (void **)&cm_inject_eip) == EOF) {
         cm_inject_exec_cnt = -1;
     }
@@ -133,17 +140,17 @@ int cm_replay_##name(type *arg) { \
 /* input data */
 
 #define IN_LOG_FMT "%x\n"
-GEN_FUNC(in, uint32_t, cm_log_in, IN_LOG_FMT);
+GEN_FUNC(in, uint32_t, cm_log[IN], IN_LOG_FMT);
 /*
  *#define IN_LOG_FMT "%x %x\n"
  *[> XXX Recording address is only for debugging. <]
  *void cm_record_in(uint32_t address, uint32_t value) {
- *    fprintf(cm_log_in, IN_LOG_FMT, address, value);
+ *    fprintf(cm_log[IN], IN_LOG_FMT, address, value);
  *}
  *[> Returns 0 if ther's no more log entry. <]
  *int cm_replay_in(uint32_t *value) {
  *    uint32_t address;
- *    if (fscanf(cm_log_in, IN_LOG_FMT, &address, value) == EOF) {
+ *    if (fscanf(cm_log[IN], IN_LOG_FMT, &address, value) == EOF) {
  *        printf("no more in log\n");
  *        exit(0);
  *        return 0;
@@ -154,11 +161,15 @@ GEN_FUNC(in, uint32_t, cm_log_in, IN_LOG_FMT);
 
 /* mmio */
 #define MMIO_LOG_FMT "%u\n"
-GEN_FUNC(mmio, uint32_t, cm_log_mmio, MMIO_LOG_FMT);
+GEN_FUNC(mmio, uint32_t, cm_log[MMIO], MMIO_LOG_FMT);
+
+void cm_debug_mmio(void *f) {
+    fprintf(cm_log[MMIO], "%p\n", f);
+}
 
 /* rdtsc */
 #define RDTSC_LOG_FMT "%lu\n"
-GEN_FUNC(rdtsc, uint64_t, cm_log_rdtsc, RDTSC_LOG_FMT);
+GEN_FUNC(rdtsc, uint64_t, cm_log[RDTSC], RDTSC_LOG_FMT);
 
 /* Check whether the next eip is the same as recorded. This is used for
  * debugging. */
@@ -167,9 +178,12 @@ extern int cm_ioport_read_cnt;
 void cm_replay_assert_pc(unsigned long eip) {
     unsigned long next_eip;
 
+    if (cm_tb_exec_cnt % 1024 != 0)
+        return;
+
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
-        if (fscanf(cm_log_pc, PC_LOG_FMT, &next_eip) == EOF) {
+        if (fscanf(cm_log[PC], PC_LOG_FMT, &next_eip) == EOF) {
             printf("no more pc log\n");
             exit(1);
         }
@@ -178,15 +192,13 @@ void cm_replay_assert_pc(unsigned long eip) {
                       (void *)eip, (void *)next_eip, cm_tb_exec_cnt, cm_ioport_read_cnt);
         break;
     case CM_RUNMODE_RECORD:
-        fprintf(cm_log_pc, PC_LOG_FMT, eip);
+        fprintf(cm_log[PC], PC_LOG_FMT, eip);
         break;
     }
 }
 
 void cm_replay_flush_log(void) {
-    fflush(cm_log_intr);
-    fflush(cm_log_in);
-    fflush(cm_log_mmio);
-    fflush(cm_log_rdtsc);
-    fflush(cm_log_pc);
+    int i;
+    for (i = 0; i < N_CM_LOG; i++)
+        fflush(cm_log[i]);
 }
