@@ -103,6 +103,10 @@ void cm_cpu_exec_init(void)
     /* Code prologue initialization. */
     cm_code_prologue_init();
     map_exec(code_gen_prologue, sizeof(code_gen_prologue));
+
+#ifdef CONFIG_REPLAY
+    cm_replay_init();
+#endif
 }
 
 void cm_cpu_exec_init_core(void)

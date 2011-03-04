@@ -1982,7 +1982,7 @@ static void tcg_target_init(TCGContext *s)
 }
 
 #ifdef CONFIG_REPLAY
-extern __thread uint64_t cm_tb_exec_cnt;
+#include "cm-replay.h"
 
 void cm_tcg_gen_tb_exec_cnt(TCGContext *s)
 {
@@ -1991,7 +1991,7 @@ void cm_tcg_gen_tb_exec_cnt(TCGContext *s)
      * want to directly operate on memory location.
      * So I hard code the machine code which is platform dependent. The
      * following binary code is extracted from object code compiled by gcc. */
-    tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_RAX, (long)&cm_tb_exec_cnt);
+    tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_RAX, (long)&cm_tb_exec_cnt[cm_coreid]);
 
     /* incq (%rax) */
     tcg_out8(s, 0x48); /* insn. prefix REX.W */

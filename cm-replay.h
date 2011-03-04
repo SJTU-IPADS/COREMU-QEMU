@@ -15,8 +15,10 @@ extern __thread long cm_inject_eip; // For debug
 
 extern int cm_run_mode;
 int cm_get_run_mode(void);
-extern __thread uint64_t cm_tb_exec_cnt;
+extern uint64_t *cm_tb_exec_cnt;
+extern __thread int cm_coreid;
 
+void cm_replay_init(void);
 void cm_replay_core_init(void);
 
 void cm_record_intr(int intno, long eip);

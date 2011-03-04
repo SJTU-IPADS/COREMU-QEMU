@@ -1244,7 +1244,7 @@ void do_interrupt(int intno, int is_int, int error_code,
             }
             else
                 intno &= ~CM_REPLAY_INT;
-            coremu_debug("inject intr at: %lu, eip: %p", cm_tb_exec_cnt,
+            coremu_debug("inject intr at: %lu, eip: %p", cm_tb_exec_cnt[cm_coreid],
                          (void *)(long)env->eip);
             break;
         }

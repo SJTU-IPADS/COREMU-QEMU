@@ -32,14 +32,17 @@
 
 #define MAXLOGLEN 256
 
+extern int smp_cpus;
+
 /* Whether the vm is being recorded or replayed. */
 int cm_run_mode;
-/* Seems that libtcc can only add function symbol. */
-int cm_get_run_mode(void) {
-    return cm_run_mode;
-}
 
-__thread uint64_t cm_tb_exec_cnt;
+/* Use this to get cpu specific info. */
+__thread int cm_coreid;
+
+/* Array containing tb execution count for each cpu. */
+uint64_t *cm_tb_exec_cnt;
+
 /* Inject interrupt when cm_tb_exec_cnt reaches this value */
 static __thread uint64_t cm_inject_exec_cnt = -1;
 static __thread int cm_inject_intno;
@@ -58,7 +61,9 @@ static const char *cm_log_name[] = {
     "intr", "pc", "in", "rdtsc", "mmio"
 };
 
-static __thread FILE *cm_log[N_CM_LOG];
+/* Array containing logs for each cpu. */
+typedef FILE *log_t;
+static log_t **cm_log;
 
 #define LOGDIR "replay-log/"
 static void open_log1(FILE **log, const char* logname, const char *mode)
@@ -67,7 +72,7 @@ static void open_log1(FILE **log, const char* logname, const char *mode)
     snprintf(logpath, MAXLOGLEN, LOGDIR"%s-%d", logname, coremu_get_core_id());
 
     *log = fopen(logpath, mode);
-    if (!cm_log[INTR]) {
+    if (!(*log)) {
         printf("Can't open log file %s\n", logpath);
         exit(1);
     }
@@ -76,21 +81,13 @@ static void open_log1(FILE **log, const char* logname, const char *mode)
 static void cm_open_log(const char *mode) {
     int i;
     for (i = 0; i < N_CM_LOG; i++)
-        open_log1(&cm_log[i], cm_log_name[i], mode);
+        open_log1(&(cm_log[cm_coreid][i]), cm_log_name[i], mode);
 }
 
-static int cm_replay_inited = 0;
-
-static inline void cm_read_intr_log(void);
-void cm_replay_core_init(void)
-{
-    if (cm_run_mode == CM_RUNMODE_NORMAL || cm_replay_inited)
-        return;
-    const char *mode = cm_run_mode == CM_RUNMODE_REPLAY ? "r" : "w";
-    cm_open_log(mode);
-    if (cm_run_mode == CM_RUNMODE_REPLAY)
-        cm_read_intr_log();
-    cm_replay_inited = 1;
+void cm_replay_flush_log(void) {
+    int i;
+    for (i = 0; i < N_CM_LOG; i++)
+        fflush(cm_log[cm_coreid][i]);
 }
 
 /* interrupt */
@@ -98,12 +95,12 @@ void cm_replay_core_init(void)
 #define LOG_INTR_FMT "%d %lu %p\n"
 
 void cm_record_intr(int intno, long eip) {
-    fprintf(cm_log[INTR], LOG_INTR_FMT, intno, cm_tb_exec_cnt, (void *)(long)eip);
+    fprintf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, intno, cm_tb_exec_cnt[cm_coreid], (void *)(long)eip);
 }
 
 static inline void cm_read_intr_log(void)
 {
-    if (fscanf(cm_log[INTR], LOG_INTR_FMT, &cm_inject_intno,
+    if (fscanf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, &cm_inject_intno,
                &cm_inject_exec_cnt, (void **)&cm_inject_eip) == EOF) {
         cm_inject_exec_cnt = -1;
     }
@@ -112,7 +109,7 @@ static inline void cm_read_intr_log(void)
 int cm_replay_intr(void) {
     int intno;
 
-    if (cm_tb_exec_cnt == cm_inject_exec_cnt) {
+    if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt) {
         /*coremu_debug("injecting interrupt at %lu", cm_tb_exec_cnt);*/
         intno = cm_inject_intno;
         cm_read_intr_log(); /* Read next log entry. */
@@ -140,17 +137,17 @@ int cm_replay_##name(type *arg) { \
 /* input data */
 
 #define IN_LOG_FMT "%x\n"
-GEN_FUNC(in, uint32_t, cm_log[IN], IN_LOG_FMT);
+GEN_FUNC(in, uint32_t, cm_log[cm_coreid][IN], IN_LOG_FMT);
 /*
  *#define IN_LOG_FMT "%x %x\n"
  *[> XXX Recording address is only for debugging. <]
  *void cm_record_in(uint32_t address, uint32_t value) {
- *    fprintf(cm_log[IN], IN_LOG_FMT, address, value);
+ *    fprintf(cm_log[cm_coreid][IN], IN_LOG_FMT, address, value);
  *}
  *[> Returns 0 if ther's no more log entry. <]
  *int cm_replay_in(uint32_t *value) {
  *    uint32_t address;
- *    if (fscanf(cm_log[IN], IN_LOG_FMT, &address, value) == EOF) {
+ *    if (fscanf(cm_log[cm_coreid][IN], IN_LOG_FMT, &address, value) == EOF) {
  *        printf("no more in log\n");
  *        exit(0);
  *        return 0;
@@ -161,15 +158,15 @@ GEN_FUNC(in, uint32_t, cm_log[IN], IN_LOG_FMT);
 
 /* mmio */
 #define MMIO_LOG_FMT "%u\n"
-GEN_FUNC(mmio, uint32_t, cm_log[MMIO], MMIO_LOG_FMT);
+GEN_FUNC(mmio, uint32_t, cm_log[cm_coreid][MMIO], MMIO_LOG_FMT);
 
 void cm_debug_mmio(void *f) {
-    fprintf(cm_log[MMIO], "%p\n", f);
+    fprintf(cm_log[cm_coreid][MMIO], "%p\n", f);
 }
 
 /* rdtsc */
 #define RDTSC_LOG_FMT "%lu\n"
-GEN_FUNC(rdtsc, uint64_t, cm_log[RDTSC], RDTSC_LOG_FMT);
+GEN_FUNC(rdtsc, uint64_t, cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT);
 
 /* Check whether the next eip is the same as recorded. This is used for
  * debugging. */
@@ -178,27 +175,57 @@ extern int cm_ioport_read_cnt;
 void cm_replay_assert_pc(unsigned long eip) {
     unsigned long next_eip;
 
-    if (cm_tb_exec_cnt % 1024 != 0)
-        return;
+    /*
+     *if (cm_tb_exec_cnt[cm_coreid] % 1024 != 0)
+     *    return;
+     */
 
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
-        if (fscanf(cm_log[PC], PC_LOG_FMT, &next_eip) == EOF) {
+        if (fscanf(cm_log[cm_coreid][PC], PC_LOG_FMT, &next_eip) == EOF) {
             printf("no more pc log\n");
             exit(1);
         }
         coremu_assert(eip == next_eip,
                       "eip = %p, recorded eip = %p, cm_tb_exec_cnt = %lu, cm_ioport_read_cnt = %d",
-                      (void *)eip, (void *)next_eip, cm_tb_exec_cnt, cm_ioport_read_cnt);
+                      (void *)eip, (void *)next_eip, cm_tb_exec_cnt[cm_coreid], cm_ioport_read_cnt);
         break;
     case CM_RUNMODE_RECORD:
-        fprintf(cm_log[PC], PC_LOG_FMT, eip);
+        fprintf(cm_log[cm_coreid][PC], PC_LOG_FMT, eip);
         break;
     }
 }
 
-void cm_replay_flush_log(void) {
+/* init */
+static int cm_replay_inited = 0;
+
+void cm_replay_init(void) {
+    /* Setup CPU local variable */
+    cm_tb_exec_cnt = calloc(smp_cpus, sizeof(uint64_t));
+
+    cm_log = calloc(smp_cpus, sizeof(FILE **));
+    assert(cm_log);
     int i;
-    for (i = 0; i < N_CM_LOG; i++)
-        fflush(cm_log[i]);
+    for (i = 0; i < smp_cpus; i++) {
+        cm_log[i] = calloc(N_CM_LOG, sizeof(FILE *));
+        assert(cm_log[i]);
+    }
+
+    /* For hardware thread, set cm_coreid to -1. */
+    cm_coreid = -1;
+}
+
+void cm_replay_core_init(void)
+{
+    if (cm_run_mode == CM_RUNMODE_NORMAL || cm_replay_inited)
+        return;
+
+    /* Must initialize this before calling other functions. */
+    cm_coreid = coremu_get_core_id();
+
+    const char *mode = cm_run_mode == CM_RUNMODE_REPLAY ? "r" : "w";
+    cm_open_log(mode);
+    if (cm_run_mode == CM_RUNMODE_REPLAY)
+        cm_read_intr_log();
+    cm_replay_inited = 1;
 }
