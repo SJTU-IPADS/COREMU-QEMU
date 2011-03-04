@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <pthread.h>
 #include "coremu-core.h"
 #include "cm-replay.h"
 
@@ -54,11 +55,12 @@ enum {
     IN,
     RDTSC,
     MMIO,
+    DISK_DMA,
     N_CM_LOG,
 };
 
 static const char *cm_log_name[] = {
-    "intr", "pc", "in", "rdtsc", "mmio"
+    "intr", "pc", "in", "rdtsc", "mmio", "dma"
 };
 
 /* Array containing logs for each cpu. */
@@ -106,8 +108,12 @@ static inline void cm_read_intr_log(void)
     }
 }
 
+static void cm_wait_disk_dma(void);
+
 int cm_replay_intr(void) {
     int intno;
+
+    cm_wait_disk_dma();
 
     if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt) {
         /*coremu_debug("injecting interrupt at %lu", cm_tb_exec_cnt);*/
@@ -168,6 +174,52 @@ void cm_debug_mmio(void *f) {
 #define RDTSC_LOG_FMT "%lu\n"
 GEN_FUNC(rdtsc, uint64_t, cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT);
 
+/* dma */
+
+/* Count how many disk DMA operations are done. */
+uint64_t cm_dma_cnt;
+static uint64_t cm_next_dma_cnt = 1;
+
+__thread uint64_t cm_dma_done_exec_cnt;
+
+#define DMA_LOG_FMT "%lu\n"
+void cm_record_disk_dma(void) {
+    int i;
+    /* For each CPU, record when the DMA is done.
+     * XXX can we improve this since only one CPU will record this, and other
+     * CPU accessing the DMA memory can be recorded through memory ordering. */
+    for (i = 0; i < smp_cpus; i++)
+        fprintf(cm_log[i][DISK_DMA], DMA_LOG_FMT, cm_tb_exec_cnt[i]);
+}
+
+static inline void cm_read_dma_log(void) {
+    if (fscanf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, &cm_dma_done_exec_cnt) == EOF) {
+        /* Set dma done cnt to max possible value so will not wait any more. */
+        cm_dma_done_exec_cnt = 0xffffffffffffffff;
+    }
+}
+
+static void cm_wait_disk_dma(void) {
+    /* We only need to wait for DMA operation to complete if current executed tb
+     * is more then when DMA is done during recording. */
+    if (cm_tb_exec_cnt[cm_coreid] < cm_dma_done_exec_cnt)
+        return;
+
+    int printed = 0;
+    while (cm_dma_cnt < cm_next_dma_cnt) {
+        /* Waiting for DMA operation to complete. */
+        if (!printed) {
+            coremu_debug("CPU %d waiting DMA cnt to be %lu, cm_tb_exec_cnt = %lu "
+                         "cm_dma_done_exec_cnt = %lu", cm_coreid,
+                         cm_next_dma_cnt, cm_tb_exec_cnt[cm_coreid], cm_dma_done_exec_cnt);
+            printed = 1;
+        }
+        pthread_yield();
+    }
+    cm_read_dma_log();
+    cm_next_dma_cnt = cm_dma_cnt + 1;
+}
+
 /* Check whether the next eip is the same as recorded. This is used for
  * debugging. */
 extern int cm_ioport_read_cnt;
@@ -225,7 +277,9 @@ void cm_replay_core_init(void)
 
     const char *mode = cm_run_mode == CM_RUNMODE_REPLAY ? "r" : "w";
     cm_open_log(mode);
-    if (cm_run_mode == CM_RUNMODE_REPLAY)
+    if (cm_run_mode == CM_RUNMODE_REPLAY) {
         cm_read_intr_log();
+        cm_read_dma_log();
+    }
     cm_replay_inited = 1;
 }

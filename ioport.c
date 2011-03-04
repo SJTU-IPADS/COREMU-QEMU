@@ -99,8 +99,12 @@ static uint32_t ioport_read(int index, uint32_t address)
     /*printf("ioport read cnt = %d\n", cm_ioport_read_cnt);*/
 
     if (cm_run_mode == CM_RUNMODE_REPLAY && !cm_ignore_address(address))
-        if (cm_replay_in(&value))
+        if (cm_replay_in(&value)) {
+            /* XXX Since read may change hardware state, still need to call the
+             * original ioport read function. */
+            __ioport_read(index, address);
             return value;
+        }
 
     value = __ioport_read(index, address);
     if (cm_run_mode == CM_RUNMODE_RECORD)

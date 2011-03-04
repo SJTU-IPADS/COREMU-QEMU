@@ -1232,6 +1232,9 @@ void do_interrupt(int intno, int is_int, int error_code,
         switch (cm_run_mode) {
         case CM_RUNMODE_RECORD:
             cm_record_intr(intno, env->eip);
+            if (intno == 46)
+                coremu_debug("inject DMA interrupt cm_tb_exec_cnt = %lu",
+                             cm_tb_exec_cnt[cm_coreid]);
             // For debug
             if (cm_intr_cnt == NINTR)
                 exit(0);

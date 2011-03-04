@@ -34,6 +34,13 @@
 
 #include <hw/ide/internal.h>
 
+#include "coremu-config.h"
+#include "coremu-atomic.h"
+#include "cm-replay.h"
+
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 static const int smart_attributes[][5] = {
     /* id,  flags, val, wrst, thrsh */
     { 0x01, 0x03, 0x64, 0x64, 0x06}, /* raw read */
@@ -518,11 +525,18 @@ void ide_read_dma_cb(void *opaque, int ret)
         /* For coremu dma state need to be changed before irq is sent */
         s->bus->dma->ops->add_status(s->bus->dma, BM_STATUS_INT);
         ide_set_inactive(s);
+#ifdef CONFIG_REPLAY
+        atomic_incq(&cm_dma_cnt);
+        coremu_debug("dma done, cnt = %lu, cm_tb_exec_cnt = %lu",
+                     cm_dma_cnt, cm_tb_exec_cnt[0]);
+        /* Record the time when DMA is done. */
+        if (cm_run_mode == CM_RUNMODE_RECORD)
+            cm_record_disk_dma();
 #endif
         ide_set_irq(s->bus);
-
-#ifdef CONFIG_COREMU
         return;
+#else
+        ide_set_irq(s->bus);
 #endif
 
     eot:
@@ -550,6 +564,7 @@ static void ide_sector_read_dma(IDEState *s)
     s->io_buffer_index = 0;
     s->io_buffer_size = 0;
     s->is_read = 1;
+    coremu_debug("dma start, cm_tb_exec_cnt = %lu", cm_tb_exec_cnt[0]);
     s->bus->dma->ops->start_dma(s->bus->dma, s, ide_read_dma_cb);
 }
 
@@ -633,11 +648,18 @@ void ide_write_dma_cb(void *opaque, int ret)
         /* For coremu dma state need to be changed before irq is sent */
         s->bus->dma->ops->add_status(s->bus->dma, BM_STATUS_INT);
         ide_set_inactive(s);
+#ifdef CONFIG_REPLAY
+        atomic_incq(&cm_dma_cnt);
+        coremu_debug("dma done, cnt = %lu, cm_tb_exec_cnt = %lu",
+                     cm_dma_cnt, cm_tb_exec_cnt[cm_coreid]);
+        /* Record the time when DMA is done. */
+        if (cm_run_mode == CM_RUNMODE_RECORD)
+            cm_record_disk_dma();
 #endif
         ide_set_irq(s->bus);
-
-#ifdef CONFIG_COREMU
         return;
+#else
+        ide_set_irq(s->bus);
 #endif
 
     eot:
