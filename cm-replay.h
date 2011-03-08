@@ -9,6 +9,7 @@ enum {
 
 #define NINTR 20 // For debug
 extern __thread long cm_inject_eip; // For debug
+extern __thread uint64_t cm_inject_exec_cnt;
 
 /* Mark the interrupt being generated from the log. */
 #define CM_REPLAY_INT 0x80000000
@@ -36,8 +37,6 @@ extern uint64_t cm_dma_cnt;
 void cm_record_disk_dma(void);
 
 void cm_debug_mmio(void *);
-
-void cm_replay_assert_pc(unsigned long eip);
 
 void cm_replay_flush_log(void);
 

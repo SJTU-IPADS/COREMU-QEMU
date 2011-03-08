@@ -27,7 +27,9 @@
 #include "exec-all.h"
 #include "disas.h"
 #include "tcg-op.h"
+#include "coremu-config.h"
 #include "coremu-sched.h"
+#include "cm-replay.h"
 
 #include "helper.h"
 #define GEN_HELPER 1
@@ -1326,17 +1328,17 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
 
         switch (ot & 3) {
         case 0:
-            gen_helper_atomic_opb(cpu_A0,cpu_T[1], tcg_const_i32(op));
+            gen_helper_atomic_opb(cpu_A0, cpu_T[1], tcg_const_i32(op));
             break;
         case 1:
-            gen_helper_atomic_opw(cpu_A0,cpu_T[1], tcg_const_i32(op));
+            gen_helper_atomic_opw(cpu_A0, cpu_T[1], tcg_const_i32(op));
             break;
         case 2:
-            gen_helper_atomic_opl(cpu_A0,cpu_T[1], tcg_const_i32(op));
+            gen_helper_atomic_opl(cpu_A0, cpu_T[1], tcg_const_i32(op));
             break;
 #ifdef TARGET_X86_64
         case 3:
-            gen_helper_atomic_opq(cpu_A0,cpu_T[1], tcg_const_i32(op));
+            gen_helper_atomic_opq(cpu_A0, cpu_T[1], tcg_const_i32(op));
 #endif
         }
         s1->cc_op = CC_OP_EFLAGS;
@@ -2775,7 +2777,7 @@ static void gen_eob(DisasContext *s)
     if (s->singlestep_enabled) {
         gen_helper_debug();
     } else if (s->tf) {
-    gen_helper_single_step();
+        gen_helper_single_step();
     } else {
         tcg_gen_exit_tb(0);
     }
@@ -8065,6 +8067,11 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         max_insns = CF_COUNT_MASK;
 
     gen_icount_start();
+#ifdef CONFIG_REPLAY
+    /* XXX This is only for debugging. Turn off when running benchmark. */
+    if (cm_run_mode != CM_RUNMODE_NORMAL)
+        gen_helper_cm_replay_assert_pc();
+#endif
     for(;;) {
         if (unlikely(!QTAILQ_EMPTY(&env->breakpoints))) {
             QTAILQ_FOREACH(bp, &env->breakpoints, entry) {

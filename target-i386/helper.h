@@ -220,6 +220,7 @@ DEF_HELPER_2(rcrq, tl, tl, tl)
 #include "coremu-config.h"
 #ifdef CONFIG_COREMU
 #include "cm-atomic.h"
+DEF_HELPER_0(cm_replay_assert_pc, void)
 #endif
 
 #include "def-helper.h"

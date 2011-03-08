@@ -45,7 +45,7 @@ __thread int cm_coreid;
 uint64_t *cm_tb_exec_cnt;
 
 /* Inject interrupt when cm_tb_exec_cnt reaches this value */
-static __thread uint64_t cm_inject_exec_cnt = -1;
+__thread uint64_t cm_inject_exec_cnt = -1;
 static __thread int cm_inject_intno;
 __thread long cm_inject_eip;
 
@@ -220,34 +220,6 @@ static void cm_wait_disk_dma(void) {
     cm_next_dma_cnt = cm_dma_cnt + 1;
 }
 
-/* Check whether the next eip is the same as recorded. This is used for
- * debugging. */
-extern int cm_ioport_read_cnt;
-#define PC_LOG_FMT "%08lx\n"
-void cm_replay_assert_pc(unsigned long eip) {
-    unsigned long next_eip;
-
-    /*
-     *if (cm_tb_exec_cnt[cm_coreid] % 1024 != 0)
-     *    return;
-     */
-
-    switch (cm_run_mode) {
-    case CM_RUNMODE_REPLAY:
-        if (fscanf(cm_log[cm_coreid][PC], PC_LOG_FMT, &next_eip) == EOF) {
-            printf("no more pc log\n");
-            exit(1);
-        }
-        coremu_assert(eip == next_eip,
-                      "eip = %p, recorded eip = %p, cm_tb_exec_cnt = %lu, cm_ioport_read_cnt = %d",
-                      (void *)eip, (void *)next_eip, cm_tb_exec_cnt[cm_coreid], cm_ioport_read_cnt);
-        break;
-    case CM_RUNMODE_RECORD:
-        fprintf(cm_log[cm_coreid][PC], PC_LOG_FMT, eip);
-        break;
-    }
-}
-
 /* init */
 static int cm_replay_inited = 0;
 
@@ -282,4 +254,44 @@ void cm_replay_core_init(void)
         cm_read_dma_log();
     }
     cm_replay_inited = 1;
+}
+
+/* debugging */
+
+/* Check whether the next eip is the same as recorded. This is used for
+ * debugging. */
+
+extern int cm_ioport_read_cnt;
+
+#include "cpu.h"
+#ifdef TARGET_X86_64
+#define PC_LOG_FMT "%08lx\n"
+#else
+#define PC_LOG_FMT "%08x\n"
+#endif
+
+void helper_cm_replay_assert_pc(void);
+void helper_cm_replay_assert_pc(void) {
+    target_ulong next_eip;
+
+    /*
+     *if (cm_tb_exec_cnt[cm_coreid] % 10240 != 0)
+     *    return;
+     */
+
+    switch (cm_run_mode) {
+    case CM_RUNMODE_REPLAY:
+        if (fscanf(cm_log[cm_coreid][PC], PC_LOG_FMT, &next_eip) == EOF) {
+            printf("no more pc log\n");
+            exit(1);
+        }
+        coremu_assert(cpu_single_env->eip == next_eip,
+                      "eip = %p, recorded eip = %p, cm_tb_exec_cnt = %lu, cm_ioport_read_cnt = %d",
+                      (void *)(long)cpu_single_env->eip, (void *)(long)next_eip,
+                      cm_tb_exec_cnt[cm_coreid], cm_ioport_read_cnt);
+        break;
+    case CM_RUNMODE_RECORD:
+        fprintf(cm_log[cm_coreid][PC], PC_LOG_FMT, cpu_single_env->eip);
+        break;
+    }
 }

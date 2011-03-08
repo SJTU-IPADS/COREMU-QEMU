@@ -130,11 +130,12 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
                      max_cycles);
     env->current_tb = tb;
     /* execute the generated code */
+#ifdef CONFIG_REPLAY
     if (cm_run_mode == CM_RUNMODE_RECORD && tb->pc == EXIT_PC)
         exit(0);
-    assert(env->eip = tb->pc);
-    cm_replay_assert_pc(tb->pc);
+#endif
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
+
     env->current_tb = NULL;
 
     if ((next_tb & 3) == 2) {
@@ -597,7 +598,7 @@ int cpu_exec(CPUState *env1)
                 int inject_intno;
                 unsigned long inject_eip = cm_inject_eip;
                 if (cm_run_mode == CM_RUNMODE_REPLAY && cm_intr_cnt == NINTR)
-                    exit(1);
+                    exit(0);
                 if (cm_run_mode == CM_RUNMODE_REPLAY && (inject_intno = cm_replay_intr()) != -1) {
                     coremu_assert(env->eip == inject_eip, "abort: eip = %p, inject_eip = %p\n",
                                   (void *)(long)env->eip, (void *)cm_inject_eip);
@@ -669,11 +670,9 @@ int cpu_exec(CPUState *env1)
                     /* Receive interrupt before and after executing the
                      * translated code. */
                     cm_receive_intr();
-                    assert(env->eip = tb->pc);
                     if (cm_run_mode == CM_RUNMODE_RECORD && tb->pc == EXIT_PC)
                         exit(0);
 
-                    cm_replay_assert_pc(tb->pc);
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
                     cm_receive_intr();
 
