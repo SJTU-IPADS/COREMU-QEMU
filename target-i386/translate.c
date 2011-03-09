@@ -8067,11 +8067,6 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         max_insns = CF_COUNT_MASK;
 
     gen_icount_start();
-#ifdef CONFIG_REPLAY
-    /* XXX This is only for debugging. Turn off when running benchmark. */
-    if (cm_run_mode != CM_RUNMODE_NORMAL)
-        gen_helper_cm_replay_assert_pc();
-#endif
     for(;;) {
         if (unlikely(!QTAILQ_EMPTY(&env->breakpoints))) {
             QTAILQ_FOREACH(bp, &env->breakpoints, entry) {

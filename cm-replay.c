@@ -270,8 +270,7 @@ extern int cm_ioport_read_cnt;
 #define PC_LOG_FMT "%08x\n"
 #endif
 
-void helper_cm_replay_assert_pc(void);
-void helper_cm_replay_assert_pc(void) {
+void cm_replay_assert_pc(void) {
     target_ulong next_eip;
 
     /*
