@@ -7,7 +7,7 @@ enum {
     CM_RUNMODE_REPLAY,
 };
 
-#define NINTR 20 // For debug
+#define NINTR 10 // For debug
 extern __thread long cm_inject_eip; // For debug
 extern __thread uint64_t cm_inject_exec_cnt;
 

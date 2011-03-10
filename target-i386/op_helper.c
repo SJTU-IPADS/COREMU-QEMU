@@ -1215,6 +1215,8 @@ static void handle_even_inj(int intno, int is_int, int error_code,
 
 #ifdef CONFIG_REPLAY
 COREMU_THREAD uint64_t cm_intr_cnt;
+#define IS_HARDINT(no) \
+    (no >= 32 || no == 2 || no == 9 || no == 8)
 #endif
 
 /*
@@ -1226,31 +1228,35 @@ void do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw)
 {
 #ifdef CONFIG_REPLAY
-    if (!is_int && (intno >= 32 || intno == 2 || intno == 9 || intno == 8)) {
-        cm_intr_cnt++;
-
-        switch (cm_run_mode) {
-        case CM_RUNMODE_RECORD:
-            cm_record_intr(intno, env->eip);
-            if (intno == 46)
-                coremu_debug("inject DMA interrupt cm_tb_exec_cnt = %lu",
-                             cm_tb_exec_cnt[cm_coreid]);
-            // For debug
-            if (cm_intr_cnt == NINTR)
-                exit(0);
-            break;
-        case CM_RUNMODE_REPLAY:
-            /* Do not inject interrupt if not read from log. */
-            if (!(intno & CM_REPLAY_INT)) {
-                coremu_debug("ignore intr not from log");
-                return;
-            }
-            else
-                intno &= ~CM_REPLAY_INT;
-            coremu_debug("inject intr at: %lu, eip: %p", cm_tb_exec_cnt[cm_coreid],
-                         (void *)(long)env->eip);
-            break;
+    switch (cm_run_mode) {
+    case CM_RUNMODE_REPLAY:
+        if (intno & CM_REPLAY_INT) {
+            intno &= ~CM_REPLAY_INT;
+            coremu_debug("inject intr %d at: %lu, eip: %p", intno,
+                         cm_tb_exec_cnt[cm_coreid], (void *)(long)env->eip);
+        } else if (!is_int && IS_HARDINT(intno)) {
+            /* Do not inject hardware interrupt if not read from log. */
+            coremu_debug("ignore hardware intr not from log");
+            return;
         }
+        break;
+    case CM_RUNMODE_RECORD:
+       /* Only record hardware interrupt. */
+       if (!is_int && IS_HARDINT(intno)) {
+           cm_intr_cnt++;
+           coremu_debug("record intr cm_tb_exec_cnt = %lu, intno = %d",
+                        cm_tb_exec_cnt[cm_coreid], intno);
+           cm_record_intr(intno, env->eip);
+           if (intno == 46)
+               coremu_debug("inject DMA interrupt cm_tb_exec_cnt = %lu",
+                            cm_tb_exec_cnt[cm_coreid]);
+           // For debug
+           if (cm_intr_cnt == NINTR) {
+               cm_replay_flush_log();
+               exit(0);
+           }
+       }
+       break;
     }
 #endif
     if (qemu_loglevel_mask(CPU_LOG_INT)) {
