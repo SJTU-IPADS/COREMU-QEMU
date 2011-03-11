@@ -195,7 +195,7 @@ void cm_record_disk_dma(void) {
 static inline void cm_read_dma_log(void) {
     if (fscanf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, &cm_dma_done_exec_cnt) == EOF) {
         /* Set dma done cnt to max possible value so will not wait any more. */
-        cm_dma_done_exec_cnt = 0xffffffffffffffff;
+        cm_dma_done_exec_cnt = (uint64_t)-1;
     }
 }
 
