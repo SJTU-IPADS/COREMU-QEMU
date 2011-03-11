@@ -162,6 +162,7 @@ int gen_new_label(void)
 #ifdef CONFIG_REPLAY
 /* Store the code size of increasing tb execution count.  */
 int cm_tb_cnt_code_size;
+#include "cm-replay.h"
 #endif
 #include "tcg-target.c"
 
@@ -2019,8 +2020,10 @@ static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
     s->code_ptr = gen_code_buf;
 
 #ifdef CONFIG_REPLAY
-    /* XXX TURN OFF the following when running benchmark. It's just for debugging. */
 #ifdef DEBUG_COREMU
+    /* XXX TURN OFF the following when running benchmark. It's just for debugging.
+     * Will the call to the function clob some register used in the translated
+     * code? */
     tcg_out_calli(s, (tcg_target_ulong)cm_replay_assert_pc);
 #endif
     cm_tcg_gen_tb_exec_cnt(s);

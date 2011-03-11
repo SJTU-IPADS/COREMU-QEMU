@@ -285,9 +285,14 @@ void cm_replay_assert_pc(void) {
             exit(1);
         }
         coremu_assert(cpu_single_env->eip == next_eip,
-                      "eip = %p, recorded eip = %p, cm_tb_exec_cnt = %lu, cm_ioport_read_cnt = %d",
-                      (void *)(long)cpu_single_env->eip, (void *)(long)next_eip,
-                      cm_tb_exec_cnt[cm_coreid], cm_ioport_read_cnt);
+                      "eip = %p, recorded eip = %p, "
+                      "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
+                      "cm_ioport_read_cnt = %d",
+                      (void *)(long)cpu_single_env->eip,
+                      (void *)(long)next_eip,
+                      cm_tb_exec_cnt[cm_coreid],
+                      cm_inject_exec_cnt,
+                      cm_ioport_read_cnt);
         break;
     case CM_RUNMODE_RECORD:
         fprintf(cm_log[cm_coreid][PC], PC_LOG_FMT, cpu_single_env->eip);

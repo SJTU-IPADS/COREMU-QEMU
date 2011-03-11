@@ -1427,6 +1427,24 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
 #endif
 }
 
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
+static void cm_tb_break_link(void) {
+    coremu_debug("cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu",
+                 cm_tb_exec_cnt[cm_coreid], cm_inject_exec_cnt);
+}
+
+static void cm_tb_cont_link(void) {
+    /*printf("cont link\n");*/
+    coremu_assert(cm_tb_exec_cnt[cm_coreid] != cm_inject_exec_cnt,
+                  "eip = %p, "
+                  "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, ",
+                  (void *)(long)cpu_single_env->eip,
+                  cm_tb_exec_cnt[cm_coreid],
+                  cm_inject_exec_cnt);
+}
+
 static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
                               const TCGArg *args, const int *const_args)
 {
@@ -1449,10 +1467,32 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
         break;
     case INDEX_op_goto_tb:
         if (s->tb_jmp_offset) {
+#ifdef CONFIG_REPLAY
+            int exit_label = gen_new_label();
+            if (cm_run_mode == CM_RUNMODE_REPLAY) {
+                /* Check if we need to exit by comparing recorded and current TB exec count. */
+                tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RAX,
+                             (tcg_target_long)&cm_tb_exec_cnt[cm_coreid]);
+                tcg_out_ld(s, TCG_TYPE_I64, TCG_REG_RAX, TCG_REG_RAX, 0);
+
+                tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RBX,
+                             (tcg_target_long)&cm_inject_exec_cnt);
+                tcg_out_ld(s, TCG_TYPE_I64, TCG_REG_RBX, TCG_REG_RBX, 0);
+
+                /* If the values are the same, we should not directly jump to
+                 * next tb. */
+                tcg_out_brcond64(s, TCG_COND_EQ, TCG_REG_RAX, TCG_REG_RBX, 0, exit_label, 1);
+            }
+#endif
+            tcg_out_calli(s, (tcg_target_long)cm_tb_cont_link);
             /* direct jump method */
             tcg_out8(s, OPC_JMP_long); /* jmp im */
             s->tb_jmp_offset[args[0]] = s->code_ptr - s->code_buf;
             tcg_out32(s, 0);
+#ifdef CONFIG_REPLAY
+            tcg_out_label(s, exit_label, (long)s->code_ptr);
+            tcg_out_calli(s, (tcg_target_long)cm_tb_break_link);
+#endif
         } else {
             /* indirect jump method */
             tcg_out_modrm_offset(s, OPC_GRP5, EXT5_JMPN_Ev, -1,

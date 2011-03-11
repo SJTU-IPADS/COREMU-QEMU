@@ -600,8 +600,9 @@ int cpu_exec(CPUState *env1)
                 if (cm_run_mode == CM_RUNMODE_REPLAY && cm_intr_cnt == NINTR)
                     exit(0);
                 if (cm_run_mode == CM_RUNMODE_REPLAY && (inject_intno = cm_replay_intr()) != -1) {
-                    coremu_assert(env->eip == inject_eip, "abort: eip = %p, inject_eip = %p\n",
-                                  (void *)(long)env->eip, (void *)cm_inject_eip);
+                    coremu_assert(env->eip == inject_eip,
+                                  "abort: eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
+                                  (void *)(long)env->eip, (void *)cm_inject_eip, cm_tb_exec_cnt[cm_coreid]);
                     do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
                 }
 #endif
@@ -642,13 +643,9 @@ int cpu_exec(CPUState *env1)
                 /* see if we can patch the calling TB. When the TB
                    spans two pages, we cannot safely do a direct
                    jump. */
-#ifndef CONFIG_REPLAY
-                /* XXX Disable tb linking so we can deliver interrupt at the
-                 * right time. We need to allow tb linking later. */
                 if (next_tb != 0 && tb->page_addr[1] == -1) {
                     tb_add_jump((TranslationBlock *)(next_tb & ~3), next_tb & 3, tb);
                 }
-#endif
                 spin_unlock(&tb_lock);
 
                 /* cpu_interrupt might be called while translating the
