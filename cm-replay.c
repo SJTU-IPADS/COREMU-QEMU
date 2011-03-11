@@ -263,15 +263,15 @@ void cm_replay_core_init(void)
 
 extern int cm_ioport_read_cnt;
 
-#include "cpu.h"
+/*#include "cpu.h"*/
 #ifdef TARGET_X86_64
-#define PC_LOG_FMT "%08lx\n"
+#define PC_LOG_FMT "%016lx\n"
 #else
-#define PC_LOG_FMT "%08x\n"
+#define PC_LOG_FMT "%08lx\n"
 #endif
 
-void cm_replay_assert_pc(void) {
-    target_ulong next_eip;
+void cm_replay_assert_pc(uint64_t eip) {
+    uint64_t next_eip;
 
     /*
      *if (cm_tb_exec_cnt[cm_coreid] % 10240 != 0)
@@ -284,18 +284,18 @@ void cm_replay_assert_pc(void) {
             printf("no more pc log\n");
             exit(1);
         }
-        coremu_assert(cpu_single_env->eip == next_eip,
+        coremu_assert(eip == next_eip,
                       "eip = %p, recorded eip = %p, "
                       "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
                       "cm_ioport_read_cnt = %d",
-                      (void *)(long)cpu_single_env->eip,
+                      (void *)(long)eip,
                       (void *)(long)next_eip,
                       cm_tb_exec_cnt[cm_coreid],
                       cm_inject_exec_cnt,
                       cm_ioport_read_cnt);
         break;
     case CM_RUNMODE_RECORD:
-        fprintf(cm_log[cm_coreid][PC], PC_LOG_FMT, cpu_single_env->eip);
+        fprintf(cm_log[cm_coreid][PC], PC_LOG_FMT, eip);
         break;
     }
 }

@@ -40,7 +40,7 @@ void cm_debug_mmio(void *);
 
 void cm_replay_flush_log(void);
 
-void cm_replay_assert_pc(void);
+void cm_replay_assert_pc(uint64_t);
 
 #undef GEN_HEADER
 

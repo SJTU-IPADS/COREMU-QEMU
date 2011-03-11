@@ -2024,6 +2024,10 @@ static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
     /* XXX TURN OFF the following when running benchmark. It's just for debugging.
      * Will the call to the function clob some register used in the translated
      * code? */
+    /* Pass the eip to assert pc function. If TB linking is enabled, the current
+     * executing TB's eip is not updated if a TB directly jumps to another TB.
+     * So we need to pass to the assert pc function. */
+    tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDI, cpu_single_env->eip);
     tcg_out_calli(s, (tcg_target_ulong)cm_replay_assert_pc);
 #endif
     cm_tcg_gen_tb_exec_cnt(s);
