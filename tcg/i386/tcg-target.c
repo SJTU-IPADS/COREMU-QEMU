@@ -1431,8 +1431,10 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
 #include "coremu-debug.h"
 
 static void cm_tb_break_link(void) {
-    coremu_debug("cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu",
-                 cm_tb_exec_cnt[cm_coreid], cm_inject_exec_cnt);
+    /*
+     *if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt)
+     *    coremu_debug("Break link for interrupt");
+     */
 }
 
 static void cm_tb_cont_link(void) {

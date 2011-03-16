@@ -263,7 +263,7 @@ void cm_replay_core_init(void)
 
 extern int cm_ioport_read_cnt;
 
-/*#include "cpu.h"*/
+#include "config-target.h"
 #ifdef TARGET_X86_64
 #define PC_LOG_FMT "%016lx\n"
 #else
@@ -284,7 +284,8 @@ void cm_replay_assert_pc(uint64_t eip) {
             printf("no more pc log\n");
             exit(1);
         }
-        coremu_assert(eip == next_eip,
+        if (eip != next_eip) {
+            coremu_debug(
                       "eip = %p, recorded eip = %p, "
                       "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
                       "cm_ioport_read_cnt = %d",
@@ -293,6 +294,9 @@ void cm_replay_assert_pc(uint64_t eip) {
                       cm_tb_exec_cnt[cm_coreid],
                       cm_inject_exec_cnt,
                       cm_ioport_read_cnt);
+            coremu_debug("Error in execution path!");
+            while (1);
+        }
         break;
     case CM_RUNMODE_RECORD:
         fprintf(cm_log[cm_coreid][PC], PC_LOG_FMT, eip);

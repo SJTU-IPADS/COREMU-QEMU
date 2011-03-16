@@ -108,12 +108,6 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
     longjmp(env->jmp_env, 1);
 }
 
-#define EXIT_PC 0xf01007f6 // monitor
-/*#define EXIT_PC 0x7c00 // boot loader entry*/
-/*#define EXIT_PC 0x7d7d // boot loader jumping to kernel entry*/
-/*#define EXIT_PC 0x1000dd // i386_init*/
-/*#define EXIT_PC 0x800020 // user main*/
-
 /* Execute the code without caching the generated code. An interpreter
    could be used if available. */
 static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
@@ -130,10 +124,6 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
                      max_cycles);
     env->current_tb = tb;
     /* execute the generated code */
-#ifdef CONFIG_REPLAY
-    if (cm_run_mode == CM_RUNMODE_RECORD && tb->pc == EXIT_PC)
-        exit(0);
-#endif
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
 
     env->current_tb = NULL;
@@ -597,13 +587,14 @@ int cpu_exec(CPUState *env1)
 #ifdef CONFIG_REPLAY
                 int inject_intno;
                 unsigned long inject_eip = cm_inject_eip;
-                if (cm_run_mode == CM_RUNMODE_REPLAY && cm_intr_cnt == NINTR)
-                    exit(0);
                 if (cm_run_mode == CM_RUNMODE_REPLAY && (inject_intno = cm_replay_intr()) != -1) {
                     coremu_assert(env->eip == inject_eip,
                                   "abort: eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
                                   (void *)(long)env->eip, (void *)cm_inject_eip, cm_tb_exec_cnt[cm_coreid]);
                     do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
+                    /* XXX ensure that no TB jump will be modified as
+                       the program flow was changed */
+                    next_tb = 0;
                 }
 #endif
 #if defined(DEBUG_DISAS) || defined(CONFIG_DEBUG_EXEC)
@@ -667,9 +658,6 @@ int cpu_exec(CPUState *env1)
                     /* Receive interrupt before and after executing the
                      * translated code. */
                     cm_receive_intr();
-                    if (cm_run_mode == CM_RUNMODE_RECORD && tb->pc == EXIT_PC)
-                        exit(0);
-
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
                     cm_receive_intr();
 

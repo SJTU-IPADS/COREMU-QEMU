@@ -1232,8 +1232,10 @@ void do_interrupt(int intno, int is_int, int error_code,
     case CM_RUNMODE_REPLAY:
         if (intno & CM_REPLAY_INT) {
             intno &= ~CM_REPLAY_INT;
-            coremu_debug("inject intr %d at = %lu, eip = %p", intno,
-                         cm_tb_exec_cnt[cm_coreid], (void *)(long)env->eip);
+            /*
+             *coremu_debug("inject intr %d cm_tb_exec_cnt = %lu, eip = %p", intno,
+             *             cm_tb_exec_cnt[cm_coreid], (void *)(long)env->eip);
+             */
         } else if (!is_int && IS_HARDINT(intno)) {
             /* Do not inject hardware interrupt if not read from log. */
             coremu_debug("ignore hardware intr not from log");
@@ -1244,17 +1246,11 @@ void do_interrupt(int intno, int is_int, int error_code,
        /* Only record hardware interrupt. */
        if (!is_int && IS_HARDINT(intno)) {
            cm_intr_cnt++;
-           coremu_debug("record intr cm_tb_exec_cnt = %lu, intno = %d, eip = %p",
-                        cm_tb_exec_cnt[cm_coreid], intno, (void *)(long)env->eip);
+           /*
+            *coremu_debug("record intr cm_tb_exec_cnt = %lu, intno = %d, eip = %p",
+            *             cm_tb_exec_cnt[cm_coreid], intno, (void *)(long)env->eip);
+            */
            cm_record_intr(intno, env->eip);
-           if (intno == 46)
-               coremu_debug("DMA interrupt cm_tb_exec_cnt = %lu",
-                            cm_tb_exec_cnt[cm_coreid]);
-           // For debug
-           if (cm_intr_cnt == NINTR) {
-               cm_replay_flush_log();
-               exit(0);
-           }
        }
        break;
     }
