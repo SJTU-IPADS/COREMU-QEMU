@@ -94,7 +94,7 @@ void cm_replay_flush_log(void) {
 
 /* interrupt */
 
-#define LOG_INTR_FMT "%d %lu %p\n"
+#define LOG_INTR_FMT "%x %lu %p\n"
 
 void cm_record_intr(int intno, long eip) {
     fprintf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, intno, cm_tb_exec_cnt[cm_coreid], (void *)(long)eip);
@@ -177,7 +177,7 @@ GEN_FUNC(rdtsc, uint64_t, cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT);
 /* dma */
 
 /* Count how many disk DMA operations are done. */
-uint64_t cm_dma_cnt;
+volatile uint64_t cm_dma_cnt;
 static uint64_t cm_next_dma_cnt = 1;
 
 __thread uint64_t cm_dma_done_exec_cnt;
@@ -205,17 +205,14 @@ static void cm_wait_disk_dma(void) {
     if (cm_tb_exec_cnt[cm_coreid] < cm_dma_done_exec_cnt)
         return;
 
-    int printed = 0;
+    coremu_debug("CPU %d waiting DMA cnt to be %lu, cm_tb_exec_cnt = %lu "
+                 "cm_dma_done_exec_cnt = %lu", cm_coreid,
+                 cm_next_dma_cnt, cm_tb_exec_cnt[cm_coreid], cm_dma_done_exec_cnt);
     while (cm_dma_cnt < cm_next_dma_cnt) {
         /* Waiting for DMA operation to complete. */
-        if (!printed) {
-            coremu_debug("CPU %d waiting DMA cnt to be %lu, cm_tb_exec_cnt = %lu "
-                         "cm_dma_done_exec_cnt = %lu", cm_coreid,
-                         cm_next_dma_cnt, cm_tb_exec_cnt[cm_coreid], cm_dma_done_exec_cnt);
-            printed = 1;
-        }
         pthread_yield();
     }
+    coremu_debug("DMA done, cm_tb_exec_cnt = %lu", cm_tb_exec_cnt[cm_coreid]);
     cm_read_dma_log();
     cm_next_dma_cnt = cm_dma_cnt + 1;
 }

@@ -526,7 +526,7 @@ void ide_read_dma_cb(void *opaque, int ret)
         s->bus->dma->ops->add_status(s->bus->dma, BM_STATUS_INT);
         ide_set_inactive(s);
 #ifdef CONFIG_REPLAY
-        atomic_incq(&cm_dma_cnt);
+        atomic_incq((uint64_t *)&cm_dma_cnt);
         coremu_debug("dma done, cnt = %lu, cm_tb_exec_cnt = %lu",
                      cm_dma_cnt, cm_tb_exec_cnt[0]);
         /* Record the time when DMA is done. */
@@ -649,9 +649,9 @@ void ide_write_dma_cb(void *opaque, int ret)
         s->bus->dma->ops->add_status(s->bus->dma, BM_STATUS_INT);
         ide_set_inactive(s);
 #ifdef CONFIG_REPLAY
-        atomic_incq(&cm_dma_cnt);
+        atomic_incq((uint64_t *)&cm_dma_cnt);
         coremu_debug("dma done, cnt = %lu, cm_tb_exec_cnt = %lu",
-                     cm_dma_cnt, cm_tb_exec_cnt[cm_coreid]);
+                     cm_dma_cnt, cm_tb_exec_cnt[0]);
         /* Record the time when DMA is done. */
         if (cm_run_mode == CM_RUNMODE_RECORD)
             cm_record_disk_dma();

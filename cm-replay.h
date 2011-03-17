@@ -33,7 +33,7 @@ GEN_HEADER(in, uint32_t);
 GEN_HEADER(mmio, uint32_t);
 GEN_HEADER(rdtsc, uint64_t);
 
-extern uint64_t cm_dma_cnt;
+extern volatile uint64_t cm_dma_cnt;
 void cm_record_disk_dma(void);
 
 void cm_debug_mmio(void *);
