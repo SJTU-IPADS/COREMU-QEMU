@@ -38,6 +38,7 @@
    be registered to coremu */
 void cm_common_intr_handler(CMIntr *intr)
 {
+    assert(cm_run_mode != CM_RUNMODE_REPLAY);
     coremu_assert_core_thr();
     if (!intr)
         return;

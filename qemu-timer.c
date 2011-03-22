@@ -642,6 +642,10 @@ void configure_icount(const char *option)
 
 void qemu_run_all_timers(void)
 {
+#ifdef CONFIG_REPLAY
+    if (cm_run_mode == CM_RUNMODE_REPLAY)
+        return;
+#endif
     alarm_timer->pending = 0;
 
     /* rearm timer, if not periodic */

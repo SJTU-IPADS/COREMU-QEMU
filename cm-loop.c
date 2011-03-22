@@ -29,13 +29,14 @@
 #include "cpu.h"
 #include "cpus.h"
 
-#include "coremu-intr.h"
 #include "coremu-debug.h"
 #include "coremu-sched.h"
 #include "coremu-core.h"
 #include "cm-loop.h"
 #include "cm-timer.h"
 #include "cm-init.h"
+#include "cm-intr.h"
+#include "cm-replay.h"
 
 int cm_cpu_can_run(CPUState *);
 static bool cm_tcg_cpu_exec(void);
@@ -48,10 +49,13 @@ static bool cm_tcg_cpu_exec(void)
     halt_interval.tv_nsec = 10000;
 
     for (;;) {
+#ifdef CONFIG_REPLAY
+        if (cm_run_mode != CM_RUNMODE_REPLAY)
+#endif
         if (cm_local_alarm_pending())
             cm_run_all_local_timers();
 
-        coremu_receive_intr();
+        cm_receive_intr();
         if (cm_cpu_can_run(env))
             ret = cpu_exec(env);
         else if (env->stop)

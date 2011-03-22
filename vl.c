@@ -2067,6 +2067,7 @@ int main(int argc, char **argv, char **envp)
                     printf("wrong mode\n");
                     exit(1);
                 }
+                coremu_run_mode = cm_run_mode;
 #endif
                 break;
             case QEMU_OPTION_M:
@@ -2947,6 +2948,9 @@ int main(int argc, char **argv, char **envp)
 
     os_set_line_buffering();
 
+#ifdef CONFIG_REPLAY
+    if (cm_run_mode != CM_RUNMODE_REPLAY)
+#endif
     if (init_timer_alarm() < 0) {
         fprintf(stderr, "could not initialize alarm timer\n");
         exit(1);

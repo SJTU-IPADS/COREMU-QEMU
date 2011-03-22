@@ -1216,7 +1216,7 @@ static void handle_even_inj(int intno, int is_int, int error_code,
 #ifdef CONFIG_REPLAY
 COREMU_THREAD uint64_t cm_intr_cnt;
 #define IS_HARDINT(no) \
-    (no >= 32 || no == 2 || no == 9 || no == 8)
+    (no >= 32 || no == 2 || no == 9 || no == 8 || no == 0xf)
 #endif
 
 /*
@@ -1232,8 +1232,10 @@ void do_interrupt(int intno, int is_int, int error_code,
     case CM_RUNMODE_REPLAY:
         if (intno & CM_REPLAY_INT) {
             intno &= ~CM_REPLAY_INT;
-            coremu_debug("inject intr %x cm_tb_exec_cnt = %lu, eip = %p", intno,
-                         cm_tb_exec_cnt[cm_coreid], (void *)(long)env->eip);
+            /*
+             *coremu_debug("inject intr %x cm_tb_exec_cnt = %lu, eip = %p", intno,
+             *             cm_tb_exec_cnt[cm_coreid], (void *)(long)env->eip);
+             */
         } else if (!is_int && IS_HARDINT(intno)) {
             /* Do not inject hardware interrupt if not read from log. */
             coremu_debug("ignore hardware intr %x not from log", intno);
