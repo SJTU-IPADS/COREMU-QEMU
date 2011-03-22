@@ -258,7 +258,8 @@ void cm_replay_core_init(void)
 /* Check whether the next eip is the same as recorded. This is used for
  * debugging. */
 
-extern int cm_ioport_read_cnt;
+extern uint64_t cm_ioport_read_cnt;
+extern uint64_t cm_mmio_read_cnt;
 
 #include "config-target.h"
 #ifdef TARGET_X86_64
@@ -285,12 +286,14 @@ void cm_replay_assert_pc(uint64_t eip) {
             coremu_debug(
                       "eip = %p, recorded eip = %p, "
                       "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
-                      "cm_ioport_read_cnt = %d",
+                      "cm_ioport_read_cnt = %lu, "
+                      "cm_mmio_read_cnt = %lu",
                       (void *)(long)eip,
                       (void *)(long)next_eip,
                       cm_tb_exec_cnt[cm_coreid],
                       cm_inject_exec_cnt,
-                      cm_ioport_read_cnt);
+                      cm_ioport_read_cnt,
+                      cm_mmio_read_cnt);
             coremu_debug("Error in execution path!");
             while (1);
         }

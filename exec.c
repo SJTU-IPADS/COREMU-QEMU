@@ -1831,6 +1831,12 @@ void cpu_reset_interrupt(CPUState *env, int mask)
 
 void cpu_exit(CPUState *env)
 {
+#ifdef CONFIG_REPLAY
+    /* We don't need to unlink TB since it will be unlinked when we need to
+     * inject an interrupt. */
+    if (cm_run_mode == CM_RUNMODE_REPLAY)
+        return;
+#endif
     env->exit_request = 1;
     cpu_unlink_tb(env);
 }
@@ -3676,6 +3682,7 @@ static void swapendian_del(int io_index)
 
 #include "closure.h"
 
+uint64_t cm_mmio_read_cnt = 0;
 static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
 {
     /* Do we need to record cirrus_vga_mem_readl? Seems not affecting JOS. */
@@ -3687,15 +3694,19 @@ static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
     uint32_t io_read_wrap(void *opaque, target_phys_addr_t addr)
     {
         unsigned int val;
-        switch (cm_run_mode) {
-        case CM_RUNMODE_REPLAY:
-            if (cm_replay_mmio(&val))
-                break;
-        default:
-            val = func(opaque, addr);
-            if (cm_run_mode == CM_RUNMODE_RECORD)
-                /*cm_debug_mmio(func);*/
-                cm_record_mmio(val);
+        if (cm_run_mode == CM_RUNMODE_REPLAY)
+            if (cm_replay_mmio(&val)) {
+                cm_mmio_read_cnt++;
+                /* XXX Since read may change hardware state, still need to call the
+                 * original mmio read function. */
+                func(opaque, addr);
+                return val;
+            }
+
+        val = func(opaque, addr);
+        if (cm_run_mode == CM_RUNMODE_RECORD) {
+            /*cm_debug_mmio(func);*/
+            cm_record_mmio(val);
         }
         return val;
     }
@@ -3730,10 +3741,8 @@ static int cpu_register_io_memory_fixed(int io_index,
 
     for (i = 0; i < 3; ++i) {
 #ifdef CONFIG_REPLAY
-        io_mem_read[io_index][i]
-            = (mem_read[i] ?
+        io_mem_read[io_index][i] = (mem_read[i] ?
                cm_wrap_read_mem_func(mem_read[i]) :
-               /*mem_read[i] :*/
                unassigned_mem_read[i]);
 #else
         io_mem_read[io_index][i]

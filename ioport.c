@@ -91,7 +91,7 @@ static uint32_t ioport_read(int index, uint32_t address)
 }
 
 #ifdef CONFIG_REPLAY
-int cm_ioport_read_cnt = 0;
+uint64_t cm_ioport_read_cnt = 0;
 static uint32_t ioport_read(int index, uint32_t address)
 {
     uint32_t value;

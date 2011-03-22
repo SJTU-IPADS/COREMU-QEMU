@@ -532,6 +532,9 @@ void ide_read_dma_cb(void *opaque, int ret)
         /* Record the time when DMA is done. */
         if (cm_run_mode == CM_RUNMODE_RECORD)
             cm_record_disk_dma();
+        else if (cm_run_mode == CM_RUNMODE_REPLAY)
+            /* For replay, the interrupt will be injected when necessary. */
+            return;
 #endif
         ide_set_irq(s->bus);
         return;
@@ -655,6 +658,8 @@ void ide_write_dma_cb(void *opaque, int ret)
         /* Record the time when DMA is done. */
         if (cm_run_mode == CM_RUNMODE_RECORD)
             cm_record_disk_dma();
+        else if (cm_run_mode == CM_RUNMODE_REPLAY)
+            return;
 #endif
         ide_set_irq(s->bus);
         return;

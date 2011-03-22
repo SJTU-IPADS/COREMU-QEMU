@@ -248,7 +248,17 @@ int cpu_exec(CPUState *env1)
     unsigned long next_tb;
 
     if (cpu_halted(env1) == EXCP_HALTED)
+#ifdef CONFIG_REPLAY
+    {
+        /* It's possible the CPU ignores an interrupt and cpu_halted returns
+         * true. But actually we need to inject the inject now.  */
+        if (!(cm_run_mode == CM_RUNMODE_REPLAY &&
+            cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt))
+            return EXCP_HALTED;
+    }
+#else
         return EXCP_HALTED;
+#endif
 
 #ifndef CONFIG_COREMU
     cpu_single_env = env1;
