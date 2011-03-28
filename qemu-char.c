@@ -339,6 +339,7 @@ static void mux_chr_send_event(MuxDriver *d, int mux_nr, int event)
 /* Ugly hack to let CPU threads flush log out and call exit.
  * Otherwise, the log may get corrupted. */
 int cm_exit_requested = 0;
+#include "cm-replay.h"
 #endif
 
 static int mux_proc_byte(CharDriverState *chr, MuxDriver *d, int ch)
@@ -357,10 +358,12 @@ static int mux_proc_byte(CharDriverState *chr, MuxDriver *d, int ch)
                  const char *term =  "QEMU: Terminated\n\r";
                  chr->chr_write(chr,(uint8_t *)term,strlen(term));
 #ifdef CONFIG_COREMU
-                 cm_exit_requested = 1;
-                 /* Wait other CPU threads to call exit. */
-                 while (cm_exit_requested != smp_cpus + 1)
-                     pthread_yield();
+                 if (cm_run_mode == CM_RUNMODE_RECORD) {
+                     cm_exit_requested = 1;
+                     /* Wait other CPU threads to call exit. */
+                     while (cm_exit_requested != smp_cpus + 1)
+                         pthread_yield();
+                 }
 #endif
                  exit(0);
                  break;
