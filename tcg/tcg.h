@@ -25,6 +25,8 @@
 #include "tcg-target.h"
 #include "tcg-runtime.h"
 
+#include "coremu-config.h"
+
 #if TCG_TARGET_REG_BITS == 32
 typedef int32_t tcg_target_long;
 typedef uint32_t tcg_target_ulong;
@@ -322,6 +324,11 @@ struct TCGContext {
     int64_t la_time;
     int64_t restore_count;
     int64_t restore_time;
+#endif
+
+#if defined(CONFIG_REPLAY) && defined(DEBUG_REPLAY)
+    /* Records the size of code to check if pc differs during replay. */
+    int cm_assert_pc_size;
 #endif
 };
 

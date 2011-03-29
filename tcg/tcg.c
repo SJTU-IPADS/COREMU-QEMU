@@ -2020,15 +2020,26 @@ static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
     s->code_ptr = gen_code_buf;
 
 #ifdef CONFIG_REPLAY
-#ifdef DEBUG_COREMU
+#ifdef DEBUG_REPLAY
     /* XXX TURN OFF the following when running benchmark. It's just for debugging.
      * Will the call to the function clob some register used in the translated
      * code? */
     /* Pass the eip to assert pc function. If TB linking is enabled, the current
      * executing TB's eip is not updated if a TB directly jumps to another TB.
      * So we need to pass to the assert pc function. */
-    tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDI, cpu_single_env->eip);
-    tcg_out_calli(s, (tcg_target_ulong)cm_replay_assert_pc);
+    /* XXX If several TBs are linked, and a page fault occurs not in the first
+     * TB, cpu_restore_state will call tcg_gen_code_search_pc. At that time, the
+     * eip in cpu_single_env is the eip of the pc in first TB in the link. So we
+     * should NOT modify the generated code in this case. */
+    if (search_pc == -1) {
+        tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDI, cpu_single_env->eip);
+        tcg_out_calli(s, (tcg_target_ulong)cm_replay_assert_pc);
+        s->cm_assert_pc_size = s->code_ptr - s->code_buf;
+    } else {
+        /* Ensure cm_assert_pc_size is set before calling tcg_gen_code_search_pc */
+        /*coremu_debug("skiping %d bytes", s->cm_assert_pc_size);*/
+        s->code_ptr += s->cm_assert_pc_size;
+    }
 #endif
     cm_tcg_gen_tb_exec_cnt(s);
 #endif

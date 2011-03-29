@@ -38,7 +38,7 @@
 #include "coremu-atomic.h"
 #include "cm-replay.h"
 
-#define DEBUG_COREMU
+/*#define DEBUG_COREMU*/
 #include "coremu-debug.h"
 
 static const int smart_attributes[][5] = {

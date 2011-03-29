@@ -1430,22 +1430,24 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
 #define DEBUG_COREMU
 #include "coremu-debug.h"
 
-static void cm_tb_break_link(void) {
-    /*
-     *if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt)
-     *    coremu_debug("Break link for interrupt");
-     */
-}
+/*
+ *static void cm_tb_break_link(void) {
+ *    if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt)
+ *        coremu_debug("Break link for interrupt");
+ *}
+ */
 
-static void cm_tb_cont_link(void) {
-    /*printf("cont link\n");*/
-    coremu_assert(cm_tb_exec_cnt[cm_coreid] != cm_inject_exec_cnt,
-                  "eip = %p, "
-                  "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, ",
-                  (void *)(long)cpu_single_env->eip,
-                  cm_tb_exec_cnt[cm_coreid],
-                  cm_inject_exec_cnt);
-}
+/*
+ *static void cm_tb_cont_link(void) {
+ *    [>printf("cont link\n");<]
+ *    coremu_assert(cm_tb_exec_cnt[cm_coreid] != cm_inject_exec_cnt,
+ *                  "eip = %p, "
+ *                  "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, ",
+ *                  (void *)(long)cpu_single_env->eip,
+ *                  cm_tb_exec_cnt[cm_coreid],
+ *                  cm_inject_exec_cnt);
+ *}
+ */
 
 static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
                               const TCGArg *args, const int *const_args)
@@ -1486,14 +1488,14 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
                 tcg_out_brcond64(s, TCG_COND_EQ, TCG_REG_RAX, TCG_REG_RBX, 0, exit_label, 1);
             }
 #endif
-            tcg_out_calli(s, (tcg_target_long)cm_tb_cont_link);
+            /*tcg_out_calli(s, (tcg_target_long)cm_tb_cont_link);*/
             /* direct jump method */
             tcg_out8(s, OPC_JMP_long); /* jmp im */
             s->tb_jmp_offset[args[0]] = s->code_ptr - s->code_buf;
             tcg_out32(s, 0);
 #ifdef CONFIG_REPLAY
             tcg_out_label(s, exit_label, (long)s->code_ptr);
-            tcg_out_calli(s, (tcg_target_long)cm_tb_break_link);
+            /*tcg_out_calli(s, (tcg_target_long)cm_tb_break_link);*/
 #endif
         } else {
             /* indirect jump method */

@@ -32,6 +32,8 @@
 #include "qemu-timer.h"
 
 #include "coremu-config.h"
+#define DEBUG_COREMU
+#include "coremu-debug.h"
 
 /* code generation context */
 COREMU_THREAD TCGContext tcg_ctx;
@@ -93,6 +95,9 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
     s->code_time -= profile_getclock();
 #endif
     gen_code_size = tcg_gen_code(s, gen_code_buf);
+#if defined(CONFIG_REPLAY) && defined(DEBUG_REPLAY)
+    tb->cm_assert_pc_size = s->cm_assert_pc_size;
+#endif
     *gen_code_size_ptr = gen_code_size;
 #ifdef CONFIG_PROFILER
     s->code_time += profile_getclock();
@@ -150,6 +155,9 @@ int cpu_restore_state(TranslationBlock *tb,
 #else
     s->tb_jmp_offset = NULL;
     s->tb_next = tb->tb_next;
+#endif
+#if defined(CONFIG_REPLAY) && defined(DEBUG_REPLAY)
+    s->cm_assert_pc_size = tb->cm_assert_pc_size;
 #endif
     j = tcg_gen_code_search_pc(s, (uint8_t *)tc_ptr, searched_pc - tc_ptr);
     if (j < 0)

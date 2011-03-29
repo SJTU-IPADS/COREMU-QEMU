@@ -56,11 +56,14 @@ enum {
     RDTSC,
     MMIO,
     DISK_DMA,
+    IRET_SP,
+    INTR_SP,
+    IRET_EIP,
     N_CM_LOG,
 };
 
 static const char *cm_log_name[] = {
-    "intr", "pc", "in", "rdtsc", "mmio", "dma"
+    "intr", "pc", "in", "rdtsc", "mmio", "dma", "iretsp", "intrsp", "ireteip"
 };
 
 /* Array containing logs for each cpu. */
@@ -205,14 +208,16 @@ static void cm_wait_disk_dma(void) {
     if (cm_tb_exec_cnt[cm_coreid] < cm_dma_done_exec_cnt)
         return;
 
-    coremu_debug("CPU %d waiting DMA cnt to be %lu, cm_tb_exec_cnt = %lu "
-                 "cm_dma_done_exec_cnt = %lu", cm_coreid,
-                 cm_next_dma_cnt, cm_tb_exec_cnt[cm_coreid], cm_dma_done_exec_cnt);
+    /*
+     *coremu_debug("CPU %d waiting DMA cnt to be %lu, cm_tb_exec_cnt = %lu "
+     *             "cm_dma_done_exec_cnt = %lu", cm_coreid,
+     *             cm_next_dma_cnt, cm_tb_exec_cnt[cm_coreid], cm_dma_done_exec_cnt);
+     */
     while (cm_dma_cnt < cm_next_dma_cnt) {
         /* Waiting for DMA operation to complete. */
         pthread_yield();
     }
-    coremu_debug("DMA done, cm_tb_exec_cnt = %lu", cm_tb_exec_cnt[cm_coreid]);
+    /*coremu_debug("DMA done, cm_tb_exec_cnt = %lu", cm_tb_exec_cnt[cm_coreid]);*/
     cm_read_dma_log();
     cm_next_dma_cnt = cm_dma_cnt + 1;
 }
@@ -268,12 +273,25 @@ extern uint64_t cm_mmio_read_cnt;
 #define PC_LOG_FMT "%08lx\n"
 #endif
 
+/*
+ *#include "cpu-all.h"
+ *int logset = 0;
+ *extern int loglevel;
+ */
 void cm_replay_assert_pc(uint64_t eip) {
     uint64_t next_eip;
 
     /*
      *if (cm_tb_exec_cnt[cm_coreid] % 10240 != 0)
      *    return;
+     */
+
+    /*
+     *if (!logset && cm_tb_exec_cnt[cm_coreid] > 45000000) {
+     *    coremu_debug("Enabling log");
+     *    loglevel |= CPU_LOG_EXEC | CPU_LOG_TB_IN_ASM | CPU_LOG_TB_CPU;
+     *    logset = 1;
+     *}
      */
 
     switch (cm_run_mode) {
@@ -284,18 +302,18 @@ void cm_replay_assert_pc(uint64_t eip) {
         }
         if (eip != next_eip) {
             coremu_debug(
-                      "eip = %p, recorded eip = %p, "
+                      "eip = %016lx, recorded eip = %016lx, "
                       "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
                       "cm_ioport_read_cnt = %lu, "
                       "cm_mmio_read_cnt = %lu",
-                      (void *)(long)eip,
-                      (void *)(long)next_eip,
+                      (long)eip,
+                      (long)next_eip,
                       cm_tb_exec_cnt[cm_coreid],
                       cm_inject_exec_cnt,
                       cm_ioport_read_cnt,
                       cm_mmio_read_cnt);
             coremu_debug("Error in execution path!");
-            while (1);
+            exit(1);
         }
         break;
     case CM_RUNMODE_RECORD:
@@ -303,3 +321,39 @@ void cm_replay_assert_pc(uint64_t eip) {
         break;
     }
 }
+
+#define GEN_ASSERT(name, type, log_item, fmt) \
+void cm_replay_assert_##name(type); \
+void cm_replay_assert_##name(type cur) { \
+    type recorded; \
+    switch (cm_run_mode) { \
+    case CM_RUNMODE_REPLAY: \
+        if (fscanf(cm_log[cm_coreid][log_item], fmt, &recorded) == EOF) { \
+            printf("no more " #name " log\n"); \
+            exit(1); \
+        } \
+        if (cur != recorded) { \
+            coremu_debug( \
+                      #name" = %lx, recorded "#name" = %lx, " \
+                      "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, " \
+                      "cm_ioport_read_cnt = %lu, " \
+                      "cm_mmio_read_cnt = %lu", \
+                      (long)cur, \
+                      (long)recorded, \
+                      cm_tb_exec_cnt[cm_coreid], \
+                      cm_inject_exec_cnt, \
+                      cm_ioport_read_cnt, \
+                      cm_mmio_read_cnt); \
+            coremu_debug("Error "#name" differs!"); \
+        } \
+        break; \
+    case CM_RUNMODE_RECORD: \
+        fprintf(cm_log[cm_coreid][log_item], fmt, cur); \
+        break; \
+    } \
+}
+
+GEN_ASSERT(iretsp, int, IRET_SP, "%x\n")
+GEN_ASSERT(intresp, int, INTR_SP, "%x\n")
+GEN_ASSERT(ireteip, uint64_t, IRET_EIP, "%lx\n")
+
