@@ -25,6 +25,9 @@
 #include "qemu-common.h"
 #include "qemu-aio.h"
 
+#include "coremu-config.h"
+#include "coremu-hw.h"
+
 /*
  * An AsyncContext protects the callbacks of AIO requests and Bottom Halves
  * against interfering with each other. A typical example is qcow2 that accepts
@@ -78,6 +81,11 @@ static void bh_run_aio_completions(void *opaque)
     qemu_free(bh);
     qemu_aio_process_queue();
 }
+
+#ifdef CONFIG_COREMU
+#include <pthread.h>
+pthread_mutex_t cm_context_lock = PTHREAD_MUTEX_INITIALIZER;
+#endif
 /*
  * Leave the currently active AsyncContext. All Bottom Halves belonging to the
  * old context are executed before changing the context.
@@ -90,9 +98,15 @@ void async_context_pop(void)
     /* Flush the bottom halves, we don't want to lose them */
     while (qemu_bh_poll());
 
+#ifdef CONFIG_COREMU
+    pthread_mutex_lock(&cm_context_lock);
+#endif
     /* Switch back to the parent context */
     async_context = async_context->parent;
     qemu_free(old);
+#ifdef CONFIG_COREMU
+    pthread_mutex_unlock(&cm_context_lock);
+#endif
 
     if (async_context == NULL) {
         abort();
@@ -135,11 +149,15 @@ QEMUBH *qemu_bh_new(QEMUBHFunc *cb, void *opaque)
     return bh;
 }
 
+/* qemu_bh_poll will be called both by the CPU and hardware thread. */
 int qemu_bh_poll(void)
 {
     QEMUBH *bh, **bhp;
     int ret;
 
+#ifdef CONFIG_COREMU
+    pthread_mutex_lock(&cm_context_lock);
+#endif
     ret = 0;
     for (bh = async_context->first_bh; bh; bh = bh->next) {
         if (!bh->deleted && bh->scheduled) {
@@ -162,6 +180,9 @@ int qemu_bh_poll(void)
             bhp = &bh->next;
     }
 
+#ifdef CONFIG_COREMU
+    pthread_mutex_unlock(&cm_context_lock);
+#endif
     return ret;
 }
 
