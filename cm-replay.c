@@ -27,11 +27,10 @@
 #include <pthread.h>
 #include "coremu-core.h"
 #include "cm-replay.h"
+#include "cm-crew.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
-
-#define MAXLOGLEN 256
 
 extern int smp_cpus;
 
@@ -49,57 +48,12 @@ __thread uint64_t cm_inject_exec_cnt = -1;
 static __thread int cm_inject_intno;
 __thread long cm_inject_eip;
 
-enum {
-    INTR,
-    PC,
-    IN,
-    RDTSC,
-    MMIO,
-    DISK_DMA,
-    IRET_SP,
-    INTR_SP,
-    IRET_EIP,
-    N_CM_LOG,
-};
-
-static const char *cm_log_name[] = {
-    "intr", "pc", "in", "rdtsc", "mmio", "dma", "iretsp", "intrsp", "ireteip"
-};
-
-/* Array containing logs for each cpu. */
-typedef FILE *log_t;
-static log_t **cm_log;
-
-#define LOGDIR "replay-log/"
-static void open_log1(FILE **log, const char* logname, const char *mode)
-{
-    char logpath[MAXLOGLEN];
-    snprintf(logpath, MAXLOGLEN, LOGDIR"%s-%d", logname, coremu_get_core_id());
-
-    *log = fopen(logpath, mode);
-    if (!(*log)) {
-        printf("Can't open log file %s\n", logpath);
-        exit(1);
-    }
-}
-
-static void cm_open_log(const char *mode) {
-    int i;
-    for (i = 0; i < N_CM_LOG; i++)
-        open_log1(&(cm_log[cm_coreid][i]), cm_log_name[i], mode);
-}
-
-void cm_replay_flush_log(void) {
-    int i;
-    for (i = 0; i < N_CM_LOG; i++)
-        fflush(cm_log[cm_coreid][i]);
-}
-
 /* interrupt */
 
 #define LOG_INTR_FMT "%x %lu %p\n"
 
-void cm_record_intr(int intno, long eip) {
+void cm_record_intr(int intno, long eip)
+{
     fprintf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, intno, cm_tb_exec_cnt[cm_coreid], (void *)(long)eip);
 }
 
@@ -113,7 +67,8 @@ static inline void cm_read_intr_log(void)
 
 static void cm_wait_disk_dma(void);
 
-int cm_replay_intr(void) {
+int cm_replay_intr(void)
+{
     int intno;
 
     cm_wait_disk_dma();
@@ -128,12 +83,14 @@ int cm_replay_intr(void) {
 }
 
 #define GEN_RECORD_FUNC(name, type, log, fmt) \
-void cm_record_##name(type arg) { \
+void cm_record_##name(type arg) \
+{ \
     fprintf(log, fmt, arg); \
 }
 
 #define GEN_REPLAY_FUNC(name, type, log, fmt) \
-int cm_replay_##name(type *arg) { \
+int cm_replay_##name(type *arg) \
+{ \
     if (fscanf(log, fmt, arg) == EOF) \
         return 0; \
     return 1; \
@@ -169,7 +126,8 @@ GEN_FUNC(in, uint32_t, cm_log[cm_coreid][IN], IN_LOG_FMT);
 #define MMIO_LOG_FMT "%u\n"
 GEN_FUNC(mmio, uint32_t, cm_log[cm_coreid][MMIO], MMIO_LOG_FMT);
 
-void cm_debug_mmio(void *f) {
+void cm_debug_mmio(void *f)
+{
     fprintf(cm_log[cm_coreid][MMIO], "%p\n", f);
 }
 
@@ -186,7 +144,8 @@ static uint64_t cm_next_dma_cnt = 1;
 __thread uint64_t cm_dma_done_exec_cnt;
 
 #define DMA_LOG_FMT "%lu\n"
-void cm_record_disk_dma(void) {
+void cm_record_disk_dma(void)
+{
     int i;
     /* For each CPU, record when the DMA is done.
      * XXX can we improve this since only one CPU will record this, and other
@@ -195,14 +154,16 @@ void cm_record_disk_dma(void) {
         fprintf(cm_log[i][DISK_DMA], DMA_LOG_FMT, cm_tb_exec_cnt[i]);
 }
 
-static inline void cm_read_dma_log(void) {
+static inline void cm_read_dma_log(void)
+{
     if (fscanf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, &cm_dma_done_exec_cnt) == EOF) {
         /* Set dma done cnt to max possible value so will not wait any more. */
         cm_dma_done_exec_cnt = (uint64_t)-1;
     }
 }
 
-static void cm_wait_disk_dma(void) {
+static void cm_wait_disk_dma(void)
+{
     /* We only need to wait for DMA operation to complete if current executed tb
      * is more then when DMA is done during recording. */
     if (cm_tb_exec_cnt[cm_coreid] < cm_dma_done_exec_cnt)
@@ -239,6 +200,8 @@ void cm_replay_init(void) {
 
     /* For hardware thread, set cm_coreid to -1. */
     cm_coreid = -1;
+
+    cm_crew_init();
 }
 
 void cm_replay_core_init(void)
@@ -278,7 +241,8 @@ extern uint64_t cm_mmio_read_cnt;
  *int logset = 0;
  *extern int loglevel;
  */
-void cm_replay_assert_pc(uint64_t eip) {
+void cm_replay_assert_pc(uint64_t eip)
+{
     uint64_t next_eip;
 
     /*
@@ -324,7 +288,8 @@ void cm_replay_assert_pc(uint64_t eip) {
 
 #define GEN_ASSERT(name, type, log_item, fmt) \
 void cm_replay_assert_##name(type); \
-void cm_replay_assert_##name(type cur) { \
+void cm_replay_assert_##name(type cur) \
+{ \
     type recorded; \
     switch (cm_run_mode) { \
     case CM_RUNMODE_REPLAY: \
@@ -352,8 +317,4 @@ void cm_replay_assert_##name(type cur) { \
         break; \
     } \
 }
-
-GEN_ASSERT(iretsp, int, IRET_SP, "%x\n")
-GEN_ASSERT(intresp, int, INTR_SP, "%x\n")
-GEN_ASSERT(ireteip, uint64_t, IRET_EIP, "%lx\n")
 

@@ -971,6 +971,10 @@ void pc_cpus_init(const char *cpu_model)
     }
 }
 
+#ifdef CONFIG_REPLAY
+extern unsigned long cm_ram_addr;
+#endif
+
 void pc_memory_init(ram_addr_t ram_size,
                     const char *kernel_filename,
                     const char *kernel_cmdline,
@@ -1004,6 +1008,9 @@ void pc_memory_init(ram_addr_t ram_size,
     /* allocate RAM */
     ram_addr = qemu_ram_alloc(NULL, "pc.ram",
                               below_4g_mem_size + above_4g_mem_size);
+#ifdef CONFIG_REPLAY
+    cm_ram_addr = ram_addr;
+#endif
     cpu_register_physical_memory(0, 0xa0000, ram_addr);
     cpu_register_physical_memory(0x100000,
                  below_4g_mem_size - 0x100000,
