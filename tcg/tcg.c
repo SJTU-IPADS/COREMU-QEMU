@@ -163,6 +163,7 @@ int gen_new_label(void)
 /* Store the code size of increasing tb execution count.  */
 int cm_tb_cnt_code_size;
 #include "cm-replay.h"
+#include "cm-crew.h"
 #endif
 #include "tcg-target.c"
 

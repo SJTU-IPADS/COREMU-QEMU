@@ -109,50 +109,51 @@ static inline void record_write_crew_fault(uint16_t owner, int objid) {
     }
 }
 
-int64_t cm_crew_read(void *addr, int size)
-{
-    uint64_t val[READLOG_N];
-    uint16_t owner;
-    /* First, get cache info. TODO Can we make this faster? */
-    int objid = memobj_id(addr);
-    memobj_t *mo = &memobj[objid];
-
-    tbb_start_read(&mo->lock);
-    owner = mo->owner;
-    if ((owner != SHARED_READ) && (owner != cm_coreid)) {
-        /* We need to increase privilege for all cpu except the owner.
-         * We use cmpxchg to avoid other readers make duplicate record. */
-        if (owner != NONRIGHT && atomic_compare_exchangew((uint16_t *)&mo->owner, owner,
-                    NONRIGHT) == owner) {
-            record_read_crew_fault(owner, objid);
-            mo->owner = SHARED_READ;
-        } else {
-            /* XXX Pause if other threads are taking log. */
-            while (mo->owner != SHARED_READ);
-        }
-    }
-
-    val[LOGENT_MEMOP] = ++memop_cnt[cm_coreid];
-    switch (size) {
-    case 0:
-        val[READLOG_N - 1] = *(uint8_t *)addr;
-        break;
-    case 1:
-        val[READLOG_N - 1] = *(uint16_t *)addr;
-        break;
-    case 2:
-        val[READLOG_N - 1] = *(uint32_t *)addr;
-        break;
-    case 3:
-        val[READLOG_N - 1] = *(uint64_t *)addr;
-        break;
-    }
-    /*fwrite(val, sizeof(val), 1, reclog[cm_coreid]);*/
-
-    tbb_end_read(&mo->lock);
-
-    return val[READLOG_N - 1];
-}
+/*
+ *int64_t cm_crew_read(void *addr, int size)
+ *{
+ *    uint64_t val[READLOG_N];
+ *    uint16_t owner;
+ *    int objid = memobj_id(addr);
+ *    memobj_t *mo = &memobj[objid];
+ *
+ *    tbb_start_read(&mo->lock);
+ *    owner = mo->owner;
+ *    if ((owner != SHARED_READ) && (owner != cm_coreid)) {
+ *        // We need to increase privilege for all cpu except the owner.
+ *        // We use cmpxchg to avoid other readers make duplicate record. 
+ *        if (owner != NONRIGHT && atomic_compare_exchangew((uint16_t *)&mo->owner, owner,
+ *                    NONRIGHT) == owner) {
+ *            record_read_crew_fault(owner, objid);
+ *            mo->owner = SHARED_READ;
+ *        } else {
+ *            // XXX Pause if other threads are taking log. 
+ *            while (mo->owner != SHARED_READ);
+ *        }
+ *    }
+ *
+ *    val[LOGENT_MEMOP] = ++memop_cnt[cm_coreid];
+ *    switch (size) {
+ *    case 0:
+ *        val[READLOG_N - 1] = *(uint8_t *)addr;
+ *        break;
+ *    case 1:
+ *        val[READLOG_N - 1] = *(uint16_t *)addr;
+ *        break;
+ *    case 2:
+ *        val[READLOG_N - 1] = *(uint32_t *)addr;
+ *        break;
+ *    case 3:
+ *        val[READLOG_N - 1] = *(uint64_t *)addr;
+ *        break;
+ *    }
+ *    // fwrite(val, sizeof(val), 1, reclog[cm_coreid]);
+ *
+ *    tbb_end_read(&mo->lock);
+ *
+ *    return val[READLOG_N - 1];
+ *}
+ */
 
 void cm_crew_write(void *addr, int64_t value, int size)
 {
@@ -182,3 +183,29 @@ void cm_crew_write(void *addr, int64_t value, int size)
     memop_cnt[cm_coreid]++;
     tbb_end_write(&mo->lock);
 }
+
+#define DATA_BITS 8
+#include "cm-crew-template.h"
+
+#define DATA_BITS 16
+#include "cm-crew-template.h"
+
+#define DATA_BITS 32
+#include "cm-crew-template.h"
+
+#define DATA_BITS 64
+#include "cm-crew-template.h"
+
+void *cm_crew_read_func[4] = {
+    cm_crew_readb,
+    cm_crew_readw,
+    cm_crew_readl,
+    cm_crew_readq,
+};
+
+void *cm_crew_write_func[4] = {
+    cm_crew_writeb,
+    cm_crew_writew,
+    cm_crew_writel,
+    cm_crew_writeq,
+};

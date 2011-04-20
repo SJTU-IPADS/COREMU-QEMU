@@ -1160,8 +1160,53 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
                      label_ptr, offsetof(CPUTLBEntry, addr_read));
 
     /* TLB Hit.  */
+#ifdef CONFIG_REPLAY
+    /* rdi contains the address */
+    (void)tcg_out_qemu_ld_direct;
+    tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[s_bits]);
+
+    /* Duplicate with the code below. */
+    switch(opc) {
+    case 0 | 4:
+        tcg_out_ext8s(s, data_reg, TCG_REG_EAX, P_REXW);
+        break;
+    case 1 | 4:
+        tcg_out_ext16s(s, data_reg, TCG_REG_EAX, P_REXW);
+        break;
+    case 0:
+        tcg_out_ext8u(s, data_reg, TCG_REG_EAX);
+        break;
+    case 1:
+        tcg_out_ext16u(s, data_reg, TCG_REG_EAX);
+        break;
+    case 2:
+        tcg_out_mov(s, TCG_TYPE_I32, data_reg, TCG_REG_EAX);
+        break;
+#if TCG_TARGET_REG_BITS == 64
+    case 2 | 4:
+        tcg_out_ext32s(s, data_reg, TCG_REG_EAX);
+        break;
+#endif
+    case 3:
+        if (TCG_TARGET_REG_BITS == 64) {
+            tcg_out_mov(s, TCG_TYPE_I64, data_reg, TCG_REG_RAX);
+        } else if (data_reg == TCG_REG_EDX) {
+            /* xchg %edx, %eax */
+            tcg_out_opc(s, OPC_XCHG_ax_r32 + TCG_REG_EDX, 0, 0, 0);
+            tcg_out_mov(s, TCG_TYPE_I32, data_reg2, TCG_REG_EAX);
+        } else {
+            tcg_out_mov(s, TCG_TYPE_I32, data_reg, TCG_REG_EAX);
+            tcg_out_mov(s, TCG_TYPE_I32, data_reg2, TCG_REG_EDX);
+        }
+        break;
+    default:
+        tcg_abort();
+    }
+
+#else
     tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
                            tcg_target_call_iarg_regs[0], 0, opc);
+#endif
 
     /* jmp label2 */
     tcg_out8(s, OPC_JMP_short);
@@ -1335,8 +1380,35 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
                      label_ptr, offsetof(CPUTLBEntry, addr_write));
 
     /* TLB Hit.  */
+#ifdef CONFIG_REPLAY
+    (void)tcg_out_qemu_st_direct;
+    switch (opc & 0x3) {
+    case 0:
+        tcg_out_ext8u(s, TCG_REG_RSI, data_reg);
+        break;
+    case 1:
+        tcg_out_ext16u(s, TCG_REG_RSI, data_reg);
+        break;
+    case 2:
+        tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, data_reg);
+        break;
+    case 3:
+        tcg_out_mov(s, TCG_TYPE_I64, TCG_REG_RSI, data_reg);
+        break;
+    }
+    tcg_out_calli(s, (tcg_target_long)cm_crew_write_func[s_bits & 3]);
+
+    /* Duplicate code with below */
+    if (stack_adjust == (TCG_TARGET_REG_BITS / 8)) {
+        /* Pop and discard.  This is 2 bytes smaller than the add.  */
+        tcg_out_pop(s, TCG_REG_ECX);
+    } else if (stack_adjust != 0) {
+        tcg_out_addi(s, TCG_REG_ESP, stack_adjust);
+    }
+#else
     tcg_out_qemu_st_direct(s, data_reg, data_reg2,
                            tcg_target_call_iarg_regs[0], 0, opc);
+#endif
 
     /* jmp label2 */
     tcg_out8(s, OPC_JMP_short);
