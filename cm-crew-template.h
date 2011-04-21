@@ -27,7 +27,7 @@ DATA_TYPE glue(cm_crew_read, SUFFIX)(DATA_TYPE *addr)
 void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val);
 void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
-    coremu_debug("addr = %p, val = %lx", addr, (long)val);
+    //coremu_debug("addr = %p, val = %lx", addr, (long)val);
     *addr = val;
 }
 
