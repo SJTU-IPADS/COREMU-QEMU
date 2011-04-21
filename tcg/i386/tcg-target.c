@@ -1384,16 +1384,16 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     (void)tcg_out_qemu_st_direct;
     switch (opc & 0x3) {
     case 0:
-        tcg_out_ext8u(s, TCG_REG_RSI, data_reg);
+        tcg_out_ext8u(s, tcg_target_call_iarg_regs[1], data_reg);
         break;
     case 1:
-        tcg_out_ext16u(s, TCG_REG_RSI, data_reg);
+        tcg_out_ext16u(s, tcg_target_call_iarg_regs[1], data_reg);
         break;
     case 2:
-        tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, data_reg);
+        tcg_out_mov(s, TCG_TYPE_I32, tcg_target_call_iarg_regs[1], data_reg);
         break;
     case 3:
-        tcg_out_mov(s, TCG_TYPE_I64, TCG_REG_RSI, data_reg);
+        tcg_out_mov(s, TCG_TYPE_I64, tcg_target_call_iarg_regs[1], data_reg);
         break;
     }
     tcg_out_calli(s, (tcg_target_long)cm_crew_write_func[s_bits & 3]);

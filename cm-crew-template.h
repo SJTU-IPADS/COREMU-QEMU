@@ -1,4 +1,7 @@
 #include "dyngen-exec.h"
+
+#include "cm-crew.h"
+
 #define DEBUG_COREMU
 #include "coremu-debug.h"
 
@@ -18,13 +21,11 @@
 #error unsupported data size
 #endif
 
-DATA_TYPE glue(cm_crew_read, SUFFIX)(DATA_TYPE *addr);
 DATA_TYPE glue(cm_crew_read, SUFFIX)(DATA_TYPE *addr)
 {
     return *addr;
 }
 
-void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val);
 void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
     //coremu_debug("addr = %p, val = %lx", addr, (long)val);
