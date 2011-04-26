@@ -21,25 +21,89 @@
 #error unsupported data size
 #endif
 
-/* These function are called in ld/st raw */
+/* These functions are called in ld/st raw, which are guaranteed not to access
+ * span 2 page. So each call to the read/write function will only access one
+ * object. */
 
-DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
+/* For record */
+
+static inline DATA_TYPE glue(record_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
     DATA_TYPE val[READLOG_N];
     uint16_t owner;
     int objid = memobj_id(addr);
     memobj_t *mo = &memobj[objid];
 
-
     tbb_start_read(&mo->lock);
+    owner = mo->owner;
+    if ((owner != SHARED_READ) && (owner != cm_coreid)) {
+        // We need to increase privilege for all cpu except the owner.
+        // We use cmpxchg to avoid other readers make duplicate record.
+        if (owner != NONRIGHT && atomic_compare_exchangew((uint16_t *)&mo->owner, owner,
+                    NONRIGHT) == owner) {
+            record_read_crew_fault(owner, objid);
+            mo->owner = SHARED_READ;
+        } else {
+            // XXX Pause if other threads are taking log.
+            while (mo->owner != SHARED_READ);
+        }
+    }
 
-    return *addr;
+    val[LOGENT_MEMOP] = ++memop_cnt[cm_coreid];
+    val[READLOG_N - 1] = *addr;
+
+    tbb_end_read(&mo->lock);
+
+    return val[READLOG_N - 1];
+}
+
+static inline void glue(record_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
+{
+    int objid = memobj_id(addr);
+    memobj_t *mo = &memobj[objid];
+
+    tbb_start_write(&mo->lock);
+    if (mo->owner != cm_coreid) {
+        /* We increase own privilege here. */
+        record_write_crew_fault(mo->owner, objid);
+        mo->owner = cm_coreid;
+    }
+    *addr = val;
+    memop_cnt[cm_coreid]++;
+    tbb_end_write(&mo->lock);
+}
+
+/* For replay */
+
+static inline DATA_TYPE glue(replay_crew_read, SUFFIX)(const DATA_TYPE *addr)
+{
+    return 0;
+}
+
+static inline void glue(replay_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
+{
+}
+
+/* Call record or replay depending on the run mode. */
+
+DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
+{
+    if (cm_run_mode == CM_RUNMODE_RECORD)
+        return glue(record_crew_read, SUFFIX)(addr);
+    else if (cm_run_mode == CM_RUNMODE_REPLAY)
+        return glue(replay_crew_read, SUFFIX)(addr);
+    else
+        return *addr;
 }
 
 void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
-    //coremu_debug("addr = %p, val = %lx", addr, (long)val);
-    *addr = val;
+    if (cm_run_mode == CM_RUNMODE_RECORD)
+        glue(record_crew_write, SUFFIX)(addr, val);
+    else if (cm_run_mode == CM_RUNMODE_REPLAY)
+        glue(replay_crew_write, SUFFIX)(addr, val);
+    else
+        *addr = val;
 }
 
 #undef DATA_BITS

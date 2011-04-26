@@ -1162,8 +1162,12 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     /* TLB Hit.  */
 #ifdef CONFIG_REPLAY
     /* rdi contains the address */
-    (void)tcg_out_qemu_ld_direct;
-    tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[s_bits]);
+    if (cm_run_mode == CM_RUNMODE_NORMAL) {
+        tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
+                               tcg_target_call_iarg_regs[0], 0, opc);
+        goto origin;
+    } else
+        tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[s_bits]);
 
     /* Duplicate with the code below. */
     switch(opc) {
@@ -1202,6 +1206,8 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     default:
         tcg_abort();
     }
+
+origin:
 
 #else
     tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
@@ -1381,7 +1387,11 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
 
     /* TLB Hit.  */
 #ifdef CONFIG_REPLAY
-    (void)tcg_out_qemu_st_direct;
+    if (cm_run_mode == CM_RUNMODE_NORMAL) {
+        tcg_out_qemu_st_direct(s, data_reg, data_reg2,
+                               tcg_target_call_iarg_regs[0], 0, opc);
+        goto origin;
+    }
     switch (opc & 0x3) {
     case 0:
         tcg_out_ext8u(s, tcg_target_call_iarg_regs[1], data_reg);
@@ -1397,6 +1407,8 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
         break;
     }
     tcg_out_calli(s, (tcg_target_long)cm_crew_write_func[s_bits & 3]);
+
+origin:
 #else
     tcg_out_qemu_st_direct(s, data_reg, data_reg2,
                            tcg_target_call_iarg_regs[0], 0, opc);
