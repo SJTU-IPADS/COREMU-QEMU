@@ -23,6 +23,7 @@
 #include "cpu-common.h"
 
 #include "coremu-config.h"
+#include "cm-crew.h"
 
 /* some important defines:
  *
@@ -207,17 +208,29 @@ typedef union {
  */
 static inline int ldub_p(const void *ptr)
 {
+#if defined(CONFIG_REPLAY)
+    return cm_crew_readb(ptr);
+#else
     return *(uint8_t *)ptr;
+#endif
 }
 
 static inline int ldsb_p(const void *ptr)
 {
+#if defined(CONFIG_REPLAY)
+    return (int8_t)cm_crew_readb(ptr);
+#else
     return *(int8_t *)ptr;
+#endif
 }
 
 static inline void stb_p(void *ptr, int v)
 {
+#if defined(CONFIG_REPLAY)
+    cm_crew_writeb(ptr, (uint8_t)v);
+#else
     *(uint8_t *)ptr = v;
+#endif
 }
 
 /* NOTE: on arm, putting 2 in /proc/sys/debug/alignment so that the
@@ -344,59 +357,103 @@ static inline void stfq_le_p(void *ptr, float64 v)
 
 static inline int lduw_le_p(const void *ptr)
 {
+#ifdef CONFIG_REPLAY
+    return cm_crew_readw(ptr);
+#else
     return *(uint16_t *)ptr;
+#endif
 }
 
 static inline int ldsw_le_p(const void *ptr)
 {
+#ifdef CONFIG_REPLAY
+    return cm_crew_readw(ptr);
+#else
     return *(int16_t *)ptr;
+#endif
 }
 
 static inline int ldl_le_p(const void *ptr)
 {
+#ifdef CONFIG_REPLAY
+    return cm_crew_readl(ptr);
+#else
     return *(uint32_t *)ptr;
+#endif
 }
 
 static inline uint64_t ldq_le_p(const void *ptr)
 {
+#ifdef CONFIG_REPLAY
+    return cm_crew_readq(ptr);
+#else
     return *(uint64_t *)ptr;
+#endif
 }
 
 static inline void stw_le_p(void *ptr, int v)
 {
+#ifdef CONFIG_REPLAY
+    cm_crew_writew(ptr, v);
+#else
     *(uint16_t *)ptr = v;
+#endif
 }
 
 static inline void stl_le_p(void *ptr, int v)
 {
+#ifdef CONFIG_REPLAY
+    cm_crew_writel(ptr, v);
+#else
     *(uint32_t *)ptr = v;
+#endif
 }
 
 static inline void stq_le_p(void *ptr, uint64_t v)
 {
+#ifdef CONFIG_REPLAY
+    cm_crew_writeq(ptr, v);
+#else
     *(uint64_t *)ptr = v;
+#endif
 }
 
 /* float access */
 
 static inline float32 ldfl_le_p(const void *ptr)
 {
+#ifdef CONFIG_REPLAY
+    return (float32)cm_crew_readl(ptr);
+#else
     return *(float32 *)ptr;
+#endif
 }
 
 static inline float64 ldfq_le_p(const void *ptr)
 {
+#ifdef CONFIG_REPLAY
+    return (float64)cm_crew_readq(ptr);
+#else
     return *(float64 *)ptr;
+#endif
 }
 
 static inline void stfl_le_p(void *ptr, float32 v)
 {
+#ifdef CONFIG_REPLAY
+    return cm_crew_writel(ptr, v);
+#else
     *(float32 *)ptr = v;
+#endif
 }
 
 static inline void stfq_le_p(void *ptr, float64 v)
 {
+#ifdef CONFIG_REPLAY
+    return cm_crew_writeq(ptr, v);
+#else
     *(float64 *)ptr = v;
+#endif
 }
 #endif
 
@@ -666,18 +723,18 @@ extern unsigned long reserved_va;
 #define laddr(x) (uint8_t *)(long)(x)
 #endif
 
-#define ldub_raw(p) ldub_p(laddr((p)))
-#define ldsb_raw(p) ldsb_p(laddr((p)))
-#define lduw_raw(p) lduw_p(laddr((p)))
-#define ldsw_raw(p) ldsw_p(laddr((p)))
-#define ldl_raw(p) ldl_p(laddr((p)))
-#define ldq_raw(p) ldq_p(laddr((p)))
+#define ldub_raw(p) ldub_p(laddr((p))) //
+#define ldsb_raw(p) ldsb_p(laddr((p))) //
+#define lduw_raw(p) lduw_p(laddr((p))) //
+#define ldsw_raw(p) ldsw_p(laddr((p))) //
+#define ldl_raw(p) ldl_p(laddr((p))) //
+#define ldq_raw(p) ldq_p(laddr((p))) //
 #define ldfl_raw(p) ldfl_p(laddr((p)))
 #define ldfq_raw(p) ldfq_p(laddr((p)))
-#define stb_raw(p, v) stb_p(saddr((p)), v)
-#define stw_raw(p, v) stw_p(saddr((p)), v)
-#define stl_raw(p, v) stl_p(saddr((p)), v)
-#define stq_raw(p, v) stq_p(saddr((p)), v)
+#define stb_raw(p, v) stb_p(saddr((p)), v) //
+#define stw_raw(p, v) stw_p(saddr((p)), v) //
+#define stl_raw(p, v) stl_p(saddr((p)), v) //
+#define stq_raw(p, v) stq_p(saddr((p)), v) //
 #define stfl_raw(p, v) stfl_p(saddr((p)), v)
 #define stfq_raw(p, v) stfq_p(saddr((p)), v)
 

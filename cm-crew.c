@@ -25,7 +25,7 @@ typedef struct memobj_t memobj_t;
 
 /* Now we track memory as 4K shared object, each object will have a memobj_t
  * tracking its ownership */
-#define memobj_t_SIZE 4096
+#define MEMOBJ_SIZE 4096
 memobj_t *memobj;
 
 __thread FILE *crew_inc_log;
@@ -38,7 +38,7 @@ void cm_crew_init(void)
         exit(1);
     }
 
-    int n = (ram_size+memobj_t_SIZE-1) / memobj_t_SIZE;
+    int n = (ram_size+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;
     memobj = calloc(n, sizeof(memobj_t));
     if (!memobj) {
         printf("Can't allocate mem info\n");
@@ -109,51 +109,49 @@ static inline void record_write_crew_fault(uint16_t owner, int objid) {
     }
 }
 
-/*
- *int64_t cm_crew_read(void *addr, int size)
- *{
- *    uint64_t val[READLOG_N];
- *    uint16_t owner;
- *    int objid = memobj_id(addr);
- *    memobj_t *mo = &memobj[objid];
- *
- *    tbb_start_read(&mo->lock);
- *    owner = mo->owner;
- *    if ((owner != SHARED_READ) && (owner != cm_coreid)) {
- *        // We need to increase privilege for all cpu except the owner.
- *        // We use cmpxchg to avoid other readers make duplicate record. 
- *        if (owner != NONRIGHT && atomic_compare_exchangew((uint16_t *)&mo->owner, owner,
- *                    NONRIGHT) == owner) {
- *            record_read_crew_fault(owner, objid);
- *            mo->owner = SHARED_READ;
- *        } else {
- *            // XXX Pause if other threads are taking log. 
- *            while (mo->owner != SHARED_READ);
- *        }
- *    }
- *
- *    val[LOGENT_MEMOP] = ++memop_cnt[cm_coreid];
- *    switch (size) {
- *    case 0:
- *        val[READLOG_N - 1] = *(uint8_t *)addr;
- *        break;
- *    case 1:
- *        val[READLOG_N - 1] = *(uint16_t *)addr;
- *        break;
- *    case 2:
- *        val[READLOG_N - 1] = *(uint32_t *)addr;
- *        break;
- *    case 3:
- *        val[READLOG_N - 1] = *(uint64_t *)addr;
- *        break;
- *    }
- *    // fwrite(val, sizeof(val), 1, reclog[cm_coreid]);
- *
- *    tbb_end_read(&mo->lock);
- *
- *    return val[READLOG_N - 1];
- *}
- */
+int64_t cm_crew_read(void *addr, int size)
+{
+    uint64_t val[READLOG_N];
+    uint16_t owner;
+    int objid = memobj_id(addr);
+    memobj_t *mo = &memobj[objid];
+
+    tbb_start_read(&mo->lock);
+    owner = mo->owner;
+    if ((owner != SHARED_READ) && (owner != cm_coreid)) {
+        // We need to increase privilege for all cpu except the owner.
+        // We use cmpxchg to avoid other readers make duplicate record. 
+        if (owner != NONRIGHT && atomic_compare_exchangew((uint16_t *)&mo->owner, owner,
+                    NONRIGHT) == owner) {
+            record_read_crew_fault(owner, objid);
+            mo->owner = SHARED_READ;
+        } else {
+            // XXX Pause if other threads are taking log. 
+            while (mo->owner != SHARED_READ);
+        }
+    }
+
+    val[LOGENT_MEMOP] = ++memop_cnt[cm_coreid];
+    switch (size) {
+    case 0:
+        val[READLOG_N - 1] = *(uint8_t *)addr;
+        break;
+    case 1:
+        val[READLOG_N - 1] = *(uint16_t *)addr;
+        break;
+    case 2:
+        val[READLOG_N - 1] = *(uint32_t *)addr;
+        break;
+    case 3:
+        val[READLOG_N - 1] = *(uint64_t *)addr;
+        break;
+    }
+    // fwrite(val, sizeof(val), 1, reclog[cm_coreid]);
+
+    tbb_end_read(&mo->lock);
+
+    return val[READLOG_N - 1];
+}
 
 void cm_crew_write(void *addr, int64_t value, int size)
 {

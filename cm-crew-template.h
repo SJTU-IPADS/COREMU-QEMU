@@ -21,8 +21,18 @@
 #error unsupported data size
 #endif
 
-DATA_TYPE glue(cm_crew_read, SUFFIX)(DATA_TYPE *addr)
+/* These function are called in ld/st raw */
+
+DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
+    DATA_TYPE val[READLOG_N];
+    uint16_t owner;
+    int objid = memobj_id(addr);
+    memobj_t *mo = &memobj[objid];
+
+
+    tbb_start_read(&mo->lock);
+
     return *addr;
 }
 

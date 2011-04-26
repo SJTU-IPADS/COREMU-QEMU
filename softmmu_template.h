@@ -1,3 +1,9 @@
+#ifndef _SOFTMMU_TEMPLATE_H
+#define _SOFTMMU_TEMPLATE_H
+
+
+
+#endif /* _SOFTMMU_TEMPLATE_H */
 /*
  *  Software MMU support
  *
@@ -135,11 +141,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
-#if defined(CONFIG_REPLAY) && defined(CM_CREW_MEMACC)
-            res = glue(cm_crew_read, SUFFIX)((DATA_TYPE *)(long)(addr + addend));
-#else
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
-#endif
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -284,11 +286,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
-#if defined(CONFIG_REPLAY) && defined(CM_CREW_MEMACC)
-            glue(cm_crew_write, SUFFIX)((DATA_TYPE *)(long)(addr + addend), val);
-#else
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
-#endif
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -357,4 +355,3 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #undef SUFFIX
 #undef USUFFIX
 #undef DATA_SIZE
-#undef ADDR_READ
