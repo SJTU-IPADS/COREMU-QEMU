@@ -13,7 +13,10 @@ extern int smp_cpus;
 
 /* Record memory operation count for each vCPU
  * Overflow should not cause problem if we do not sort the output log. */
-uint32_t *memop_cnt;
+static uint32_t *memop_cnt;
+static __thread uint32_t *memop;
+
+static __thread uint32_t *incop;
 
 static const uint16_t SHARED_READ = 0xffff;
 static const uint16_t NONRIGHT = 0xfffe;
@@ -27,35 +30,10 @@ typedef struct memobj_t memobj_t;
 /* Now we track memory as 4K shared object, each object will have a memobj_t
  * tracking its ownership */
 #define MEMOBJ_SIZE 4096
-memobj_t *memobj;
+static memobj_t *memobj;
 
-__thread FILE *crew_inc_log;
-
-void cm_crew_init(void)
-{
-    memop_cnt = calloc(smp_cpus, sizeof(uint64_t));
-    if (!memop_cnt) {
-        printf("Can't allocate memop count\n");
-        exit(1);
-    }
-
-    int n = (ram_size+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;
-    memobj = calloc(n, sizeof(memobj_t));
-    if (!memobj) {
-        printf("Can't allocate mem info\n");
-        exit(1);
-    }
-    /* Initialize all memobj_t to shared read */
-    int i;
-    for (i = 0; i < n; i++)
-        memobj[i].owner = SHARED_READ;
-}
-
-unsigned long cm_ram_addr;
-static inline int memobj_id(const void *addr)
-{
-    return ((long)(addr - cm_ram_addr) & TARGET_PAGE_MASK) >> TARGET_PAGE_BITS;
-}
+/* Initialize to be cm_log[cm_coreid][CREW_INC] */
+static __thread FILE *crew_inc_log;
 
 enum {
     LOGENT_MEMOP,
@@ -65,16 +43,23 @@ enum {
 };
 #define READLOG_N 3
 
+/* Set to be the start address of the allocated memory emulating guest memory. */
+unsigned long cm_ram_addr;
+static inline int memobj_id(const void *addr)
+{
+    return (long)(addr - cm_ram_addr) >> TARGET_PAGE_BITS;
+}
+
 static inline void write_inc_log(int logcpuno, uint32_t memop, int objid,
-        uint32_t type, uint32_t waitcpuno, uint32_t waitmemop) {
-    /* TODO Change this to make it more space efficient. */
-    uint32_t logbuf[LOGENT_N];
+        uint32_t type, uint32_t waitcpuno, uint32_t waitmemop)
+{
+    fprintf(crew_inc_log, "%u %u %u\n", memop, waitcpuno, waitmemop);
+}
 
-    logbuf[LOGENT_MEMOP] = memop;
-    logbuf[LOGENT_CPUNO] = waitcpuno;
-    logbuf[LOGENT_WAITMEMOP] = waitmemop;
-
-    fwrite(logbuf, sizeof(logbuf), 1, crew_inc_log);
+static inline int read_inc_log(void)
+{
+    return fscanf(crew_inc_log, "%u %u %u\n", &incop[LOGENT_MEMOP],
+           &incop[LOGENT_CPUNO], &incop[LOGENT_MEMOP]);
 }
 
 /* TODO We'd better use a buffer */
@@ -96,18 +81,59 @@ static inline void record_read_crew_fault(uint16_t owner, int objid) {
 }
 
 static inline void record_write_crew_fault(uint16_t owner, int objid) {
-    if (owner != SHARED_READ) {
-        write_inc_log(cm_coreid, memop_cnt[cm_coreid] + 1, objid, cm_coreid,
-                owner, memop_cnt[owner]);
-    } else {
+    if (owner == SHARED_READ) {
         int i;
         for (i = 0; i < smp_cpus; i++) {
             if (i != cm_coreid) {
-                write_inc_log(cm_coreid, memop_cnt[cm_coreid] + 1, objid,
+                write_inc_log(cm_coreid, *memop + 1, objid,
                         cm_coreid, i, memop_cnt[i]);
             }
         }
+    } else {
+        write_inc_log(cm_coreid, *memop + 1, objid, cm_coreid,
+                owner, memop_cnt[owner]);
     }
+}
+
+static inline int apply_replay_inclog(void)
+{
+    /* Wait for the target CPU's memop to reach the recorded value. */
+    while (memop_cnt[incop[LOGENT_CPUNO]] < incop[LOGENT_WAITMEMOP]);
+    return read_inc_log();
+}
+
+void cm_crew_init(void)
+{
+    memop_cnt = calloc(smp_cpus, sizeof(*memop_cnt));
+    if (!memop_cnt) {
+        printf("Can't allocate memop count\n");
+        exit(1);
+    }
+
+    int n = (ram_size+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;
+    memobj = calloc(n, sizeof(memobj_t));
+    if (!memobj) {
+        printf("Can't allocate mem info\n");
+        exit(1);
+    }
+    /* Initialize all memobj_t to shared read */
+    int i;
+    for (i = 0; i < n; i++)
+        memobj[i].owner = SHARED_READ;
+}
+
+void cm_crew_core_init(void)
+{
+    crew_inc_log = cm_log[cm_coreid][CREW_INC];
+    memop = &memop_cnt[cm_coreid];
+
+    incop = calloc(LOGENT_N, sizeof(*incop));
+    if (!incop) {
+        printf("Can't allocate incop count\n");
+        exit(1);
+    }
+
+    read_inc_log();
 }
 
 #define DATA_BITS 8

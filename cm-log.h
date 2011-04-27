@@ -15,7 +15,8 @@ enum {
 };
 
 typedef FILE *log_t;
-/* Array containing logs for each cpu. */
+/* 2d array containing logs for each cpu, use cm_log[coreid][logent] to access
+ * the specific log. */
 extern log_t **cm_log;
 
 void cm_open_log(const char *mode);

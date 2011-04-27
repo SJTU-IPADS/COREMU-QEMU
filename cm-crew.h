@@ -2,6 +2,7 @@
 #define _CM_CREW_H
 
 void cm_crew_init(void);
+void cm_crew_core_init(void);
 
 int64_t cm_crew_read(void *addr, int size);
 

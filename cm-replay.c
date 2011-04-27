@@ -219,6 +219,8 @@ void cm_replay_core_init(void)
         cm_read_dma_log();
     }
     cm_replay_inited = 1;
+
+    cm_crew_core_init();
 }
 
 /* debugging */

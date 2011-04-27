@@ -77,11 +77,23 @@ static inline void glue(record_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE va
 
 static inline DATA_TYPE glue(replay_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
-    return 0;
+    DATA_TYPE val;
+    while (incop[LOGENT_MEMOP] == *memop + 1)
+        apply_replay_inclog();
+
+    val = *addr;
+    (*memop)++;
+
+    return val;
 }
 
 static inline void glue(replay_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
+    while (incop[LOGENT_MEMOP] == *memop + 1)
+        apply_replay_inclog();
+
+    *addr = val;
+    (*memop)++;
 }
 
 /* Call record or replay depending on the run mode. */
