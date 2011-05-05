@@ -50,8 +50,8 @@ static inline int memobj_id(const void *addr)
     return (long)(addr - cm_ram_addr) >> TARGET_PAGE_BITS;
 }
 
-static inline void write_inc_log(int logcpuno, uint32_t memop, int objid,
-        uint32_t type, uint32_t waitcpuno, uint32_t waitmemop)
+static inline void write_inc_log(uint32_t memop, uint32_t waitcpuno,
+                                 uint32_t waitmemop)
 {
     fprintf(crew_inc_log, "%u %u %u\n", memop, waitcpuno, waitmemop);
 }
@@ -59,7 +59,7 @@ static inline void write_inc_log(int logcpuno, uint32_t memop, int objid,
 static inline int read_inc_log(void)
 {
     return fscanf(crew_inc_log, "%u %u %u\n", &incop[LOGENT_MEMOP],
-           &incop[LOGENT_CPUNO], &incop[LOGENT_MEMOP]);
+           &incop[LOGENT_CPUNO], &incop[LOGENT_WAITMEMOP]);
 }
 
 /* TODO We'd better use a buffer */
@@ -74,8 +74,7 @@ static inline void record_read_crew_fault(uint16_t owner, int objid) {
         if (i != owner) {
             /* XXX Other reader threads may be running, and we need to record
              * the immediate instruction after the owner's write instruction. */
-            write_inc_log(i, memop_cnt[i] + 1, objid, SHARED_READ,
-                    owner, memop_cnt[owner]);
+            write_inc_log(memop_cnt[i] + 1, owner, memop_cnt[owner]);
         }
     }
 }
@@ -85,13 +84,11 @@ static inline void record_write_crew_fault(uint16_t owner, int objid) {
         int i;
         for (i = 0; i < smp_cpus; i++) {
             if (i != cm_coreid) {
-                write_inc_log(cm_coreid, *memop + 1, objid,
-                        cm_coreid, i, memop_cnt[i]);
+                write_inc_log(*memop + 1, i, memop_cnt[i]);
             }
         }
     } else {
-        write_inc_log(cm_coreid, *memop + 1, objid, cm_coreid,
-                owner, memop_cnt[owner]);
+        write_inc_log(*memop + 1, owner, memop_cnt[owner]);
     }
 }
 
@@ -133,7 +130,8 @@ void cm_crew_core_init(void)
         exit(1);
     }
 
-    read_inc_log();
+    if (cm_run_mode == CM_RUNMODE_REPLAY)
+        read_inc_log();
 }
 
 #define DATA_BITS 8

@@ -29,7 +29,7 @@
 
 static inline DATA_TYPE glue(record_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
-    DATA_TYPE val[READLOG_N];
+    DATA_TYPE val;
     uint16_t owner;
     int objid = memobj_id(addr);
     memobj_t *mo = &memobj[objid];
@@ -49,12 +49,12 @@ static inline DATA_TYPE glue(record_crew_read, SUFFIX)(const DATA_TYPE *addr)
         }
     }
 
-    val[LOGENT_MEMOP] = ++memop_cnt[cm_coreid];
-    val[READLOG_N - 1] = *addr;
+    (*memop)++;
+    val = *addr;
 
     tbb_end_read(&mo->lock);
 
-    return val[READLOG_N - 1];
+    return val;
 }
 
 static inline void glue(record_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
@@ -69,7 +69,7 @@ static inline void glue(record_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE va
         mo->owner = cm_coreid;
     }
     *addr = val;
-    memop_cnt[cm_coreid]++;
+    (*memop_cnt)++;
     tbb_end_write(&mo->lock);
 }
 
