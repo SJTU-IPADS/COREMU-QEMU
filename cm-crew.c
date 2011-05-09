@@ -9,6 +9,9 @@
 #include "cm-crew.h"
 #include "cm-replay.h"
 
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 extern int smp_cpus;
 
 /* Record memory operation count for each vCPU
@@ -23,7 +26,7 @@ static const uint16_t NONRIGHT = 0xfffe;
 
 struct memobj_t {
     tbb_rwlock_t lock;
-    volatile int16_t owner;
+    volatile uint16_t owner;
 };
 typedef struct memobj_t memobj_t;
 
@@ -31,6 +34,7 @@ typedef struct memobj_t memobj_t;
  * tracking its ownership */
 #define MEMOBJ_SIZE 4096
 static memobj_t *memobj;
+static int n_memobj;
 
 /* Initialize to be cm_log[cm_coreid][CREW_INC] */
 static __thread FILE *crew_inc_log;
@@ -47,7 +51,9 @@ enum {
 unsigned long cm_ram_addr;
 static inline int memobj_id(const void *addr)
 {
-    return (long)(addr - cm_ram_addr) >> TARGET_PAGE_BITS;
+    int id = ((int)(long)(addr - cm_ram_addr)) >> TARGET_PAGE_BITS;
+    coremu_assert(id > 0 && id < n_memobj, "addr: %p, id: %d", addr, id);
+    return id;
 }
 
 static inline void write_inc_log(uint32_t memop, uint32_t waitcpuno,
@@ -107,15 +113,15 @@ void cm_crew_init(void)
         exit(1);
     }
 
-    int n = (ram_size+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;
-    memobj = calloc(n, sizeof(memobj_t));
+    n_memobj = (ram_size+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;
+    memobj = calloc(n_memobj, sizeof(memobj_t));
     if (!memobj) {
         printf("Can't allocate mem info\n");
         exit(1);
     }
     /* Initialize all memobj_t to shared read */
     int i;
-    for (i = 0; i < n; i++)
+    for (i = 0; i < n_memobj; i++)
         memobj[i].owner = SHARED_READ;
 }
 
@@ -133,6 +139,9 @@ void cm_crew_core_init(void)
     if (cm_run_mode == CM_RUNMODE_REPLAY)
         read_inc_log();
 }
+
+#include <assert.h>
+#include "cpu.h"
 
 #define DATA_BITS 8
 #include "cm-crew-template.h"

@@ -49,6 +49,9 @@
 #include "coremu-core.h"
 #include "cm-target-intr.h"
 
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 /* debug PC/ISA interrupts */
 //#define DEBUG_IRQ
 
@@ -1010,6 +1013,7 @@ void pc_memory_init(ram_addr_t ram_size,
                               below_4g_mem_size + above_4g_mem_size);
 #ifdef CONFIG_REPLAY
     cm_ram_addr = ram_addr;
+    coremu_debug("cm_ram_addr: %p", (void *)cm_ram_addr);
 #endif
     cpu_register_physical_memory(0, 0xa0000, ram_addr);
     cpu_register_physical_memory(0x100000,

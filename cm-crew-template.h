@@ -34,6 +34,11 @@ static inline DATA_TYPE glue(record_crew_read, SUFFIX)(const DATA_TYPE *addr)
     int objid = memobj_id(addr);
     memobj_t *mo = &memobj[objid];
 
+    if ((mo->lock.counter >> 2) >= 2) {
+        coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %d\n",
+               (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, objid);
+        while (1);
+    }
     tbb_start_read(&mo->lock);
     owner = mo->owner;
     if ((owner != SHARED_READ) && (owner != cm_coreid)) {
@@ -53,6 +58,11 @@ static inline DATA_TYPE glue(record_crew_read, SUFFIX)(const DATA_TYPE *addr)
     val = *addr;
 
     tbb_end_read(&mo->lock);
+    if ((mo->lock.counter >> 2) >= 2) {
+        coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %d\n",
+               (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, objid);
+        while (1);
+    }
 
     return val;
 }
@@ -62,15 +72,21 @@ static inline void glue(record_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE va
     int objid = memobj_id(addr);
     memobj_t *mo = &memobj[objid];
 
+    if ((mo->lock.counter >> 2) >= 2) {
+        coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %d\n",
+               (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, objid);
+        while (1);
+    }
     tbb_start_write(&mo->lock);
     if (mo->owner != cm_coreid) {
         /* We increase own privilege here. */
         record_write_crew_fault(mo->owner, objid);
-        mo->owner = cm_coreid;
+        mo->owner = (uint16_t)cm_coreid;
     }
     *addr = val;
     (*memop_cnt)++;
     tbb_end_write(&mo->lock);
+    assert((mo->lock.counter >> 2) < 3);
 }
 
 /* For replay */
@@ -100,6 +116,10 @@ static inline void glue(replay_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE va
 
 DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
+    /* XXX There are some address which are not allocated to emulate main
+     * memory. We have to handle that in different ways. */
+    if (addr >= (const DATA_TYPE *)(cm_ram_addr + ram_size))
+        return *addr;
     if (cm_run_mode == CM_RUNMODE_RECORD)
         return glue(record_crew_read, SUFFIX)(addr);
     else if (cm_run_mode == CM_RUNMODE_REPLAY)
@@ -110,6 +130,10 @@ DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
 
 void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
+    if (addr >= (const DATA_TYPE *)(cm_ram_addr + ram_size)) {
+        *addr = val;
+        return;
+    }
     if (cm_run_mode == CM_RUNMODE_RECORD)
         glue(record_crew_write, SUFFIX)(addr, val);
     else if (cm_run_mode == CM_RUNMODE_REPLAY)

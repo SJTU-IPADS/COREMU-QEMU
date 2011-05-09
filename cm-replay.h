@@ -19,7 +19,7 @@ extern __thread uint64_t cm_inject_exec_cnt;
 extern int cm_run_mode;
 int cm_get_run_mode(void);
 extern uint64_t *cm_tb_exec_cnt;
-extern __thread int cm_coreid;
+extern __thread uint16_t cm_coreid;
 
 void cm_replay_init(void);
 void cm_replay_core_init(void);
