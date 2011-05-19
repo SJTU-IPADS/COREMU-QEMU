@@ -118,8 +118,6 @@ DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
     /* XXX There are some address which are not allocated to emulate main
      * memory. We have to handle that in different ways. */
-    if (addr >= (const DATA_TYPE *)(cm_ram_addr + ram_size))
-        return *addr;
     if (cm_run_mode == CM_RUNMODE_RECORD)
         return glue(record_crew_read, SUFFIX)(addr);
     else if (cm_run_mode == CM_RUNMODE_REPLAY)
@@ -130,10 +128,6 @@ DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
 
 void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
-    if (addr >= (const DATA_TYPE *)(cm_ram_addr + ram_size)) {
-        *addr = val;
-        return;
-    }
     if (cm_run_mode == CM_RUNMODE_RECORD)
         glue(record_crew_write, SUFFIX)(addr, val);
     else if (cm_run_mode == CM_RUNMODE_REPLAY)

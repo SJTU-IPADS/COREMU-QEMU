@@ -47,12 +47,16 @@ enum {
 };
 #define READLOG_N 3
 
-/* Set to be the start address of the allocated memory emulating guest memory. */
-unsigned long cm_ram_addr;
 static inline int memobj_id(const void *addr)
 {
-    int id = ((int)(long)(addr - cm_ram_addr)) >> TARGET_PAGE_BITS;
-    coremu_assert(id > 0 && id < n_memobj, "addr: %p, id: %d", addr, id);
+    ram_addr_t r;
+    /* XXX This is slow, but should be correct. It's possible to use hash to
+     * improve speed here. */
+    assert(qemu_ram_addr_from_host((void *)addr, &r) != -1);
+    int id = r >> TARGET_PAGE_BITS;
+    coremu_assert(id >= 0 && id <= n_memobj,
+                  "addr: %p, id: %d, memop: %d, n_memobj: %d", addr, id,
+                  *memop, n_memobj);
     return id;
 }
 
@@ -75,6 +79,7 @@ static inline void record_read_crew_fault(uint16_t owner, int objid) {
     /* increase log: memop, objid, R/W, cpuno, memop
      * The above is the original log format. objid and R/W are removed. But
      * these information may be needed if we want to apply analysis on the log. */
+    /*coremu_debug("record read fault");*/
     int i;
     for (i = 0; i < smp_cpus; i++) {
         if (i != owner) {
@@ -86,6 +91,7 @@ static inline void record_read_crew_fault(uint16_t owner, int objid) {
 }
 
 static inline void record_write_crew_fault(uint16_t owner, int objid) {
+    /*coremu_debug("record write fault");*/
     if (owner == SHARED_READ) {
         int i;
         for (i = 0; i < smp_cpus; i++) {
@@ -113,7 +119,11 @@ void cm_crew_init(void)
         exit(1);
     }
 
+    /* 65536 is for cirrus_vga.rom, added in hw/pci.c:pci_add_option_rom */
+    /*n_memobj = (ram_size+PC_ROM_SIZE+VGA_RAM_SIZE+65536+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;*/
     n_memobj = (ram_size+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;
+    /* XXX I don't know exactly how many is needed, providing more is safe */
+    n_memobj *= 2;
     memobj = calloc(n_memobj, sizeof(memobj_t));
     if (!memobj) {
         printf("Can't allocate mem info\n");
