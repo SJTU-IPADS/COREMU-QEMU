@@ -29,6 +29,7 @@
 #include "coremu-atomic.h"
 #include "coremu-sched.h"
 #include "cm-mmu.h"
+#include "dyngen-exec.h"
 
 /* These definitions are copied from translate.c */
 #if defined(WORDS_BIGENDIAN)
@@ -139,197 +140,18 @@ static void cm_set_reg_val(int ot, int hregs, int reg, target_ulong val)
     } while (__oldv != (atomic_compare_exchange##type(        \
                     (DATA_##type *)__q_addr, __oldv, value)))
 
-/* Atomically emulate INC instruction using CAS1 and memory transaction. */
+#define DATA_BITS 8
+#include "cm-atomic-template.h"
 
-#define GEN_ATOMIC_INC(type, TYPE) \
-void helper_atomic_inc##type(target_ulong a0, int c)                  \
-{                                                                     \
-    int eflags_c, eflags;                                             \
-    int cc_op;                                                        \
-                                                                      \
-    /* compute the previous instruction c flags */                    \
-    eflags_c = helper_cc_compute_c(CC_OP);                            \
-                                                                      \
-    TX(a0, type, value, {                                             \
-        if (c > 0) {                                                  \
-            value++;                                                  \
-            cc_op = CC_OP_INC##TYPE;                                  \
-        } else {                                                      \
-            value--;                                                  \
-            cc_op = CC_OP_DEC##TYPE;                                  \
-        }                                                             \
-    });                                                               \
-                                                                      \
-    CC_SRC = eflags_c;                                                \
-    CC_DST = value;                                                   \
-                                                                      \
-    eflags = helper_cc_compute_all(cc_op);                            \
-    CC_SRC = eflags;                                                  \
-}                                                                     \
+#define DATA_BITS 16
+#include "cm-atomic-template.h"
 
-GEN_ATOMIC_INC(b, B);
-GEN_ATOMIC_INC(w, W);
-GEN_ATOMIC_INC(l, L);
+#define DATA_BITS 32
+#include "cm-atomic-template.h"
+
 #ifdef TARGET_X86_64
-GEN_ATOMIC_INC(q, Q);
-#endif
-
-#define OT_b 0
-#define OT_w 1
-#define OT_l 2
-#define OT_q 3
-
-#define GEN_ATOMIC_XCHG(type) \
-void helper_xchg##type(target_ulong a0, int reg, int hreg)    \
-{                                                             \
-    DATA_##type val, out;                                     \
-    unsigned long q_addr;                                     \
-                                                              \
-    CM_GET_QEMU_ADDR(q_addr, a0);                             \
-    val = (DATA_##type)cm_get_reg_val(OT_##type, hreg, reg);  \
-    out = atomic_exchange##type((DATA_##type *)q_addr, val);  \
-    mb();                                                     \
-                                                              \
-    cm_set_reg_val(OT_##type, hreg, reg, out);                \
-}
-
-GEN_ATOMIC_XCHG(b);
-GEN_ATOMIC_XCHG(w);
-GEN_ATOMIC_XCHG(l);
-#ifdef TARGET_X86_64
-GEN_ATOMIC_XCHG(q);
-#endif
-
-#define GEN_ATOMIC_OP(type, TYPE) \
-void helper_atomic_op##type(target_ulong a0, target_ulong t1,    \
-                       int op)                                   \
-{                                                                \
-    DATA_##type operand;                                         \
-    int eflags_c, eflags;                                        \
-    int cc_op;                                                   \
-                                                                 \
-    /* compute the previous instruction c flags */               \
-    eflags_c = helper_cc_compute_c(CC_OP);                       \
-    operand = (DATA_##type)t1;                                   \
-                                                                 \
-    TX(a0, type, value, {                                        \
-        switch(op) {                                             \
-        case OP_ADCL:                                            \
-            value += operand + eflags_c;                         \
-            cc_op = CC_OP_ADD##TYPE + (eflags_c << 2);           \
-            CC_SRC = operand;                                    \
-            break;                                               \
-        case OP_SBBL:                                            \
-            value = value - operand - eflags_c;                  \
-            cc_op = CC_OP_SUB##TYPE + (eflags_c << 2);           \
-            CC_SRC = operand;                                    \
-            break;                                               \
-        case OP_ADDL:                                            \
-            value += operand;                                    \
-            cc_op = CC_OP_ADD##TYPE;                             \
-            CC_SRC = operand;                                    \
-            break;                                               \
-        case OP_SUBL:                                            \
-            value -= operand;                                    \
-            cc_op = CC_OP_SUB##TYPE;                             \
-            CC_SRC = operand;                                    \
-            break;                                               \
-        default:                                                 \
-        case OP_ANDL:                                            \
-            value &= operand;                                    \
-            cc_op = CC_OP_LOGIC##TYPE;                           \
-            break;                                               \
-        case OP_ORL:                                             \
-            value |= operand;                                    \
-            cc_op = CC_OP_LOGIC##TYPE;                           \
-            break;                                               \
-        case OP_XORL:                                            \
-            value ^= operand;                                    \
-            cc_op = CC_OP_LOGIC##TYPE;                           \
-            break;                                               \
-        case OP_CMPL:                                            \
-            abort();                                             \
-            break;                                               \
-        }                                                        \
-    });                                                          \
-    CC_DST = value;                                              \
-    /* successful transaction, compute the eflags */             \
-    eflags = helper_cc_compute_all(cc_op);                       \
-    CC_SRC = eflags;                                             \
-}
-
-GEN_ATOMIC_OP(b, B);
-GEN_ATOMIC_OP(w, W);
-GEN_ATOMIC_OP(l, L);
-#ifdef TARGET_X86_64
-GEN_ATOMIC_OP(q, Q);
-#endif
-
-/* xadd */
-#define GEN_ATOMIC_XADD(type, TYPE) \
-void helper_atomic_xadd##type(target_ulong a0, int reg,   \
-                        int hreg)                         \
-{                                                         \
-    DATA_##type operand, oldv;                            \
-    int eflags;                                           \
-                                                          \
-    operand = (DATA_##type)cm_get_reg_val(                \
-            OT_##type, hreg, reg);                        \
-                                                          \
-    TX(a0, type, newv, {                                  \
-        oldv = newv;                                      \
-        newv += operand;                                  \
-    });                                                   \
-                                                          \
-    /* transaction successes */                           \
-    /* xchg the register and compute the eflags */        \
-    cm_set_reg_val(OT_##type, hreg, reg, oldv);           \
-    CC_SRC = oldv;                                        \
-    CC_DST = newv;                                        \
-                                                          \
-    eflags = helper_cc_compute_all(CC_OP_ADD##TYPE);      \
-    CC_SRC = eflags;                                      \
-}
-
-GEN_ATOMIC_XADD(b, B);
-GEN_ATOMIC_XADD(w, W);
-GEN_ATOMIC_XADD(l, L);
-#ifdef TARGET_X86_64
-GEN_ATOMIC_XADD(q, Q);
-#endif
-
-/* cmpxchg */
-#define GEN_ATOMIC_CMPXCHG(type, TYPE) \
-void helper_atomic_cmpxchg##type(target_ulong a0, int reg,       \
-                            int hreg)                            \
-{                                                                \
-    DATA_##type reg_v, eax_v, res;                               \
-    int eflags;                                                  \
-    unsigned long q_addr;                                        \
-                                                                 \
-    CM_GET_QEMU_ADDR(q_addr, a0);                                \
-    reg_v = (DATA_##type)cm_get_reg_val(OT_##type, hreg, reg);   \
-    eax_v = (DATA_##type)cm_get_reg_val(OT_##type, 0, R_EAX);    \
-                                                                 \
-    res = atomic_compare_exchange##type(                         \
-            (DATA_##type *)q_addr, eax_v, reg_v);                \
-    mb();                                                        \
-                                                                 \
-    if (res != eax_v)                                            \
-        cm_set_reg_val(OT_##type, 0, R_EAX, res);                \
-                                                                 \
-    CC_SRC = res;                                                \
-    CC_DST = eax_v - res;                                        \
-                                                                 \
-    eflags = helper_cc_compute_all(CC_OP_SUB##TYPE);             \
-    CC_SRC = eflags;                                             \
-}
-
-GEN_ATOMIC_CMPXCHG(b, B);
-GEN_ATOMIC_CMPXCHG(w, W);
-GEN_ATOMIC_CMPXCHG(l, L);
-#ifdef TARGET_X86_64
-GEN_ATOMIC_CMPXCHG(q, Q);
+#define DATA_BITS 64
+#include "cm-atomic-template.h"
 #endif
 
 /* cmpxchgb (8, 16) */
@@ -384,46 +206,6 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
     CC_SRC = eflags;
 }
 
-/* not */
-#define GEN_ATOMIC_NOT(type) \
-void helper_atomic_not##type(target_ulong a0)  \
-{                                              \
-    TX(a0, type, value, {                      \
-        value = ~value;                        \
-    });                                        \
-}
-
-GEN_ATOMIC_NOT(b);
-GEN_ATOMIC_NOT(w);
-GEN_ATOMIC_NOT(l);
-#ifdef TARGET_X86_64
-GEN_ATOMIC_NOT(q);
-#endif
-
-/* neg */
-#define GEN_ATOMIC_NEG(type, TYPE) \
-void helper_atomic_neg##type(target_ulong a0)        \
-{                                                    \
-    int eflags;                                      \
-                                                     \
-    TX(a0, type, value, {                            \
-        value = -value;                              \
-    });                                              \
-                                                     \
-    /* We should use the old value to compute CC */  \
-    CC_SRC = CC_DST = -value;                        \
-                                                     \
-    eflags = helper_cc_compute_all(CC_OP_SUB##TYPE); \
-    CC_SRC = eflags;                                 \
-}                                                    \
-
-GEN_ATOMIC_NEG(b, B);
-GEN_ATOMIC_NEG(w, W);
-GEN_ATOMIC_NEG(l, L);
-#ifdef TARGET_X86_64
-GEN_ATOMIC_NEG(q, Q);
-#endif
-
 /* This is only used in BTX instruction, with an additional offset.
  * Note that, when using register bitoffset, the value can be larger than
  * operand size - 1 (operand size can be 16/32/64), refer to intel manual 2A
@@ -449,7 +231,7 @@ void helper_atomic_##ins(target_ulong a0, target_ulong offset, \
     uint8_t old_byte;                                          \
     int eflags;                                                \
                                                                \
-    TX2(a0, b, value, offset, {                                 \
+    TX2(a0, b, value, offset, {                                \
         old_byte = value;                                      \
         {command;};                                            \
     });                                                        \
