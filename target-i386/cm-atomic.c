@@ -121,25 +121,6 @@ static void cm_set_reg_val(int ot, int hregs, int reg, target_ulong val)
       }
 }
 
-#define LD_b ldub_raw
-#define LD_w lduw_raw
-#define LD_l ldl_raw
-#define LD_q ldq_raw
-
-/* Lightweight transactional memory. */
-#define TX(vaddr, type, value, command) \
-    unsigned long __q_addr;                                   \
-    DATA_##type __oldv;                                       \
-    DATA_##type value;                                        \
-                                                              \
-    CM_GET_QEMU_ADDR(__q_addr, vaddr);                        \
-    do {                                                      \
-        __oldv = value = LD_##type((DATA_##type *)__q_addr);  \
-        {command;};                                           \
-        mb();                                                 \
-    } while (__oldv != (atomic_compare_exchange##type(        \
-                    (DATA_##type *)__q_addr, __oldv, value)))
-
 #define DATA_BITS 8
 #include "cm-atomic-template.h"
 
@@ -153,6 +134,13 @@ static void cm_set_reg_val(int ot, int hregs, int reg, target_ulong val)
 #define DATA_BITS 64
 #include "cm-atomic-template.h"
 #endif
+
+#define INS 1
+#include "cm-atomic-btx.h"
+#define INS 2
+#include "cm-atomic-btx.h"
+#define INS 3
+#include "cm-atomic-btx.h"
 
 /* cmpxchgb (8, 16) */
 void helper_atomic_cmpxchg8b(target_ulong a0)
@@ -205,55 +193,6 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
 
     CC_SRC = eflags;
 }
-
-/* This is only used in BTX instruction, with an additional offset.
- * Note that, when using register bitoffset, the value can be larger than
- * operand size - 1 (operand size can be 16/32/64), refer to intel manual 2A
- * page 3-11. */
-#define TX2(vaddr, type, value, offset, command) \
-    unsigned long __q_addr;                                   \
-    DATA_##type __oldv;                                       \
-    DATA_##type value;                                        \
-                                                              \
-    CM_GET_QEMU_ADDR(__q_addr, vaddr);                        \
-    __q_addr += offset >> 3;                                  \
-    do {                                                      \
-        __oldv = value = LD_##type((DATA_##type *)__q_addr);  \
-        {command;};                                           \
-        mb();                                                 \
-    } while (__oldv != (atomic_compare_exchange##type(        \
-                    (DATA_##type *)__q_addr, __oldv, value)))
-
-#define GEN_ATOMIC_BTX(ins, command) \
-void helper_atomic_##ins(target_ulong a0, target_ulong offset, \
-        int ot)                                                \
-{                                                              \
-    uint8_t old_byte;                                          \
-    int eflags;                                                \
-                                                               \
-    TX2(a0, b, value, offset, {                                \
-        old_byte = value;                                      \
-        {command;};                                            \
-    });                                                        \
-                                                               \
-    CC_SRC = (old_byte >> (offset & 0x7));                     \
-    CC_DST = 0;                                                \
-    eflags = helper_cc_compute_all(CC_OP_SARB + ot);           \
-    CC_SRC = eflags;                                           \
-}
-
-/* bts */
-GEN_ATOMIC_BTX(bts, {
-    value |= (1 << (offset & 0x7));
-});
-/* btr */
-GEN_ATOMIC_BTX(btr, {
-    value &= ~(1 << (offset & 0x7));
-});
-/* btc */
-GEN_ATOMIC_BTX(btc, {
-    value ^= (1 << (offset & 0x7));
-});
 
 /* fence **/
 void helper_fence(void)

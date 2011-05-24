@@ -27,7 +27,7 @@
 #endif
 
 /* Lightweight transactional memory. */
-#define TX_TMP(vaddr, type, value, command) \
+#define TX(vaddr, type, value, command) \
     unsigned long __q_addr;                                   \
     DATA_TYPE __oldv;                                         \
     DATA_TYPE value;                                          \
@@ -49,7 +49,7 @@ void glue(helper_atomic_inc, SUFFIX)(target_ulong a0, int c)
     /* compute the previous instruction c flags */
     eflags_c = helper_cc_compute_c(CC_OP);
 
-    TX_TMP(a0, type, value, {
+    TX(a0, type, value, {
         if (c > 0) {
             value++;
             cc_op = glue(CC_OP_INC, UPSUFFIX);
@@ -90,7 +90,7 @@ void glue(helper_atomic_op, SUFFIX)(target_ulong a0, target_ulong t1,
     eflags_c = helper_cc_compute_c(CC_OP);
     operand = (DATA_TYPE)t1;
 
-    TX_TMP(a0, type, value, {
+    TX(a0, type, value, {
         switch(op) {
         case OP_ADCL:
             value += operand + eflags_c;
@@ -145,7 +145,7 @@ void glue(helper_atomic_xadd, SUFFIX)(target_ulong a0, int reg,
     operand = (DATA_TYPE)cm_get_reg_val(
             OT, hreg, reg);
 
-    TX_TMP(a0, type, newv, {
+    TX(a0, type, newv, {
         oldv = newv;
         newv += operand;
     });
@@ -187,7 +187,7 @@ void glue(helper_atomic_cmpxchg, SUFFIX)(target_ulong a0, int reg,
 
 void glue(helper_atomic_not, SUFFIX)(target_ulong a0)
 {
-    TX_TMP(a0, type, value, {
+    TX(a0, type, value, {
         value = ~value;
     });
 }
@@ -196,7 +196,7 @@ void glue(helper_atomic_neg, SUFFIX)(target_ulong a0)
 {
     int eflags;
 
-    TX_TMP(a0, type, value, {
+    TX(a0, type, value, {
         value = -value;
     });
 
