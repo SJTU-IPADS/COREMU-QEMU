@@ -4,9 +4,16 @@
 void cm_crew_init(void);
 void cm_crew_core_init(void);
 
-int64_t cm_crew_read(void *addr, int size);
+typedef struct memobj_t memobj_t;
 
-void cm_crew_write(void *addr, int64_t value, int size);
+/* Acquire lock before read/write operation, record log if necessary.
+ * Unlock after operation done. */
+memobj_t *read_lock(const void *addr);
+void read_unlock(memobj_t *mo);
+memobj_t *write_lock(const void *addr);
+void write_unlock(memobj_t *mo);
+
+void apply_replay_log(void);
 
 extern void *cm_crew_read_func[4];
 extern void *cm_crew_write_func[4];

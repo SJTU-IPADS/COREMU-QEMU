@@ -28,7 +28,6 @@ struct memobj_t {
     tbb_rwlock_t lock;
     volatile uint16_t owner;
 };
-typedef struct memobj_t memobj_t;
 
 /* Now we track memory as 4K shared object, each object will have a memobj_t
  * tracking its ownership */
@@ -109,6 +108,72 @@ static inline int apply_replay_inclog(void)
     /* Wait for the target CPU's memop to reach the recorded value. */
     while (memop_cnt[incop[LOGENT_CPUNO]] < incop[LOGENT_WAITMEMOP]);
     return read_inc_log();
+}
+
+memobj_t *read_lock(const void *addr)
+{
+    uint16_t owner;
+    int objid = memobj_id(addr);
+    memobj_t *mo = &memobj[objid];
+
+    tbb_start_read(&mo->lock);
+    owner = mo->owner;
+    if ((owner != SHARED_READ) && (owner != cm_coreid)) {
+        // We need to increase privilege for all cpu except the owner.
+        // We use cmpxchg to avoid other readers make duplicate record.
+        if (owner != NONRIGHT && atomic_compare_exchangew((uint16_t *)&mo->owner, owner,
+                    NONRIGHT) == owner) {
+            record_read_crew_fault(owner, objid);
+            mo->owner = SHARED_READ;
+        } else {
+            // XXX Pause if other threads are taking log.
+            while (mo->owner != SHARED_READ);
+        }
+    }
+    return mo;
+}
+
+void read_unlock(memobj_t *mo)
+{
+    (*memop)++;
+    tbb_end_read(&mo->lock);
+    if ((mo->lock.counter >> 2) >= 2) {
+        coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %ld\n",
+               (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, mo - memobj);
+        while (1);
+    }
+}
+
+memobj_t *write_lock(const void *addr)
+{
+    int objid = memobj_id(addr);
+    memobj_t *mo = &memobj[objid];
+
+    if ((mo->lock.counter >> 2) >= 2) {
+        coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %d\n",
+               (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, objid);
+        while (1);
+    }
+    tbb_start_write(&mo->lock);
+    if (mo->owner != cm_coreid) {
+        /* We increase own privilege here. */
+        record_write_crew_fault(mo->owner, objid);
+        mo->owner = (uint16_t)cm_coreid;
+    }
+    return mo;
+}
+
+void write_unlock(memobj_t *mo)
+{
+    (*memop_cnt)++;
+    tbb_end_write(&mo->lock);
+    assert((mo->lock.counter >> 2) < 3);
+}
+
+void apply_replay_log(void)
+{
+    while (incop[LOGENT_MEMOP] == *memop + 1)
+        apply_replay_inclog();
 }
 
 void cm_crew_init(void)

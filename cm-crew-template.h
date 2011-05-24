@@ -29,75 +29,27 @@
 
 static inline DATA_TYPE glue(record_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
-    DATA_TYPE val;
-    uint16_t owner;
-    int objid = memobj_id(addr);
-    memobj_t *mo = &memobj[objid];
-
-    if ((mo->lock.counter >> 2) >= 2) {
-        coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %d\n",
-               (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, objid);
-        while (1);
-    }
-    tbb_start_read(&mo->lock);
-    owner = mo->owner;
-    if ((owner != SHARED_READ) && (owner != cm_coreid)) {
-        // We need to increase privilege for all cpu except the owner.
-        // We use cmpxchg to avoid other readers make duplicate record.
-        if (owner != NONRIGHT && atomic_compare_exchangew((uint16_t *)&mo->owner, owner,
-                    NONRIGHT) == owner) {
-            record_read_crew_fault(owner, objid);
-            mo->owner = SHARED_READ;
-        } else {
-            // XXX Pause if other threads are taking log.
-            while (mo->owner != SHARED_READ);
-        }
-    }
-
-    (*memop)++;
-    val = *addr;
-
-    tbb_end_read(&mo->lock);
-    if ((mo->lock.counter >> 2) >= 2) {
-        coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %d\n",
-               (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, objid);
-        while (1);
-    }
+    memobj_t *mo = read_lock(addr);
+    DATA_TYPE val = *addr;
+    read_unlock(mo);
 
     return val;
 }
 
 static inline void glue(record_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
-    int objid = memobj_id(addr);
-    memobj_t *mo = &memobj[objid];
-
-    if ((mo->lock.counter >> 2) >= 2) {
-        coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %d\n",
-               (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, objid);
-        while (1);
-    }
-    tbb_start_write(&mo->lock);
-    if (mo->owner != cm_coreid) {
-        /* We increase own privilege here. */
-        record_write_crew_fault(mo->owner, objid);
-        mo->owner = (uint16_t)cm_coreid;
-    }
+    memobj_t *mo = write_lock(addr);
     *addr = val;
-    (*memop_cnt)++;
-    tbb_end_write(&mo->lock);
-    assert((mo->lock.counter >> 2) < 3);
+    write_unlock(mo);
 }
 
 /* For replay */
 
 static inline DATA_TYPE glue(replay_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
-    DATA_TYPE val;
-    while (incop[LOGENT_MEMOP] == *memop + 1)
-        apply_replay_inclog();
+    apply_replay_log();
 
-    val = *addr;
+    DATA_TYPE val = *addr;
     (*memop)++;
 
     return val;
@@ -105,8 +57,7 @@ static inline DATA_TYPE glue(replay_crew_read, SUFFIX)(const DATA_TYPE *addr)
 
 static inline void glue(replay_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
-    while (incop[LOGENT_MEMOP] == *memop + 1)
-        apply_replay_inclog();
+    apply_replay_log();
 
     *addr = val;
     (*memop)++;
