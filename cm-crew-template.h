@@ -29,25 +29,25 @@
 
 static inline DATA_TYPE glue(record_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
-    memobj_t *mo = read_lock(addr);
+    memobj_t *mo = cm_read_lock(addr);
     DATA_TYPE val = *addr;
-    read_unlock(mo);
+    cm_read_unlock(mo);
 
     return val;
 }
 
 static inline void glue(record_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
-    memobj_t *mo = write_lock(addr);
+    memobj_t *mo = cm_write_lock(addr);
     *addr = val;
-    write_unlock(mo);
+    cm_write_unlock(mo);
 }
 
 /* For replay */
 
 static inline DATA_TYPE glue(replay_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
-    apply_replay_log();
+    cm_apply_replay_log();
 
     DATA_TYPE val = *addr;
     (*memop)++;
@@ -57,7 +57,7 @@ static inline DATA_TYPE glue(replay_crew_read, SUFFIX)(const DATA_TYPE *addr)
 
 static inline void glue(replay_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
-    apply_replay_log();
+    cm_apply_replay_log();
 
     *addr = val;
     (*memop)++;

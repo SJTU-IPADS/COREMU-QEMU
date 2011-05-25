@@ -1,6 +1,8 @@
 #ifndef _CM_CREW_H
 #define _CM_CREW_H
 
+extern __thread uint32_t *memop;
+
 void cm_crew_init(void);
 void cm_crew_core_init(void);
 
@@ -8,12 +10,12 @@ typedef struct memobj_t memobj_t;
 
 /* Acquire lock before read/write operation, record log if necessary.
  * Unlock after operation done. */
-memobj_t *read_lock(const void *addr);
-void read_unlock(memobj_t *mo);
-memobj_t *write_lock(const void *addr);
-void write_unlock(memobj_t *mo);
+memobj_t *cm_read_lock(const void *addr);
+void      cm_read_unlock(memobj_t *mo);
+memobj_t *cm_write_lock(const void *addr);
+void      cm_write_unlock(memobj_t *mo);
 
-void apply_replay_log(void);
+void cm_apply_replay_log(void);
 
 extern void *cm_crew_read_func[4];
 extern void *cm_crew_write_func[4];

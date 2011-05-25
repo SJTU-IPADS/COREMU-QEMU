@@ -17,7 +17,7 @@ extern int smp_cpus;
 /* Record memory operation count for each vCPU
  * Overflow should not cause problem if we do not sort the output log. */
 static uint32_t *memop_cnt;
-static __thread uint32_t *memop;
+__thread uint32_t *memop;
 
 static __thread uint32_t *incop;
 
@@ -110,7 +110,7 @@ static inline int apply_replay_inclog(void)
     return read_inc_log();
 }
 
-memobj_t *read_lock(const void *addr)
+memobj_t *cm_read_lock(const void *addr)
 {
     uint16_t owner;
     int objid = memobj_id(addr);
@@ -133,7 +133,7 @@ memobj_t *read_lock(const void *addr)
     return mo;
 }
 
-void read_unlock(memobj_t *mo)
+void cm_read_unlock(memobj_t *mo)
 {
     (*memop)++;
     tbb_end_read(&mo->lock);
@@ -144,7 +144,7 @@ void read_unlock(memobj_t *mo)
     }
 }
 
-memobj_t *write_lock(const void *addr)
+memobj_t *cm_write_lock(const void* addr)
 {
     int objid = memobj_id(addr);
     memobj_t *mo = &memobj[objid];
@@ -163,14 +163,14 @@ memobj_t *write_lock(const void *addr)
     return mo;
 }
 
-void write_unlock(memobj_t *mo)
+void cm_write_unlock(memobj_t *mo)
 {
-    (*memop_cnt)++;
+    (*memop)++;
     tbb_end_write(&mo->lock);
     assert((mo->lock.counter >> 2) < 3);
 }
 
-void apply_replay_log(void)
+void cm_apply_replay_log(void)
 {
     while (incop[LOGENT_MEMOP] == *memop + 1)
         apply_replay_inclog();

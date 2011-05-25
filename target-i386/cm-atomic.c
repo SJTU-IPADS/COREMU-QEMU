@@ -30,6 +30,7 @@
 #include "coremu-sched.h"
 #include "cm-mmu.h"
 #include "dyngen-exec.h"
+#include "cm-crew.h"
 
 /* These definitions are copied from translate.c */
 #if defined(WORDS_BIGENDIAN)
@@ -119,6 +120,32 @@ static void cm_set_reg_val(int ot, int hregs, int reg, target_ulong val)
           env1->regs[reg] = val;
           break;
       }
+}
+
+static inline memobj_t *cm_start_atomic_insn(const void *q_addr)
+{
+    memobj_t *mo = NULL;
+    switch (cm_run_mode) {
+    case CM_RUNMODE_RECORD:
+        mo = cm_write_lock(q_addr);
+        break;
+    case CM_RUNMODE_REPLAY:
+        cm_apply_replay_log();
+        break;
+    }
+    return mo;
+}
+
+static inline void cm_end_atomic_insn(memobj_t *mo)
+{
+    switch (cm_run_mode) {
+    case CM_RUNMODE_RECORD:
+        cm_write_unlock(mo);
+        break;
+    case CM_RUNMODE_REPLAY:
+        (*memop)++;
+        break;
+    }
 }
 
 #define DATA_BITS 8
