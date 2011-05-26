@@ -140,6 +140,7 @@ static inline void cm_end_atomic_insn(memobj_t *mo)
 {
     switch (cm_run_mode) {
     case CM_RUNMODE_RECORD:
+        (*memop)++;
         cm_write_unlock(mo);
         break;
     case CM_RUNMODE_REPLAY:
@@ -176,8 +177,13 @@ void helper_atomic_cmpxchg8b(target_ulong a0)
     int eflags;
     unsigned long q_addr;
 
-    eflags = helper_cc_compute_all(CC_OP);
     CM_GET_QEMU_ADDR(q_addr, a0);
+
+#ifdef CONFIG_REPLAY
+    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
+#endif
+
+    eflags = helper_cc_compute_all(CC_OP);
 
     edx_eax = (((uint64_t)EDX << 32) | (uint32_t)EAX);
     ecx_ebx = (((uint64_t)ECX << 32) | (uint32_t)EBX);
@@ -194,6 +200,10 @@ void helper_atomic_cmpxchg8b(target_ulong a0)
     }
 
     CC_SRC = eflags;
+
+#ifdef CONFIG_REPLAY
+    cm_end_atomic_insn(mo);
+#endif
 }
 
 void helper_atomic_cmpxchg16b(target_ulong a0)
@@ -202,8 +212,13 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
     int eflags;
     unsigned long q_addr;
 
-    eflags = helper_cc_compute_all(CC_OP);
     CM_GET_QEMU_ADDR(q_addr, a0);
+
+#ifdef CONFIG_REPLAY
+    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
+#endif
+
+    eflags = helper_cc_compute_all(CC_OP);
 
     uint64_t old_rax = *(uint64_t *)q_addr;
     uint64_t old_rdx = *(uint64_t *)(q_addr + 8);
@@ -219,6 +234,9 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
     }
 
     CC_SRC = eflags;
+#ifdef CONFIG_REPLAY
+    cm_end_atomic_insn(mo);
+#endif
 }
 
 /* fence **/

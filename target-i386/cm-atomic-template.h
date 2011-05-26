@@ -46,7 +46,6 @@ void glue(helper_atomic_inc, SUFFIX)(target_ulong a0, int c)
 
     unsigned long q_addr;
     CM_GET_QEMU_ADDR(q_addr, a0);
-
 #ifdef CONFIG_REPLAY
     memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
 #endif
@@ -69,7 +68,6 @@ void glue(helper_atomic_inc, SUFFIX)(target_ulong a0, int c)
 
     eflags = helper_cc_compute_all(cc_op);
     CC_SRC = eflags;
-
 #ifdef CONFIG_REPLAY
     cm_end_atomic_insn(mo);
 #endif
@@ -81,7 +79,6 @@ void glue(helper_xchg, SUFFIX)(target_ulong a0, int reg, int hreg)
     unsigned long q_addr;
 
     CM_GET_QEMU_ADDR(q_addr, a0);
-
 #ifdef CONFIG_REPLAY
     memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
 #endif
@@ -105,7 +102,6 @@ void glue(helper_atomic_op, SUFFIX)(target_ulong a0, target_ulong t1,
 
     unsigned long q_addr;
     CM_GET_QEMU_ADDR(q_addr, a0);
-
 #ifdef CONFIG_REPLAY
     memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
 #endif
@@ -171,7 +167,6 @@ void glue(helper_atomic_xadd, SUFFIX)(target_ulong a0, int reg,
 
     unsigned long q_addr;
     CM_GET_QEMU_ADDR(q_addr, a0);
-
 #ifdef CONFIG_REPLAY
     memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
 #endif
@@ -205,7 +200,6 @@ void glue(helper_atomic_cmpxchg, SUFFIX)(target_ulong a0, int reg,
     unsigned long q_addr;
 
     CM_GET_QEMU_ADDR(q_addr, a0);
-
 #ifdef CONFIG_REPLAY
     memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
 #endif
@@ -252,7 +246,6 @@ void glue(helper_atomic_neg, SUFFIX)(target_ulong a0)
 
     unsigned long q_addr;
     CM_GET_QEMU_ADDR(q_addr, a0);
-
 #ifdef CONFIG_REPLAY
     memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
 #endif
@@ -266,7 +259,6 @@ void glue(helper_atomic_neg, SUFFIX)(target_ulong a0)
 
     eflags = helper_cc_compute_all(glue(CC_OP_SUB, UPSUFFIX));
     CC_SRC = eflags;
-
 #ifdef CONFIG_REPLAY
     cm_end_atomic_insn(mo);
 #endif

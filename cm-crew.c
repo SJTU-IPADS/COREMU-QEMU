@@ -165,7 +165,6 @@ memobj_t *cm_write_lock(const void* addr)
 
 void cm_write_unlock(memobj_t *mo)
 {
-    (*memop)++;
     tbb_end_write(&mo->lock);
     assert((mo->lock.counter >> 2) < 3);
 }
