@@ -59,10 +59,10 @@ static inline int memobj_id(const void *addr)
     return id;
 }
 
-static inline void write_inc_log(uint32_t memop, uint32_t waitcpuno,
+static inline void write_inc_log(uint16_t logcpu_no, uint32_t memop, uint32_t waitcpuno,
                                  uint32_t waitmemop)
 {
-    fprintf(crew_inc_log, "%u %u %u\n", memop, waitcpuno, waitmemop);
+    fprintf(cm_log[logcpu_no][CREW_INC], "%u %u %u\n", memop, waitcpuno, waitmemop);
 }
 
 static inline int read_inc_log(void)
@@ -80,11 +80,12 @@ static inline void record_read_crew_fault(uint16_t owner, int objid) {
      * these information may be needed if we want to apply analysis on the log. */
     /*coremu_debug("record read fault");*/
     int i;
+    uint32_t owner_memop = memop_cnt[owner];
     for (i = 0; i < smp_cpus; i++) {
         if (i != owner) {
             /* XXX Other reader threads may be running, and we need to record
              * the immediate instruction after the owner's write instruction. */
-            write_inc_log(memop_cnt[i] + 1, owner, memop_cnt[owner]);
+            write_inc_log(i, memop_cnt[i] + 1, owner, owner_memop);
         }
     }
 }
@@ -95,11 +96,11 @@ static inline void record_write_crew_fault(uint16_t owner, int objid) {
         int i;
         for (i = 0; i < smp_cpus; i++) {
             if (i != cm_coreid) {
-                write_inc_log(*memop + 1, i, memop_cnt[i]);
+                write_inc_log(cm_coreid, *memop + 1, i, memop_cnt[i]);
             }
         }
     } else {
-        write_inc_log(*memop + 1, owner, memop_cnt[owner]);
+        write_inc_log(cm_coreid, *memop + 1, owner, memop_cnt[owner]);
     }
 }
 
