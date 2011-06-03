@@ -29,6 +29,11 @@
 #include "kvm.h"
 #include "kvm_x86.h"
 
+#include "coremu-config.h"
+#include "cm-replay.h"
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 //#define DEBUG_MMU
 
 /* NOTE: must be called outside the CPU execute loop */
@@ -1156,6 +1161,11 @@ CPUX86State *cpu_x86_init(const char *cpu_model)
 #if !defined(CONFIG_USER_ONLY)
 void do_cpu_init(CPUState *env)
 {
+#ifdef CONFIG_REPLAY
+    if (cm_run_mode == CM_RUNMODE_RECORD)
+        cm_record_intr(CM_CPU_INIT, env->eip);
+#endif
+    coremu_debug("core %u called", cm_coreid);
     int sipi = env->interrupt_request & CPU_INTERRUPT_SIPI;
     cpu_reset(env);
     env->interrupt_request = sipi;
@@ -1165,6 +1175,11 @@ void do_cpu_init(CPUState *env)
 
 void do_cpu_sipi(CPUState *env)
 {
+#ifdef CONFIG_REPLAY
+    if (cm_run_mode == CM_RUNMODE_RECORD)
+        cm_record_intr(CM_CPU_SIPI, env->eip);
+#endif
+    coremu_debug("core %u called", cm_coreid);
     apic_sipi(env->apic_state);
 }
 #else

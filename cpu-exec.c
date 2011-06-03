@@ -252,8 +252,24 @@ int cpu_exec(CPUState *env1)
     {
         /* It's possible the CPU ignores an interrupt and cpu_halted returns
          * true. But actually we need to inject the inject now.  */
-        if (!(cm_run_mode == CM_RUNMODE_REPLAY &&
-            cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt))
+        /*coremu_debug("cm_coreid = %u, cm_inject_exec_cnt = %lu", cm_coreid, cm_inject_exec_cnt);*/
+        if (cm_run_mode == CM_RUNMODE_REPLAY &&
+            cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt) {
+            if (cm_inject_intno == CM_CPU_INIT) {
+                env = env1;
+                cm_replay_intr();
+                /* XXX Here we need to wait until the BSP sets the jump insn. */
+                do_cpu_init(env);
+                env->exception_index = EXCP_HALTED;
+                /* Can't call longjmp since setjmp may not have been called. */
+                /*cpu_loop_exit();*/
+            } else if (cm_inject_intno == CM_CPU_SIPI) {
+                env = env1;
+                cm_replay_intr();
+                do_cpu_sipi(env);
+                /*cpu_loop_exit();*/
+            }
+        } else
             return EXCP_HALTED;
     }
 #else

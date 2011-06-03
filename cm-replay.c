@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <pthread.h>
-#include "coremu-core.h"
 #include "cm-replay.h"
 #include "cm-crew.h"
 
@@ -45,7 +44,7 @@ uint64_t *cm_tb_exec_cnt;
 
 /* Inject interrupt when cm_tb_exec_cnt reaches this value */
 __thread uint64_t cm_inject_exec_cnt = -1;
-static __thread int cm_inject_intno;
+__thread int cm_inject_intno;
 __thread long cm_inject_eip;
 
 /* interrupt */
@@ -184,7 +183,6 @@ static void cm_wait_disk_dma(void)
 }
 
 /* init */
-static int cm_replay_inited = 0;
 
 void cm_replay_init(void) {
     /* Setup CPU local variable */
@@ -206,11 +204,8 @@ void cm_replay_init(void) {
 
 void cm_replay_core_init(void)
 {
-    if (cm_run_mode == CM_RUNMODE_NORMAL || cm_replay_inited)
+    if (cm_run_mode == CM_RUNMODE_NORMAL)
         return;
-
-    /* Must initialize this before calling other functions. */
-    cm_coreid = coremu_get_core_id();
 
     const char *mode = cm_run_mode == CM_RUNMODE_REPLAY ? "r" : "w";
     cm_open_log(mode);
@@ -218,10 +213,36 @@ void cm_replay_core_init(void)
         cm_read_intr_log();
         cm_read_dma_log();
     }
-    cm_replay_inited = 1;
+    coremu_debug("cm_coreid = %u, cm_inject_exec_cnt = %lu", cm_coreid, cm_inject_exec_cnt);
 
     cm_crew_core_init();
 }
+
+/* CPU initialization */
+
+static void log_all_pc(FILE *log, int id)
+{
+    int i;
+
+    for (i = 0; i < smp_cpus; i++) {
+        if (i != cm_coreid) {
+            fprintf(log, "%u %u %d\n", i, memop_cnt[i], id);
+        }
+    }
+}
+
+void cm_record_cpu_init(void)
+{
+    coremu_debug("record core %u INIT IPI", cm_coreid);
+    log_all_pc(cm_log[cm_coreid][CPUSTART], DO_CPU_INIT);
+}
+
+void cm_record_cpu_sipi(void)
+{
+    coremu_debug("record core %u START IPI", cm_coreid);
+    log_all_pc(cm_log[cm_coreid][CPUSTART], DO_CPU_SIPI);
+}
+
 
 /* debugging */
 

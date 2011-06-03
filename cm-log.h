@@ -11,6 +11,7 @@ enum {
     MMIO,
     DISK_DMA,
     CREW_INC,
+    CPUSTART,
     N_CM_LOG,
 };
 
