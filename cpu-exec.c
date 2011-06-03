@@ -383,7 +383,7 @@ int cpu_exec(CPUState *env1)
                 if (cm_exit_requested) {
                     cm_replay_flush_log();
                     atomic_incl((unsigned int *)&cm_exit_requested);
-                    while (1) pthread_yield();
+                    while (1) sleep(10);
                 }
 #endif
                 interrupt_request = env->interrupt_request;
