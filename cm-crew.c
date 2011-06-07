@@ -16,8 +16,8 @@ extern int smp_cpus;
 
 /* Record memory operation count for each vCPU
  * Overflow should not cause problem if we do not sort the output log. */
-uint32_t *memop_cnt;
-__thread uint32_t *memop;
+volatile uint32_t *memop_cnt;
+__thread volatile uint32_t *memop;
 
 static __thread uint32_t *incop;
 

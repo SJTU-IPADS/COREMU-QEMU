@@ -3,9 +3,6 @@
 
 #include "cm-log.h"
 
-#define CM_CPU_INIT 0xfffffffe
-#define CM_CPU_SIPI 0xfffffffd
-
 enum {
     CM_RUNMODE_NORMAL, /* Not being recorded or replayed, this is default */
     CM_RUNMODE_RECORD,
@@ -19,6 +16,9 @@ extern __thread long cm_inject_eip; // For debug
 
 /* Mark the interrupt being generated from the log. */
 #define CM_REPLAY_INT 0x80000000
+#define CM_CPU_INIT 0xfffffffe
+#define CM_CPU_SIPI 0xfffffffd
+
 
 extern int cm_run_mode;
 int cm_get_run_mode(void);
@@ -36,8 +36,8 @@ enum {
     DO_CPU_SIPI,
 };
 
-void cm_record_cpu_init(void);
-void cm_record_cpu_sipi(void);
+void cm_record_all_exec_cnt(void);
+void cm_replay_all_exec_cnt(void);
 
 #define GEN_HEADER(name, type) \
     void cm_record_##name(type arg); \

@@ -73,9 +73,10 @@ int cm_replay_intr(void)
     cm_wait_disk_dma();
 
     if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt) {
-        /*coremu_debug("injecting interrupt at %lu", cm_tb_exec_cnt);*/
+        coremu_debug("injecting interrupt at %p", (void *)cm_tb_exec_cnt[cm_coreid]);
         intno = cm_inject_intno;
         cm_read_intr_log(); /* Read next log entry. */
+        coremu_debug("%d", intno);
         return intno;
     }
     return -1;
@@ -184,7 +185,8 @@ static void cm_wait_disk_dma(void)
 
 /* init */
 
-void cm_replay_init(void) {
+void cm_replay_init(void)
+{
     /* Setup CPU local variable */
     cm_tb_exec_cnt = calloc(smp_cpus, sizeof(uint64_t));
 
@@ -212,37 +214,49 @@ void cm_replay_core_init(void)
     if (cm_run_mode == CM_RUNMODE_REPLAY) {
         cm_read_intr_log();
         cm_read_dma_log();
+        coremu_debug("cm_coreid = %u, cm_inject_exec_cnt = %lu",
+                     cm_coreid, cm_inject_exec_cnt);
     }
-    coremu_debug("cm_coreid = %u, cm_inject_exec_cnt = %lu", cm_coreid, cm_inject_exec_cnt);
 
     cm_crew_core_init();
 }
 
 /* CPU initialization */
 
-static void log_all_pc(FILE *log, int id)
+#define LOG_ALL_EXEC_CNT_FMT "%hu %lu\n"
+
+void cm_record_all_exec_cnt(void)
 {
-    int i;
+    uint16_t i;
 
     for (i = 0; i < smp_cpus; i++) {
         if (i != cm_coreid) {
-            fprintf(log, "%u %u %d\n", i, memop_cnt[i], id);
+            fprintf(cm_log[cm_coreid][ALLPC], LOG_ALL_EXEC_CNT_FMT, i,
+                    cm_tb_exec_cnt[i]);
         }
     }
 }
 
-void cm_record_cpu_init(void)
+void cm_replay_all_exec_cnt(void)
 {
-    coremu_debug("record core %u INIT IPI", cm_coreid);
-    log_all_pc(cm_log[cm_coreid][CPUSTART], DO_CPU_INIT);
-}
+    uint16_t i, coreid;
+    uint64_t wait_exec_cnt;
 
-void cm_record_cpu_sipi(void)
-{
-    coremu_debug("record core %u START IPI", cm_coreid);
-    log_all_pc(cm_log[cm_coreid][CPUSTART], DO_CPU_SIPI);
+    for (i = 0; i < smp_cpus; i++) {
+        if (i == cm_coreid)
+            continue;
+        if (fscanf(cm_log[cm_coreid][ALLPC], LOG_ALL_EXEC_CNT_FMT, &coreid,
+                   &wait_exec_cnt) == EOF) {
+            coremu_debug("No more all pc log.");
+            return;
+        } else {
+            while (cm_tb_exec_cnt[coreid] < wait_exec_cnt)
+                sched_yield();
+            coremu_debug("waited for %hu reach tb_exec_cnt %lu", coreid,
+                         wait_exec_cnt);
+        }
+    }
 }
-
 
 /* debugging */
 

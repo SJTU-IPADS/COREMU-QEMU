@@ -34,6 +34,10 @@
 #include "coremu-atomic.h"
 #include "cm-intr.h"
 #include "cm-target-intr.h"
+#include "cm-replay.h"
+
+#define DEBUG_COREMU
+#include "coremu-debug.h"
 
 /* The initial function for interrupts */
 
@@ -92,6 +96,7 @@ void cm_send_apicbus_intr(int target, int mask,
 
 void cm_send_ipi_intr(int target, int vector_num, int deliver_mode)
 {
+    coremu_debug("SEND IPI deliver_mode = %d", deliver_mode);
     coremu_send_intr(cm_ipi_intr_init(vector_num, deliver_mode), target);
 }
 
@@ -148,9 +153,11 @@ void cm_ipi_intr_handler(void *opaque)
 
     if (ipi_intr->deliver_mode) {
         /* SIPI */
+        /*coremu_debug("core %u handling START IPI", cm_coreid);*/
         cm_apic_startup(self->apic_state, ipi_intr->vector_num);
     } else {
         /* the INIT level de-assert */
+        /*coremu_debug("core %u handling INIT IPI", cm_coreid);*/
         cm_apic_setup_arbid(self->apic_state);
     }
 }

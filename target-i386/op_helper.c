@@ -1217,6 +1217,25 @@ static void handle_even_inj(int intno, int is_int, int error_code,
 COREMU_THREAD uint64_t cm_intr_cnt;
 #define IS_HARDINT(no) \
     (no >= 32 || no == 2 || no == 9 || no == 8 || no == 0xf)
+
+#ifdef CONFIG_REPLAY
+static void cm_handle_cpu_start(void)
+{
+    coremu_debug("called, intno = %d", cm_inject_intno);
+    if (cm_inject_intno == CM_CPU_INIT) {
+        cm_replay_intr();
+        /* XXX Here we need to wait until the BSP sets the jump insn. */
+        cm_replay_all_exec_cnt();
+        do_cpu_init(env);
+        env->exception_index = EXCP_HALTED;
+        cpu_loop_exit();
+    } else if (cm_inject_intno == CM_CPU_SIPI) {
+        cm_replay_intr();
+        cm_replay_all_exec_cnt();
+        do_cpu_sipi(env);
+    }
+}
+#endif
 #endif
 
 /*
@@ -1231,6 +1250,10 @@ void do_interrupt(int intno, int is_int, int error_code,
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
         if (intno & CM_REPLAY_INT) {
+            if ((intno == CM_CPU_INIT) || (intno == CM_CPU_SIPI)) {
+                cm_handle_cpu_start();
+                return;
+            }
             intno &= ~CM_REPLAY_INT;
             /*
              *coremu_debug("inject intr %x cm_tb_exec_cnt = %lu, eip = %p", intno,

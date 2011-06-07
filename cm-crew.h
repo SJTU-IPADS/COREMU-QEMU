@@ -1,8 +1,8 @@
 #ifndef _CM_CREW_H
 #define _CM_CREW_H
 
-extern __thread uint32_t *memop;
-extern uint32_t *memop_cnt;
+extern __thread volatile uint32_t *memop;
+extern volatile uint32_t *memop_cnt;
 
 void cm_crew_init(void);
 void cm_crew_core_init(void);

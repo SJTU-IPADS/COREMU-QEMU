@@ -1162,8 +1162,10 @@ CPUX86State *cpu_x86_init(const char *cpu_model)
 void do_cpu_init(CPUState *env)
 {
 #ifdef CONFIG_REPLAY
-    if (cm_run_mode == CM_RUNMODE_RECORD)
+    if (cm_run_mode == CM_RUNMODE_RECORD) {
         cm_record_intr(CM_CPU_INIT, env->eip);
+        cm_record_all_exec_cnt();
+    }
 #endif
     coremu_debug("core %u called", cm_coreid);
     int sipi = env->interrupt_request & CPU_INTERRUPT_SIPI;
@@ -1176,8 +1178,10 @@ void do_cpu_init(CPUState *env)
 void do_cpu_sipi(CPUState *env)
 {
 #ifdef CONFIG_REPLAY
-    if (cm_run_mode == CM_RUNMODE_RECORD)
+    if (cm_run_mode == CM_RUNMODE_RECORD) {
         cm_record_intr(CM_CPU_SIPI, env->eip);
+        cm_record_all_exec_cnt();
+    }
 #endif
     coremu_debug("core %u called", cm_coreid);
     apic_sipi(env->apic_state);

@@ -27,6 +27,10 @@
 #include "coremu-config.h"
 #include "cm-target-intr.h"
 #include "cm-timer.h"
+#include "cm-replay.h"
+
+#define DEBUG_COREMU
+#include "coremu-debug.h"
 
 /* APIC Local Vector Table */
 #define APIC_LVT_TIMER   0
@@ -284,7 +288,7 @@ static void apic_bus_deliver(const uint32_t *deliver_bitmask,
         case APIC_DM_INIT:
             /* normal INIT IPI sent to processors */
 #ifdef CONFIG_COREMU
-            /* Vector number is -1 which indecates ignore */
+            /* Vector number is -1 which indicates ignore */
             foreach_apic(apic_iter, deliver_bitmask,
                     cm_send_apicbus_intr(apic_iter->id, CPU_INTERRUPT_INIT, -1, -1) );
 #else
@@ -543,12 +547,14 @@ void apic_init_reset(DeviceState *d)
 
 static void apic_startup(APICState *s, int vector_num)
 {
+    coremu_debug("cm_coreid = %u, CPU startup", cm_coreid);
     s->sipi_vector = vector_num;
     cpu_interrupt(s->cpu_env, CPU_INTERRUPT_SIPI);
 }
 
 void apic_sipi(DeviceState *d)
 {
+    coremu_debug("cm_coreid = %u, CPU startup", cm_coreid);
     APICState *s = DO_UPCAST(APICState, busdev.qdev, d);
 
     cpu_reset_interrupt(s->cpu_env, CPU_INTERRUPT_SIPI);
