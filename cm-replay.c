@@ -73,10 +73,10 @@ int cm_replay_intr(void)
     cm_wait_disk_dma();
 
     if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt) {
-        coremu_debug("injecting interrupt at %p", (void *)cm_tb_exec_cnt[cm_coreid]);
+        coremu_debug("coreid %hu injecting interrupt %d at %p", cm_coreid,
+                     cm_inject_intno, (void *)cm_tb_exec_cnt[cm_coreid]);
         intno = cm_inject_intno;
         cm_read_intr_log(); /* Read next log entry. */
-        coremu_debug("%d", intno);
         return intno;
     }
     return -1;
@@ -268,9 +268,9 @@ extern uint64_t cm_mmio_read_cnt;
 
 #include "config-target.h"
 #ifdef TARGET_X86_64
-#define PC_LOG_FMT "%016lx\n"
+#define PC_LOG_FMT "%016lx %u\n"
 #else
-#define PC_LOG_FMT "%08lx\n"
+#define PC_LOG_FMT "%08lx %u\n"
 #endif
 
 /*
@@ -281,6 +281,7 @@ extern uint64_t cm_mmio_read_cnt;
 void cm_replay_assert_pc(uint64_t eip)
 {
     uint64_t next_eip;
+    uint32_t recorded_memop;
 
     /*
      *if (cm_tb_exec_cnt[cm_coreid] % 10240 != 0)
@@ -297,11 +298,13 @@ void cm_replay_assert_pc(uint64_t eip)
 
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
-        if (fscanf(cm_log[cm_coreid][PC], PC_LOG_FMT, &next_eip) == EOF) {
+        if (fscanf(cm_log[cm_coreid][PC], PC_LOG_FMT, &next_eip,
+                   &recorded_memop) == EOF) {
             printf("no more pc log\n");
             exit(1);
         }
         if (eip != next_eip) {
+            coremu_debug("Error in execution path!");
             coremu_debug(
                       "eip = %016lx, recorded eip = %016lx, "
                       "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
@@ -313,12 +316,25 @@ void cm_replay_assert_pc(uint64_t eip)
                       cm_inject_exec_cnt,
                       cm_ioport_read_cnt,
                       cm_mmio_read_cnt);
-            coremu_debug("Error in execution path!");
+            exit(1);
+        } else if (recorded_memop != *memop) {
+            coremu_debug("Error in memop cnt");
+            coremu_debug(
+                      "memop = %u, recorded memop = %u, "
+                      "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
+                      "cm_ioport_read_cnt = %lu, "
+                      "cm_mmio_read_cnt = %lu",
+                      *memop,
+                      recorded_memop,
+                      cm_tb_exec_cnt[cm_coreid],
+                      cm_inject_exec_cnt,
+                      cm_ioport_read_cnt,
+                      cm_mmio_read_cnt);
             exit(1);
         }
         break;
     case CM_RUNMODE_RECORD:
-        fprintf(cm_log[cm_coreid][PC], PC_LOG_FMT, eip);
+        fprintf(cm_log[cm_coreid][PC], PC_LOG_FMT, eip, *memop);
         break;
     }
 }

@@ -1163,8 +1163,8 @@ void do_cpu_init(CPUState *env)
 {
 #ifdef CONFIG_REPLAY
     if (cm_run_mode == CM_RUNMODE_RECORD) {
-        cm_record_intr(CM_CPU_INIT, env->eip);
         cm_record_all_exec_cnt();
+        cm_record_intr(CM_CPU_INIT, env->eip);
     }
 #endif
     coremu_debug("core %u called", cm_coreid);
@@ -1179,8 +1179,8 @@ void do_cpu_sipi(CPUState *env)
 {
 #ifdef CONFIG_REPLAY
     if (cm_run_mode == CM_RUNMODE_RECORD) {
-        cm_record_intr(CM_CPU_SIPI, env->eip);
         cm_record_all_exec_cnt();
+        cm_record_intr(CM_CPU_SIPI, env->eip);
     }
 #endif
     coremu_debug("core %u called", cm_coreid);

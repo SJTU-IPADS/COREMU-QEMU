@@ -1223,15 +1223,15 @@ static void cm_handle_cpu_start(void)
 {
     coremu_debug("called, intno = %d", cm_inject_intno);
     if (cm_inject_intno == CM_CPU_INIT) {
+        cm_replay_all_exec_cnt();
         cm_replay_intr();
         /* XXX Here we need to wait until the BSP sets the jump insn. */
-        cm_replay_all_exec_cnt();
         do_cpu_init(env);
         env->exception_index = EXCP_HALTED;
         cpu_loop_exit();
     } else if (cm_inject_intno == CM_CPU_SIPI) {
-        cm_replay_intr();
         cm_replay_all_exec_cnt();
+        cm_replay_intr();
         do_cpu_sipi(env);
     }
 }
