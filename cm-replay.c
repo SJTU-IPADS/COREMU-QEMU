@@ -214,8 +214,6 @@ void cm_replay_core_init(void)
     if (cm_run_mode == CM_RUNMODE_REPLAY) {
         cm_read_intr_log();
         cm_read_dma_log();
-        coremu_debug("cm_coreid = %u, cm_inject_exec_cnt = %lu",
-                     cm_coreid, cm_inject_exec_cnt);
     }
 
     cm_crew_core_init();
@@ -306,10 +304,11 @@ void cm_replay_assert_pc(uint64_t eip)
         if (eip != next_eip) {
             coremu_debug("Error in execution path!");
             coremu_debug(
-                      "eip = %016lx, recorded eip = %016lx, "
+                      "cm_coreid = %u, eip = %016lx, recorded eip = %016lx, "
                       "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
                       "cm_ioport_read_cnt = %lu, "
                       "cm_mmio_read_cnt = %lu",
+                      cm_coreid,
                       (long)eip,
                       (long)next_eip,
                       cm_tb_exec_cnt[cm_coreid],
@@ -320,10 +319,11 @@ void cm_replay_assert_pc(uint64_t eip)
         } else if (recorded_memop != *memop) {
             coremu_debug("Error in memop cnt");
             coremu_debug(
-                      "memop = %u, recorded memop = %u, "
+                      "cm_coreid = %u, memop = %u, recorded memop = %u, "
                       "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
                       "cm_ioport_read_cnt = %lu, "
                       "cm_mmio_read_cnt = %lu",
+                      cm_coreid,
                       *memop,
                       recorded_memop,
                       cm_tb_exec_cnt[cm_coreid],

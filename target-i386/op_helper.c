@@ -1219,17 +1219,17 @@ COREMU_THREAD uint64_t cm_intr_cnt;
     (no >= 32 || no == 2 || no == 9 || no == 8 || no == 0xf)
 
 #ifdef CONFIG_REPLAY
-static void cm_handle_cpu_start(void)
+static void cm_handle_cpu_start(int intno)
 {
     coremu_debug("called, intno = %d", cm_inject_intno);
-    if (cm_inject_intno == CM_CPU_INIT) {
+    if (intno == CM_CPU_INIT) {
         cm_replay_all_exec_cnt();
         cm_replay_intr();
         /* XXX Here we need to wait until the BSP sets the jump insn. */
         do_cpu_init(env);
         env->exception_index = EXCP_HALTED;
         cpu_loop_exit();
-    } else if (cm_inject_intno == CM_CPU_SIPI) {
+    } else if (intno == CM_CPU_SIPI) {
         cm_replay_all_exec_cnt();
         cm_replay_intr();
         do_cpu_sipi(env);
@@ -1251,7 +1251,7 @@ void do_interrupt(int intno, int is_int, int error_code,
     case CM_RUNMODE_REPLAY:
         if (intno & CM_REPLAY_INT) {
             if ((intno == CM_CPU_INIT) || (intno == CM_CPU_SIPI)) {
-                cm_handle_cpu_start();
+                cm_handle_cpu_start(intno);
                 return;
             }
             intno &= ~CM_REPLAY_INT;
