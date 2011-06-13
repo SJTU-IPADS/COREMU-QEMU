@@ -32,7 +32,7 @@
     DATA_TYPE value;                                          \
                                                               \
     do {                                                      \
-        __oldv = value = LD((DATA_TYPE *)__q_addr);           \
+        __oldv = value = *(DATA_TYPE *)__q_addr;           \
         {command;};                                           \
         mb();                                                 \
     } while (__oldv != (glue(atomic_compare_exchange, SUFFIX)(        \

@@ -4870,9 +4870,7 @@ static float approx_rcp(float a)
 
 #define MMUSUFFIX _mmu
 
-#if defined(CONFIG_REPLAY) && defined(CONFIG_REPLAY)
-/* Use crew read/write function in generated ld/st functions. */
-#define CM_CREW_MEMACC
+#if defined(CONFIG_COREMU) && defined(CONFIG_REPLAY)
 #include "cm-crew.h"
 #endif
 

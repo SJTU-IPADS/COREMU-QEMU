@@ -141,11 +141,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
-#if defined(CONFIG_REPLAY) && defined(CM_CREW_MEMACC)
-            res = glue(cm_crew_read, SUFFIX)((DATA_TYPE *)(addr+addend));
-#else
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
-#endif
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -200,11 +196,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
         } else {
             /* unaligned/aligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
-#if defined(CONFIG_REPLAY) && defined(CM_CREW_MEMACC)
-            res = glue(cm_crew_read, SUFFIX)((DATA_TYPE *)(addr+addend));
-#else
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
-#endif
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -294,11 +286,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
-#if defined(CONFIG_REPLAY) && defined(CM_CREW_MEMACC)
-            glue(cm_crew_write, SUFFIX)((DATA_TYPE *)(addr+addend), val);
-#else
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
-#endif
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -350,11 +338,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
         } else {
             /* aligned/unaligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
-#if defined(CONFIG_REPLAY) && defined(CM_CREW_MEMACC)
-            glue(cm_crew_write, SUFFIX)((DATA_TYPE *)(addr+addend), val);
-#else
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
-#endif
         }
     } else {
         /* the page is not in the TLB : fill it */
