@@ -1221,17 +1221,15 @@ COREMU_THREAD uint64_t cm_intr_cnt;
 #ifdef CONFIG_REPLAY
 static void cm_handle_cpu_start(int intno)
 {
-    coremu_debug("called, intno = %d", cm_inject_intno);
+    coremu_debug("called, intno = %d", intno);
     if (intno == CM_CPU_INIT) {
         cm_replay_all_exec_cnt();
-        cm_replay_intr();
         /* XXX Here we need to wait until the BSP sets the jump insn. */
         do_cpu_init(env);
         env->exception_index = EXCP_HALTED;
         cpu_loop_exit();
     } else if (intno == CM_CPU_SIPI) {
         cm_replay_all_exec_cnt();
-        cm_replay_intr();
         do_cpu_sipi(env);
     }
 }

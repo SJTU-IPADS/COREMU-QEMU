@@ -306,6 +306,7 @@ void cm_replay_assert_pc(uint64_t eip)
             coremu_debug(
                       "cm_coreid = %u, eip = %016lx, recorded eip = %016lx, "
                       "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
+                      "memop_cnt = %u, "
                       "cm_ioport_read_cnt = %lu, "
                       "cm_mmio_read_cnt = %lu",
                       cm_coreid,
@@ -313,6 +314,7 @@ void cm_replay_assert_pc(uint64_t eip)
                       (long)next_eip,
                       cm_tb_exec_cnt[cm_coreid],
                       cm_inject_exec_cnt,
+                      *memop,
                       cm_ioport_read_cnt,
                       cm_mmio_read_cnt);
             exit(1);
