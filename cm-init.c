@@ -115,7 +115,6 @@ void cm_cpu_exec_init_core(void)
 #ifdef CONFIG_REPLAY
     /* Must initialize this before calling other functions. */
     cm_coreid = coremu_get_core_id();
-    coremu_debug("cm_coreid = %u", cm_coreid);
 
     cm_replay_core_init();
 #endif

@@ -138,15 +138,9 @@ static inline memobj_t *cm_start_atomic_insn(const void *q_addr)
 
 static inline void cm_end_atomic_insn(memobj_t *mo)
 {
-    switch (cm_run_mode) {
-    case CM_RUNMODE_RECORD:
-        (*memop)++;
+    (*memop)++;
+    if (cm_run_mode == CM_RUNMODE_RECORD)
         cm_write_unlock(mo);
-        break;
-    case CM_RUNMODE_REPLAY:
-        (*memop)++;
-        break;
-    }
 }
 
 #define DATA_BITS 8

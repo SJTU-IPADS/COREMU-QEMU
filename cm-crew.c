@@ -136,7 +136,6 @@ memobj_t *cm_read_lock(const void *addr)
 
 void cm_read_unlock(memobj_t *mo)
 {
-    (*memop)++;
     tbb_end_read(&mo->lock);
     if ((mo->lock.counter >> 2) >= 2) {
         coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %ld\n",
@@ -166,7 +165,6 @@ memobj_t *cm_write_lock(const void* addr)
 
 void cm_write_unlock(memobj_t *mo)
 {
-    (*memop)++;
     tbb_end_write(&mo->lock);
     assert((mo->lock.counter >> 2) < 3);
 }
