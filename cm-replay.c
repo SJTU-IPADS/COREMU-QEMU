@@ -25,8 +25,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <pthread.h>
-#include "cm-replay.h"
 #include "cm-crew.h"
+#include "cm-intr.h"
+#include "cm-replay.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
@@ -41,25 +42,30 @@ __thread uint16_t cm_coreid;
 
 /* Array containing tb execution count for each cpu. */
 uint64_t *cm_tb_exec_cnt;
+/* How many times the interrupt handler is called. */
+__thread volatile uint64_t cm_intr_handler_cnt;
 
 /* Inject interrupt when cm_tb_exec_cnt reaches this value */
 __thread uint64_t cm_inject_exec_cnt = -1;
 __thread int cm_inject_intno;
 __thread long cm_inject_eip;
+__thread uint64_t cm_inject_intr_handler_cnt;
 
 /* interrupt */
 
-#define LOG_INTR_FMT "%x %lu %p\n"
+#define LOG_INTR_FMT "%x %lu %lu %p\n"
 
 void cm_record_intr(int intno, long eip)
 {
-    fprintf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, intno, cm_tb_exec_cnt[cm_coreid], (void *)(long)eip);
+    fprintf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, intno,
+            cm_tb_exec_cnt[cm_coreid], cm_intr_handler_cnt, (void *)(long)eip);
 }
 
 static inline void cm_read_intr_log(void)
 {
     if (fscanf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, &cm_inject_intno,
-               &cm_inject_exec_cnt, (void **)&cm_inject_eip) == EOF) {
+               &cm_inject_exec_cnt, &cm_inject_intr_handler_cnt,
+               (void **)&cm_inject_eip) == EOF) {
         cm_inject_exec_cnt = -1;
     }
 }
@@ -73,8 +79,13 @@ int cm_replay_intr(void)
     cm_wait_disk_dma();
 
     if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt) {
-        coremu_debug("coreid %hu injecting interrupt %d at %p", cm_coreid,
-                     cm_inject_intno, (void *)cm_tb_exec_cnt[cm_coreid]);
+        /* Wait the interrupt handler to be called. */
+        while (cm_intr_handler_cnt < cm_inject_intr_handler_cnt)
+            cm_receive_intr();
+
+        coremu_debug("coreid %hu injecting interrupt %d at cm_tb_exec_cnt = %lu with "
+                     "cm_inject_intr_handler_cnt = %lu",
+                     cm_coreid, cm_inject_intno, cm_tb_exec_cnt[cm_coreid], cm_inject_intr_handler_cnt);
         intno = cm_inject_intno;
         cm_read_intr_log(); /* Read next log entry. */
         return intno;
@@ -301,33 +312,21 @@ void cm_replay_assert_pc(uint64_t eip)
             printf("no more pc log\n");
             exit(1);
         }
-        if (eip != next_eip) {
-            coremu_debug("Error in execution path!");
+        if ((eip != next_eip) || (recorded_memop != *memop)) {
+            if (eip != next_eip)
+                coremu_debug("Error in execution path!");
+            else
+                coremu_debug("Error in memop cnt");
             coremu_debug(
                       "cm_coreid = %u, eip = %016lx, recorded eip = %016lx, "
+                      "memop_cnt = %u, recorded_memop = %u, "
                       "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
-                      "memop_cnt = %u, "
                       "cm_ioport_read_cnt = %lu, "
                       "cm_mmio_read_cnt = %lu",
                       cm_coreid,
                       (long)eip,
                       (long)next_eip,
-                      cm_tb_exec_cnt[cm_coreid],
-                      cm_inject_exec_cnt,
-                      *memop,
-                      cm_ioport_read_cnt,
-                      cm_mmio_read_cnt);
-            exit(1);
-        } else if (recorded_memop != *memop) {
-            coremu_debug("Error in memop cnt");
-            coremu_debug(
-                      "cm_coreid = %u, memop = %u, recorded memop = %u, "
-                      "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
-                      "cm_ioport_read_cnt = %lu, "
-                      "cm_mmio_read_cnt = %lu",
-                      cm_coreid,
-                      *memop,
-                      recorded_memop,
+                      *memop, recorded_memop,
                       cm_tb_exec_cnt[cm_coreid],
                       cm_inject_exec_cnt,
                       cm_ioport_read_cnt,
