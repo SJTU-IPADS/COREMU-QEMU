@@ -83,9 +83,11 @@ int cm_replay_intr(void)
         while (cm_intr_handler_cnt < cm_inject_intr_handler_cnt)
             cm_receive_intr();
 
-        coremu_debug("coreid %hu injecting interrupt %d at cm_tb_exec_cnt = %lu with "
-                     "cm_inject_intr_handler_cnt = %lu",
-                     cm_coreid, cm_inject_intno, cm_tb_exec_cnt[cm_coreid], cm_inject_intr_handler_cnt);
+        /*
+         *coremu_debug("coreid %hu injecting interrupt %d at cm_tb_exec_cnt = %lu with "
+         *             "cm_inject_intr_handler_cnt = %lu",
+         *             cm_coreid, cm_inject_intno, cm_tb_exec_cnt[cm_coreid], cm_inject_intr_handler_cnt);
+         */
         intno = cm_inject_intno;
         cm_read_intr_log(); /* Read next log entry. */
         return intno;

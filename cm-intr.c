@@ -43,9 +43,10 @@
 void cm_common_intr_handler(CMIntr *intr)
 {
 #ifdef CONFIG_REPLAY
-    cm_intr_handler_cnt++;
-    if (cm_run_mode == CM_RUNMODE_REPLAY)
-        coremu_debug("cm_intr_handler_cnt = %lu", cm_intr_handler_cnt);
+    /* XXX We have to ignore timer interrupt since we do not enable timer during
+     * replay, so the intr handler execution counter is updated in specific
+     * handler. */
+    /*cm_intr_handler_cnt++;*/
 #endif
     /*assert(cm_run_mode != CM_RUNMODE_REPLAY);*/
     coremu_assert_core_thr();
