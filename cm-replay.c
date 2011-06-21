@@ -104,8 +104,10 @@ void cm_record_##name(type arg) \
 #define GEN_REPLAY_FUNC(name, type, log, fmt) \
 int cm_replay_##name(type *arg) \
 { \
-    if (fscanf(log, fmt, arg) == EOF) \
-        return 0; \
+    if (fscanf(log, fmt, arg) == EOF) { \
+        coremu_debug("no more log"); \
+        exit(0); \
+    }\
     return 1; \
 }
 

@@ -138,7 +138,8 @@ static inline memobj_t *cm_start_atomic_insn(const void *q_addr)
 
 static inline void cm_end_atomic_insn(memobj_t *mo)
 {
-    (*memop)++;
+    if (cm_run_mode != CM_RUNMODE_NORMAL)
+        (*memop)++;
     if (cm_run_mode == CM_RUNMODE_RECORD)
         cm_write_unlock(mo);
 }
