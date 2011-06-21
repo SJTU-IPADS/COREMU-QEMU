@@ -142,6 +142,9 @@ void cm_apicbus_intr_handler(void *opaque)
         /* For NMI, SMI and INIT the vector information is ignored */
         cpu_interrupt(self, apicbus_intr->mask);
     }
+#ifdef CONFIG_REPLAY
+    cm_intr_handler_cnt++;
+#endif
 }
 
 /* Handle the inter-processor interrupt (Only for INIT De-assert or SIPI) */
@@ -164,7 +167,6 @@ void cm_ipi_intr_handler(void *opaque)
     cm_intr_handler_cnt++;
 #endif
 }
-
 
 /* Handler the tlb flush request */
 void cm_tlb_flush_req_handler(void *opaque)
