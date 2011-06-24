@@ -100,6 +100,10 @@
 
 #include <pthread.h>
 #include "coremu-config.h"
+#include "coremu-core.h"
+
+#define DEBUG_COREMU
+#include "coremu-debug.h"
 
 #define READ_BUF_LEN 4096
 
@@ -357,16 +361,10 @@ static int mux_proc_byte(CharDriverState *chr, MuxDriver *d, int ch)
             {
                  const char *term =  "QEMU: Terminated\n\r";
                  chr->chr_write(chr,(uint8_t *)term,strlen(term));
-#ifdef CONFIG_COREMU
+#ifdef CONFIG_REPLAY
                  if (cm_run_mode == CM_RUNMODE_RECORD) {
                      cm_exit_requested = 1;
-                     int count;
-                     /* Wait other CPU threads to call exit. */
-                     for (count = 0;
-                          (cm_exit_requested != smp_cpus + 1) && count < 10;
-                          count++) {
-                         sleep(1);
-                     }
+                     coremu_wait_all_cores_exit();
                  }
 #endif
                  exit(0);

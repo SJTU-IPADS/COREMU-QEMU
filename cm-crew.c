@@ -67,8 +67,12 @@ static inline void write_inc_log(uint16_t logcpu_no, uint32_t memop, uint32_t wa
 
 static inline int read_inc_log(void)
 {
-    return fscanf(crew_inc_log, "%u %u %u\n", &incop[LOGENT_MEMOP],
-           &incop[LOGENT_CPUNO], &incop[LOGENT_WAITMEMOP]);
+    if (fscanf(crew_inc_log, "%u %u %u\n", &incop[LOGENT_MEMOP],
+           &incop[LOGENT_CPUNO], &incop[LOGENT_WAITMEMOP]) == EOF) {
+        coremu_debug("no more inc log");
+        exit(0);
+    }
+    return 0;
 }
 
 /* TODO We'd better use a buffer */
@@ -137,11 +141,13 @@ memobj_t *cm_read_lock(const void *addr)
 void cm_read_unlock(memobj_t *mo)
 {
     tbb_end_read(&mo->lock);
-    if ((mo->lock.counter >> 2) >= 2) {
-        coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %ld\n",
-               (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, mo - memobj);
-        while (1);
-    }
+    /*
+     *if ((mo->lock.counter >> 2) >= 2) {
+     *    coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %ld\n",
+     *           (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, mo - memobj);
+     *    while (1);
+     *}
+     */
 }
 
 memobj_t *cm_write_lock(const void* addr)
@@ -149,11 +155,13 @@ memobj_t *cm_write_lock(const void* addr)
     int objid = memobj_id(addr);
     memobj_t *mo = &memobj[objid];
 
-    if ((mo->lock.counter >> 2) >= 2) {
-        coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %d\n",
-               (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, objid);
-        while (1);
-    }
+    /*
+     *if ((mo->lock.counter >> 2) >= 2) {
+     *    coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %d\n",
+     *           (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, objid);
+     *    while (1);
+     *}
+     */
     tbb_start_write(&mo->lock);
     if (mo->owner != cm_coreid) {
         /* We increase own privilege here. */
@@ -166,7 +174,7 @@ memobj_t *cm_write_lock(const void* addr)
 void cm_write_unlock(memobj_t *mo)
 {
     tbb_end_write(&mo->lock);
-    assert((mo->lock.counter >> 2) < 3);
+    /*assert((mo->lock.counter >> 2) < 3);*/
 }
 
 void cm_apply_replay_log(void)

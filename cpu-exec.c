@@ -25,9 +25,9 @@
 
 #include <pthread.h>
 #include "coremu-config.h"
-#include "coremu-atomic.h"
 #include "cm-intr.h"
 #include "cm-replay.h"
+#include "cm-loop.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
@@ -233,13 +233,9 @@ static void cpu_handle_debug_exception(CPUState *env)
 
 /* main execution loop */
 
-#ifdef CONFIG_COREMU
-extern int cm_exit_requested;
-
 #ifdef CONFIG_REPLAY
 static void cm_handle_cpu_start(int intno)
 {
-    coremu_debug("called, intno = %d", intno);
     if (intno == CM_CPU_INIT) {
         cm_replay_all_exec_cnt();
         /* XXX Here we need to wait until the BSP sets the jump insn. */
@@ -251,7 +247,6 @@ static void cm_handle_cpu_start(int intno)
         do_cpu_sipi(env);
     }
 }
-#endif
 #endif
 
 volatile sig_atomic_t exit_request;
@@ -398,13 +393,8 @@ int cpu_exec(CPUState *env1)
 
             next_tb = 0; /* force lookup of first TB */
             for(;;) {
-#ifdef CONFIG_COREMU
-                /* Ugly hack to handle ctrl-x exit */
-                if (cm_exit_requested) {
-                    cm_replay_flush_log();
-                    atomic_incl((unsigned int *)&cm_exit_requested);
-                    while (1) sleep(10);
-                }
+#ifdef CONFIG_REPLAY
+                cm_check_exit();
 #endif
                 interrupt_request = env->interrupt_request;
                 if (unlikely(interrupt_request)) {

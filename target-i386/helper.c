@@ -1167,7 +1167,6 @@ void do_cpu_init(CPUState *env)
         cm_record_intr(CM_CPU_INIT, env->eip);
     }
 #endif
-    coremu_debug("core %u called", cm_coreid);
     int sipi = env->interrupt_request & CPU_INTERRUPT_SIPI;
     cpu_reset(env);
     env->interrupt_request = sipi;
@@ -1183,7 +1182,6 @@ void do_cpu_sipi(CPUState *env)
         cm_record_intr(CM_CPU_SIPI, env->eip);
     }
 #endif
-    coremu_debug("core %u called", cm_coreid);
     apic_sipi(env->apic_state);
 }
 #else

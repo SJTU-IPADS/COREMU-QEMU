@@ -28,6 +28,7 @@
 #include "cm-crew.h"
 #include "cm-intr.h"
 #include "cm-replay.h"
+#include "cm-loop.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
@@ -265,8 +266,10 @@ void cm_replay_all_exec_cnt(void)
         } else {
             while (cm_tb_exec_cnt[coreid] < wait_exec_cnt)
                 sched_yield();
-            coremu_debug("waited for %hu reach tb_exec_cnt %lu", coreid,
-                         wait_exec_cnt);
+            /*
+             *coremu_debug("waited for %hu reach tb_exec_cnt %lu", coreid,
+             *             wait_exec_cnt);
+             */
         }
     }
 }
@@ -291,6 +294,9 @@ extern uint64_t cm_mmio_read_cnt;
  *int logset = 0;
  *extern int loglevel;
  */
+
+#include "cpu.h"
+
 void cm_replay_assert_pc(uint64_t eip)
 {
     uint64_t next_eip;
@@ -308,6 +314,15 @@ void cm_replay_assert_pc(uint64_t eip)
      *    logset = 1;
      *}
      */
+
+    /* XXX this is a hack, may not work when we turn off debug and do not call
+     * this function. */
+    cm_check_exit();
+
+    if (cm_coreid == 1 && (cm_tb_exec_cnt[1] == 86 || cm_tb_exec_cnt[1] == 87)) {
+        coremu_debug("cm_tb_exec_cnt = %lu, ebx = 0x%lx", cm_tb_exec_cnt[cm_coreid],
+                     cpu_single_env->regs[R_EBX]);
+    }
 
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:

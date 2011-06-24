@@ -35,5 +35,7 @@ int cm_vm_can_run(void);
 
 int cm_test_reset_request(void);
 
+void cm_check_exit(void);
+
 #endif
 

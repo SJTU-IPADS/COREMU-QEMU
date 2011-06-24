@@ -26,10 +26,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <pthread.h>
 #include "cpu.h"
 #include "cpus.h"
 
-#include "coremu-debug.h"
+#include "coremu-config.h"
 #include "coremu-sched.h"
 #include "coremu-core.h"
 #include "cm-loop.h"
@@ -37,6 +38,9 @@
 #include "cm-init.h"
 #include "cm-intr.h"
 #include "cm-replay.h"
+
+#define DEBUG_COREMU
+#include "coremu-debug.h"
 
 int cm_cpu_can_run(CPUState *);
 static bool cm_tcg_cpu_exec(void);
@@ -60,6 +64,8 @@ static bool cm_tcg_cpu_exec(void)
             ret = cpu_exec(env);
         else if (env->stop)
             break;
+
+        cm_check_exit();
 
         if (!cm_vm_can_run())
             break;
@@ -98,3 +104,22 @@ void *cm_cpu_loop(void *args)
     coremu_core_exit(NULL);
     assert(0);
 }
+
+#ifdef CONFIG_REPLAY
+
+extern volatile int cm_exit_requested;
+
+void cm_check_exit(void)
+{
+    if (cm_run_mode == CM_RUNMODE_RECORD && cm_exit_requested) {
+        coremu_debug("exiting");
+        cm_replay_flush_log();
+        pthread_exit(NULL);
+    }
+}
+
+#else
+
+void cm_check_exit() { }
+
+#endif

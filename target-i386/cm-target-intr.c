@@ -96,7 +96,6 @@ void cm_send_apicbus_intr(int target, int mask,
 
 void cm_send_ipi_intr(int target, int vector_num, int deliver_mode)
 {
-    coremu_debug("SEND IPI deliver_mode = %d", deliver_mode);
     coremu_send_intr(cm_ipi_intr_init(vector_num, deliver_mode), target);
 }
 

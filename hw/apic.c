@@ -547,14 +547,14 @@ void apic_init_reset(DeviceState *d)
 
 static void apic_startup(APICState *s, int vector_num)
 {
-    coremu_debug("cm_coreid = %u, CPU STARTUP", cm_coreid);
+    /*coremu_debug("cm_coreid = %u, CPU STARTUP", cm_coreid);*/
     s->sipi_vector = vector_num;
     cpu_interrupt(s->cpu_env, CPU_INTERRUPT_SIPI);
 }
 
 void apic_sipi(DeviceState *d)
 {
-    coremu_debug("cm_coreid = %u, CPU SIPI", cm_coreid);
+    /*coremu_debug("cm_coreid = %u, CPU SIPI", cm_coreid);*/
     APICState *s = DO_UPCAST(APICState, busdev.qdev, d);
 
     cpu_reset_interrupt(s->cpu_env, CPU_INTERRUPT_SIPI);
@@ -742,7 +742,7 @@ static void apic_mem_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
 }
 
-static uint32_t apic_mem_readl(void *opaque, target_phys_addr_t addr)
+uint32_t apic_mem_readl(void *opaque, target_phys_addr_t addr)
 {
     DeviceState *d;
     APICState *s;
@@ -819,6 +819,8 @@ static uint32_t apic_mem_readl(void *opaque, target_phys_addr_t addr)
         break;
     }
     trace_apic_mem_readl(addr, val);
+    if (cm_coreid == 1 && cm_run_mode == CM_RUNMODE_RECORD)
+        coremu_debug("val = 0x%x", val);
     return val;
 }
 

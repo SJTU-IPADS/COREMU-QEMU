@@ -3682,6 +3682,8 @@ static void swapendian_del(int io_index)
 
 #include "closure.h"
 
+uint32_t apic_mem_readl(void *opaque, target_phys_addr_t addr);
+
 uint64_t cm_mmio_read_cnt = 0;
 static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
 {
@@ -3697,6 +3699,9 @@ static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
         if (cm_run_mode == CM_RUNMODE_REPLAY)
             if (cm_replay_mmio(&val)) {
                 cm_mmio_read_cnt++;
+                if (cm_coreid == 1 && func == apic_mem_readl) {
+                    coremu_debug("val = 0x%x", val);
+                }
                 /* XXX Since read may change hardware state, still need to call the
                  * original mmio read function. */
                 func(opaque, addr);
