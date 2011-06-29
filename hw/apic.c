@@ -742,7 +742,7 @@ static void apic_mem_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
 }
 
-uint32_t apic_mem_readl(void *opaque, target_phys_addr_t addr)
+static uint32_t apic_mem_readl(void *opaque, target_phys_addr_t addr)
 {
     DeviceState *d;
     APICState *s;
@@ -819,8 +819,6 @@ uint32_t apic_mem_readl(void *opaque, target_phys_addr_t addr)
         break;
     }
     trace_apic_mem_readl(addr, val);
-    if (cm_coreid == 1 && cm_run_mode == CM_RUNMODE_RECORD)
-        coremu_debug("val = 0x%x", val);
     return val;
 }
 
