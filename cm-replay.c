@@ -107,6 +107,7 @@ int cm_replay_##name(type *arg) \
 { \
     if (fscanf(log, fmt, arg) == EOF) { \
         coremu_debug("no more log"); \
+        cm_print_replay_info(); \
         exit(0); \
     }\
     return 1; \
@@ -284,9 +285,9 @@ extern uint64_t cm_mmio_read_cnt;
 
 #include "config-target.h"
 #ifdef TARGET_X86_64
-#define PC_LOG_FMT "%016lx %u\n"
+#define PC_LOG_FMT "%016lx %u %u\n"
 #else
-#define PC_LOG_FMT "%08lx %u\n"
+#define PC_LOG_FMT "%08lx %u %u\n"
 #endif
 
 /*
@@ -300,7 +301,7 @@ extern uint64_t cm_mmio_read_cnt;
 void cm_replay_assert_pc(uint64_t eip)
 {
     uint64_t next_eip;
-    uint32_t recorded_memop;
+    uint32_t recorded_memop, recorded_crew_inc_cnt;
 
     /*
      *if (cm_tb_exec_cnt[cm_coreid] % 10240 != 0)
@@ -319,27 +320,29 @@ void cm_replay_assert_pc(uint64_t eip)
      * this function. */
     cm_check_exit();
 
-    if (cm_coreid == 1 && (cm_tb_exec_cnt[1] == 86 || cm_tb_exec_cnt[1] == 87)) {
-        coremu_debug("cm_tb_exec_cnt = %lu, ebx = 0x%lx", cm_tb_exec_cnt[cm_coreid],
-                     cpu_single_env->regs[R_EBX]);
-    }
-
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
         if (fscanf(cm_log[cm_coreid][PC], PC_LOG_FMT, &next_eip,
-                   &recorded_memop) == EOF) {
-            printf("no more pc log\n");
-            exit(1);
+                   &recorded_memop, &recorded_crew_inc_cnt) == EOF) {
+            coremu_debug("no more pc log, cm_coreid = %u, cm_tb_exec_cnt = %lu", cm_coreid,
+                   cm_tb_exec_cnt[cm_coreid]);
+            cm_print_replay_info();
+            pthread_exit(NULL);
         }
-        if ((eip != next_eip) || (recorded_memop != *memop)) {
+        if ((eip != next_eip)
+                || (recorded_memop != *memop)
+                || (crew_inc_cnt != recorded_crew_inc_cnt)) {
             if (eip != next_eip)
                 coremu_debug("Error in execution path!");
-            else
+            else if (*memop != recorded_memop)
                 coremu_debug("Error in memop cnt");
+            else
+                coremu_debug("Error in crew inc cnt");
             coremu_debug(
                       "cm_coreid = %u, eip = %016lx, recorded eip = %016lx, "
                       "memop_cnt = %u, recorded_memop = %u, "
                       "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
+                      "crew_inc_cnt = %u, recorded_crew_inc_cnt = %u, crew_io_cnt = %u, "
                       "cm_ioport_read_cnt = %lu, "
                       "cm_mmio_read_cnt = %lu",
                       cm_coreid,
@@ -348,13 +351,14 @@ void cm_replay_assert_pc(uint64_t eip)
                       *memop, recorded_memop,
                       cm_tb_exec_cnt[cm_coreid],
                       cm_inject_exec_cnt,
+                      crew_inc_cnt, recorded_crew_inc_cnt, crew_io_cnt,
                       cm_ioport_read_cnt,
                       cm_mmio_read_cnt);
             exit(1);
         }
         break;
     case CM_RUNMODE_RECORD:
-        fprintf(cm_log[cm_coreid][PC], PC_LOG_FMT, eip, *memop);
+        fprintf(cm_log[cm_coreid][PC], PC_LOG_FMT, eip, *memop, crew_inc_cnt);
         break;
     }
 }
@@ -391,3 +395,13 @@ void cm_replay_assert_##name(type cur) \
     } \
 }
 
+void cm_print_replay_info(void)
+{
+    coremu_debug("core_id = %u, cm_tb_exec_cnt = %lu, memop = %u, crew_inc_cnt = %u, "
+                 "crew_io_cnt = %u",
+                 cm_coreid,
+                 cm_tb_exec_cnt[cm_coreid],
+                 *memop,
+                 crew_inc_cnt,
+                 crew_io_cnt);
+}

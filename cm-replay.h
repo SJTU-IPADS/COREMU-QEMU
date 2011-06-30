@@ -20,7 +20,6 @@ extern __thread volatile uint64_t cm_intr_handler_cnt;
 #define CM_CPU_INIT 0xfffffffe
 #define CM_CPU_SIPI 0xfffffffd
 
-
 extern int cm_run_mode;
 int cm_get_run_mode(void);
 extern uint64_t *cm_tb_exec_cnt;
@@ -54,6 +53,8 @@ void cm_record_disk_dma(void);
 void cm_debug_mmio(void *);
 
 void cm_replay_assert_pc(uint64_t);
+
+void cm_print_replay_info(void);
 
 #undef GEN_HEADER
 

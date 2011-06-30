@@ -4,6 +4,9 @@
 extern __thread volatile uint32_t *memop;
 extern volatile uint32_t *memop_cnt;
 
+extern __thread uint32_t crew_inc_cnt;
+extern __thread uint32_t crew_io_cnt;
+
 void cm_crew_init(void);
 void cm_crew_core_init(void);
 

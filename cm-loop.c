@@ -114,6 +114,7 @@ void cm_check_exit(void)
     if (cm_run_mode == CM_RUNMODE_RECORD && cm_exit_requested) {
         coremu_debug("exiting");
         cm_replay_flush_log();
+        cm_print_replay_info();
         pthread_exit(NULL);
     }
 }
