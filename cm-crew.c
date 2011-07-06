@@ -21,7 +21,6 @@ volatile uint32_t *memop_cnt;
 __thread volatile uint32_t *memop;
 
 __thread uint32_t crew_inc_cnt;
-__thread uint32_t crew_io_cnt;
 
 static __thread uint32_t *incop;
 
@@ -63,19 +62,24 @@ static inline int memobj_id(const void *addr)
     return id;
 }
 
+#define CREW_LOG_FMT "%u %u %u %lu\n"
+
 static inline void write_inc_log(uint16_t logcpu_no, uint32_t memop, uint32_t waitcpuno,
                                  uint32_t waitmemop)
 {
-    crew_inc_cnt++;
-    crew_io_cnt++;
-    fprintf(cm_log[logcpu_no][CREW_INC], "%u %u %u\n", memop, waitcpuno, waitmemop);
+    fprintf(cm_log[logcpu_no][CREW_INC], CREW_LOG_FMT, memop, waitcpuno, waitmemop,
+            cm_tb_exec_cnt[logcpu_no]);
 }
+
+static __thread uint64_t recorded_tb_exec_cnt;
 
 static inline int read_inc_log(void)
 {
-    crew_io_cnt++;
-    if (fscanf(crew_inc_log, "%u %u %u\n", &incop[LOGENT_MEMOP],
-           &incop[LOGENT_CPUNO], &incop[LOGENT_WAITMEMOP]) == EOF) {
+    crew_inc_cnt++;
+
+    if (fscanf(crew_inc_log, CREW_LOG_FMT, &incop[LOGENT_MEMOP],
+           &incop[LOGENT_CPUNO], &incop[LOGENT_WAITMEMOP],
+           &recorded_tb_exec_cnt) == EOF) {
         coremu_debug("no more inc log");
         cm_print_replay_info();
         /* XXX when the inc log are consumed up, we should not pause the current
@@ -97,8 +101,7 @@ static inline void record_read_crew_fault(uint16_t owner, int objid) {
     uint32_t owner_memop = memop_cnt[owner];
     for (i = 0; i < smp_cpus; i++) {
         if (i != owner) {
-            /* XXX Other reader thre:w
-             * ads may be running, and we need to record
+            /* XXX Other reader threads may be running, and we need to record
              * the immediate instruction after the owner's write instruction. */
             write_inc_log(i, memop_cnt[i] + 1, owner, owner_memop);
         }
@@ -117,14 +120,6 @@ static inline void record_write_crew_fault(uint16_t owner, int objid) {
     } else {
         write_inc_log(cm_coreid, *memop + 1, owner, memop_cnt[owner]);
     }
-}
-
-static inline int apply_replay_inclog(void)
-{
-    crew_inc_cnt++;
-    /* Wait for the target CPU's memop to reach the recorded value. */
-    while (memop_cnt[incop[LOGENT_CPUNO]] < incop[LOGENT_WAITMEMOP]);
-    return read_inc_log();
 }
 
 memobj_t *cm_read_lock(const void *addr)
@@ -187,6 +182,29 @@ void cm_write_unlock(memobj_t *mo)
 {
     tbb_end_write(&mo->lock);
     /*assert((mo->lock.counter >> 2) < 3);*/
+}
+
+static inline int apply_replay_inclog(void)
+{
+    /*
+     *if (recorded_tb_exec_cnt > cm_tb_exec_cnt[cm_coreid]) {
+     *    coremu_debug("Error in crew inc and tb_exec_cnt correspondence!\n"
+     *                 "cm_coreid = %u, "
+     *                 "cm_tb_exec_cnt = %lu, "
+     *                 "recorded_tb_exec_cnt = %lu, "
+     *                 "memop = %u, "
+     *                 "crew_inc_cnt = %u, ",
+     *                 cm_coreid,
+     *                 cm_tb_exec_cnt[cm_coreid],
+     *                 recorded_tb_exec_cnt,
+     *                 *memop,
+     *                 crew_inc_cnt);
+     *    assert(0);
+     *}
+     */
+    /* Wait for the target CPU's memop to reach the recorded value. */
+    while (memop_cnt[incop[LOGENT_CPUNO]] < incop[LOGENT_WAITMEMOP]);
+    return read_inc_log();
 }
 
 void cm_apply_replay_log(void)
