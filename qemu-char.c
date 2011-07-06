@@ -340,10 +340,8 @@ static void mux_chr_send_event(MuxDriver *d, int mux_nr, int event)
 }
 
 #ifdef CONFIG_COREMU
-/* Ugly hack to let CPU threads flush log out and call exit.
- * Otherwise, the log may get corrupted. */
-volatile int cm_exit_requested = 0;
 #include "cm-replay.h"
+void cm_send_exit_intr(int target);
 #endif
 
 static int mux_proc_byte(CharDriverState *chr, MuxDriver *d, int ch)
@@ -363,7 +361,9 @@ static int mux_proc_byte(CharDriverState *chr, MuxDriver *d, int ch)
                  chr->chr_write(chr,(uint8_t *)term,strlen(term));
 #ifdef CONFIG_REPLAY
                  if (cm_run_mode == CM_RUNMODE_RECORD) {
-                     cm_exit_requested = 1;
+                     int i;
+                     for (i = 0; i < smp_cpus; i++)
+                         cm_send_exit_intr(i);
                      coremu_wait_all_cores_exit();
                  }
 #endif

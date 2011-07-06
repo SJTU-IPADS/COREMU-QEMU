@@ -316,10 +316,6 @@ void cm_replay_assert_pc(uint64_t eip)
      *}
      */
 
-    /* XXX this is a hack, may not work when we turn off debug and do not call
-     * this function. */
-    cm_check_exit();
-
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
         if (fscanf(cm_log[cm_coreid][PC], PC_LOG_FMT, &next_eip,

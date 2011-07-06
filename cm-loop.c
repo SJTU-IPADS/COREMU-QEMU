@@ -65,8 +65,6 @@ static bool cm_tcg_cpu_exec(void)
         else if (env->stop)
             break;
 
-        cm_check_exit();
-
         if (!cm_vm_can_run())
             break;
 
@@ -104,23 +102,3 @@ void *cm_cpu_loop(void *args)
     coremu_core_exit(NULL);
     assert(0);
 }
-
-#ifdef CONFIG_REPLAY
-
-extern volatile int cm_exit_requested;
-
-void cm_check_exit(void)
-{
-    if (cm_run_mode == CM_RUNMODE_RECORD && cm_exit_requested) {
-        coremu_debug("exiting");
-        cm_replay_flush_log();
-        cm_print_replay_info();
-        pthread_exit(NULL);
-    }
-}
-
-#else
-
-void cm_check_exit() { }
-
-#endif
