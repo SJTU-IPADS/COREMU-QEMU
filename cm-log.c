@@ -1,5 +1,8 @@
 #include <stdlib.h>
 
+#define CONFIG_REPLAY
+#include "coremu-debug.h"
+
 #include "cm-log.h"
 
 static const char *cm_log_name[] = {
@@ -34,7 +37,9 @@ void cm_open_log(const char *mode)
 void cm_replay_flush_log(void)
 {
     int i;
+    coremu_debug("flushing log core %hu", cm_coreid);
     for (i = 0; i < N_CM_LOG; i++)
         fflush(cm_log[cm_coreid][i]);
+    coremu_debug("flushed log core %hu", cm_coreid);
 }
 

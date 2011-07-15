@@ -87,7 +87,11 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
         res = glue(glue(__ld, SUFFIX), MMUSUFFIX)(addr, mmu_idx);
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
+#ifdef CONFIG_REPLAY
+        res = glue(cm_crew_read, SUFFIX)((DATA_TYPE *)(physaddr));
+#else
         res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)physaddr);
+#endif
     }
     return res;
 }
@@ -108,7 +112,11 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
         res = (DATA_STYPE)glue(glue(__ld, SUFFIX), MMUSUFFIX)(addr, mmu_idx);
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
+#ifdef CONFIG_REPLAY
+        res = glue(cm_crew_read, SUFFIX)((DATA_TYPE *)(physaddr));
+#else
         res = glue(glue(lds, SUFFIX), _raw)((uint8_t *)physaddr);
+#endif
     }
     return res;
 }
@@ -133,7 +141,11 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
         glue(glue(__st, SUFFIX), MMUSUFFIX)(addr, v, mmu_idx);
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
+#ifdef CONFIG_REPLAY
+        glue(cm_crew_write, SUFFIX)((DATA_TYPE *)(physaddr), v);
+#else
         glue(glue(st, SUFFIX), _raw)((uint8_t *)physaddr, v);
+#endif
     }
 }
 

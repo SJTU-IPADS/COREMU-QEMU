@@ -28,17 +28,27 @@
 #include <stdio.h>
 #include "cpu.h"
 
+#include "coremu-config.h"
 #include "coremu-core.h"
 #include "coremu-malloc.h"
 #include "coremu-intr.h"
 #include "cm-intr.h"
 #include "cm-replay.h"
 
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 /* The common interface to handle the interrupt, this function should to
    be registered to coremu */
 void cm_common_intr_handler(CMIntr *intr)
 {
-    assert(cm_run_mode != CM_RUNMODE_REPLAY);
+#ifdef CONFIG_REPLAY
+    /* XXX We have to ignore timer interrupt since we do not enable timer during
+     * replay, so the intr handler execution counter is updated in specific
+     * handler. */
+    /*cm_intr_handler_cnt++;*/
+#endif
+    /*assert(cm_run_mode != CM_RUNMODE_REPLAY);*/
     coremu_assert_core_thr();
     if (!intr)
         return;
@@ -56,6 +66,6 @@ void cm_notify_event(void)
 
 void cm_receive_intr(void)
 {
-    if (cm_run_mode != CM_RUNMODE_REPLAY)
+    /*if (cm_run_mode != CM_RUNMODE_REPLAY)*/
         coremu_receive_intr();
 }

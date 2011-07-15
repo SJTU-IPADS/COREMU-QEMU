@@ -13,12 +13,12 @@ enum {
 extern __thread uint64_t cm_inject_exec_cnt;
 extern __thread int cm_inject_intno;
 extern __thread long cm_inject_eip; // For debug
+extern __thread volatile uint64_t cm_intr_handler_cnt;
 
 /* Mark the interrupt being generated from the log. */
 #define CM_REPLAY_INT 0x80000000
 #define CM_CPU_INIT 0xfffffffe
 #define CM_CPU_SIPI 0xfffffffd
-
 
 extern int cm_run_mode;
 int cm_get_run_mode(void);
@@ -53,6 +53,8 @@ void cm_record_disk_dma(void);
 void cm_debug_mmio(void *);
 
 void cm_replay_assert_pc(uint64_t);
+
+void cm_print_replay_info(void);
 
 #undef GEN_HEADER
 

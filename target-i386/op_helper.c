@@ -1217,23 +1217,6 @@ static void handle_even_inj(int intno, int is_int, int error_code,
 COREMU_THREAD uint64_t cm_intr_cnt;
 #define IS_HARDINT(no) \
     (no >= 32 || no == 2 || no == 9 || no == 8 || no == 0xf)
-
-#ifdef CONFIG_REPLAY
-static void cm_handle_cpu_start(int intno)
-{
-    coremu_debug("called, intno = %d", intno);
-    if (intno == CM_CPU_INIT) {
-        cm_replay_all_exec_cnt();
-        /* XXX Here we need to wait until the BSP sets the jump insn. */
-        do_cpu_init(env);
-        env->exception_index = EXCP_HALTED;
-        cpu_loop_exit();
-    } else if (intno == CM_CPU_SIPI) {
-        cm_replay_all_exec_cnt();
-        do_cpu_sipi(env);
-    }
-}
-#endif
 #endif
 
 /*
@@ -1248,10 +1231,6 @@ void do_interrupt(int intno, int is_int, int error_code,
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
         if (intno & CM_REPLAY_INT) {
-            if ((intno == CM_CPU_INIT) || (intno == CM_CPU_SIPI)) {
-                cm_handle_cpu_start(intno);
-                return;
-            }
             intno &= ~CM_REPLAY_INT;
             /*
              *coremu_debug("inject intr %x cm_tb_exec_cnt = %lu, eip = %p", intno,
@@ -1259,7 +1238,7 @@ void do_interrupt(int intno, int is_int, int error_code,
              */
         } else if (!is_int && IS_HARDINT(intno)) {
             /* Do not inject hardware interrupt if not read from log. */
-            coremu_debug("ignore hardware intr %x not from log", intno);
+            coremu_debug("core %u ignore hardware intr %x not from log", cm_coreid, intno);
             return;
         }
         break;

@@ -25,9 +25,9 @@
 
 #include <pthread.h>
 #include "coremu-config.h"
-#include "coremu-atomic.h"
 #include "cm-intr.h"
 #include "cm-replay.h"
+#include "cm-loop.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
@@ -233,8 +233,20 @@ static void cpu_handle_debug_exception(CPUState *env)
 
 /* main execution loop */
 
-#ifdef CONFIG_COREMU
-extern int cm_exit_requested;
+#ifdef CONFIG_REPLAY
+static void cm_handle_cpu_start(int intno)
+{
+    if (intno == CM_CPU_INIT) {
+        cm_replay_all_exec_cnt();
+        /* XXX Here we need to wait until the BSP sets the jump insn. */
+        do_cpu_init(env);
+        env->exception_index = EXCP_HALTED;
+        cpu_loop_exit();
+    } else if (intno == CM_CPU_SIPI) {
+        cm_replay_all_exec_cnt();
+        do_cpu_sipi(env);
+    }
+}
 #endif
 
 volatile sig_atomic_t exit_request;
@@ -381,14 +393,6 @@ int cpu_exec(CPUState *env1)
 
             next_tb = 0; /* force lookup of first TB */
             for(;;) {
-#ifdef CONFIG_COREMU
-                /* Ugly hack to handle ctrl-x exit */
-                if (cm_exit_requested) {
-                    cm_replay_flush_log();
-                    atomic_incl((unsigned int *)&cm_exit_requested);
-                    while (1) sleep(10);
-                }
-#endif
                 interrupt_request = env->interrupt_request;
                 if (unlikely(interrupt_request)) {
                     if (unlikely(env->singlestep_enabled & SSTEP_NOIRQ)) {
@@ -600,11 +604,17 @@ int cpu_exec(CPUState *env1)
 #ifdef CONFIG_REPLAY
                 int inject_intno;
                 unsigned long inject_eip = cm_inject_eip;
-                if (cm_run_mode == CM_RUNMODE_REPLAY && (inject_intno = cm_replay_intr()) != -1) {
-                    coremu_assert(env->eip == inject_eip,
-                                  "abort: eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
-                                  (void *)(long)env->eip, (void *)cm_inject_eip, cm_tb_exec_cnt[cm_coreid]);
-                    do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
+                if (cm_run_mode == CM_RUNMODE_REPLAY &&
+                        (inject_intno = cm_replay_intr()) != -1) {
+                    if ((inject_intno == CM_CPU_INIT) || (inject_intno == CM_CPU_SIPI)) {
+                        cm_handle_cpu_start(inject_intno);
+                    } else {
+                        coremu_assert(env->eip == inject_eip,
+                                      "abort: cm_coreid = %u, eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
+                                      cm_coreid, (void *)(long)env->eip,
+                                      (void *)cm_inject_eip, cm_tb_exec_cnt[cm_coreid]);
+                        do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
+                    }
                     /* XXX ensure that no TB jump will be modified as
                        the program flow was changed */
                     next_tb = 0;
