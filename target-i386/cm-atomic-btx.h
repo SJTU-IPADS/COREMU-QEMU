@@ -30,7 +30,7 @@ void glue(helper_atomic_, INSN)(target_ulong a0, target_ulong offset,
      * page 3-11. */
     q_addr += offset >> 3;
     do {
-        __oldv = value = ldub_raw((uint8_t *)q_addr);
+        __oldv = value = *((uint8_t *)q_addr);
         old_byte = value;
         {COMMAND;};
         mb();
