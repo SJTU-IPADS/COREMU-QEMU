@@ -77,7 +77,13 @@ static void cm_apicbus_intr_handler(void *opaque)
         cpu_interrupt(self, apicbus_intr->mask);
     }
 #ifdef CONFIG_REPLAY
-    cm_intr_handler_cnt++;
+    /* Ignore local apic timer in Linux. */
+    if (apicbus_intr->vector_num != 0x30)
+        cm_intr_handler_cnt++;
+    /*
+     *coremu_debug("cm_coreid = %u cm_intr_handler_cnt = %lu vector_num = 0x%x",
+     *             cm_coreid, cm_intr_handler_cnt, apicbus_intr->vector_num);
+     */
 #endif
 }
 

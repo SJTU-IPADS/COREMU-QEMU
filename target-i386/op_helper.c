@@ -1238,7 +1238,7 @@ void do_interrupt(int intno, int is_int, int error_code,
              */
         } else if (!is_int && IS_HARDINT(intno)) {
             /* Do not inject hardware interrupt if not read from log. */
-            coremu_debug("ignore hardware intr %x not from log", intno);
+            coremu_debug("core %u ignore hardware intr %x not from log", cm_coreid, intno);
             return;
         }
         break;
