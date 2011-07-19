@@ -3,6 +3,7 @@
 
 extern __thread volatile uint32_t *memop;
 extern volatile uint32_t *memop_cnt;
+extern __thread int cm_is_in_tc;
 
 void cm_crew_init(void);
 void cm_crew_core_init(void);

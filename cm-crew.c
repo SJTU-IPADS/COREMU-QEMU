@@ -22,6 +22,8 @@ __thread volatile uint32_t *memop;
 
 __thread uint32_t crew_inc_cnt;
 
+__thread int cm_is_in_tc;
+
 static __thread uint32_t *incop;
 
 static const uint16_t SHARED_READ = 0xffff;

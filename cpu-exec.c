@@ -27,6 +27,7 @@
 #include "coremu-config.h"
 #include "cm-intr.h"
 #include "cm-replay.h"
+#include "cm-crew.h"
 #include "cm-loop.h"
 
 #define DEBUG_COREMU
@@ -124,7 +125,13 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
                      max_cycles);
     env->current_tb = tb;
     /* execute the generated code */
+#ifdef CONFIG_REPLAY
+    cm_is_in_tc = 1;
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
+    cm_is_in_tc = 0;
+#else
+    next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
+#endif
 
     env->current_tb = NULL;
 
@@ -681,7 +688,13 @@ int cpu_exec(CPUState *env1)
                     /* Receive interrupt before and after executing the
                      * translated code. */
                     cm_receive_intr();
-                    next_tb = tcg_qemu_tb_exec(tc_ptr);
+#ifdef CONFIG_REPLAY
+                    cm_is_in_tc = 1;
+                    next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
+                    cm_is_in_tc = 0;
+#else
+                    next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
+#endif
                     cm_receive_intr();
 
 # ifdef COREMU_CMC_SUPPORT

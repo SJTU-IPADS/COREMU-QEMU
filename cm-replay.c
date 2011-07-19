@@ -325,6 +325,9 @@ void cm_replay_assert_pc(uint64_t eip)
             cm_print_replay_info();
             pthread_exit(NULL);
         }
+        if (cm_coreid == 0 && cm_tb_exec_cnt[0] == 13360305) {
+            coremu_debug("about to fail");
+        }
         if ((eip != next_eip)
                 || (recorded_memop != *memop)) {
             if (eip != next_eip)
