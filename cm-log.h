@@ -12,6 +12,8 @@ enum {
     DISK_DMA,
     CREW_INC,
     ALLPC,
+    MEMREC,
+    MEMPLAY,
     N_CM_LOG,
 };
 
@@ -23,4 +25,5 @@ extern log_t **cm_log;
 void cm_open_log(const char *mode);
 void cm_replay_flush_log(void);
 
+void cm_debug_open_log(void);
 #endif /* _CM_LOG_H */

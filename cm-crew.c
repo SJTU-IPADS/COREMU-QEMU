@@ -17,7 +17,7 @@ extern int smp_cpus;
 
 /* Record memory operation count for each vCPU
  * Overflow should not cause problem if we do not sort the output log. */
-volatile uint32_t *memop_cnt;
+volatile uint32_t memop_cnt[4]; /* XXX what's the problem with original version? */
 __thread volatile uint32_t *memop;
 
 __thread uint32_t crew_inc_cnt;
@@ -66,11 +66,11 @@ static inline int memobj_id(const void *addr)
 
 #define CREW_LOG_FMT "%u %u %u %lu\n"
 
-static inline void write_inc_log(uint16_t logcpu_no, uint32_t memop, uint32_t waitcpuno,
-                                 uint32_t waitmemop)
+static inline void write_inc_log(uint16_t logcpu_no, uint32_t memop,
+                                 uint32_t waitcpuno, uint32_t waitmemop)
 {
-    fprintf(cm_log[logcpu_no][CREW_INC], CREW_LOG_FMT, memop, waitcpuno, waitmemop,
-            cm_tb_exec_cnt[logcpu_no]);
+    fprintf(cm_log[logcpu_no][CREW_INC], CREW_LOG_FMT, memop, waitcpuno,
+            waitmemop, cm_tb_exec_cnt[logcpu_no]);
 }
 
 static __thread uint64_t recorded_tb_exec_cnt;
@@ -217,17 +217,19 @@ void cm_apply_replay_log(void)
 
 void cm_crew_init(void)
 {
-    memop_cnt = calloc(smp_cpus, sizeof(*memop_cnt));
-    if (!memop_cnt) {
-        printf("Can't allocate memop count\n");
-        exit(1);
-    }
+    /*
+     *memop_cnt = calloc(smp_cpus, sizeof(*memop_cnt));
+     *if (!memop_cnt) {
+     *    printf("Can't allocate memop count\n");
+     *    exit(1);
+     *}
+     */
 
     /* 65536 is for cirrus_vga.rom, added in hw/pci.c:pci_add_option_rom */
     /*n_memobj = (ram_size+PC_ROM_SIZE+VGA_RAM_SIZE+65536+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;*/
     n_memobj = (ram_size+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;
     /* XXX I don't know exactly how many is needed, providing more is safe */
-    n_memobj *= 2;
+    n_memobj *= 3;
     memobj = calloc(n_memobj, sizeof(memobj_t));
     if (!memobj) {
         printf("Can't allocate mem info\n");
@@ -256,6 +258,18 @@ void cm_crew_core_init(void)
 
 #include <assert.h>
 #include "cpu.h"
+
+static __thread uint32_t memacc_cnt;
+
+static inline void debug_mem_access(const void *addr, char c) {
+    assert(memacc_cnt++ == *memop);
+    if (cm_run_mode == CM_RUNMODE_RECORD)
+        fprintf(cm_log[cm_coreid][MEMREC], "%c 0x%lx %p\n", c,
+                cpu_single_env->eip, addr);
+    else
+        fprintf(cm_log[cm_coreid][MEMPLAY], "%c 0x%lx %p\n", c,
+                cpu_single_env->eip, addr);
+}
 
 #define DATA_BITS 8
 #include "cm-crew-template.h"

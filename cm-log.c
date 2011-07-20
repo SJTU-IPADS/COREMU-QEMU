@@ -30,7 +30,7 @@ static void open_log1(FILE **log, const char* logname, const char *mode)
 void cm_open_log(const char *mode)
 {
     int i;
-    for (i = 0; i < N_CM_LOG; i++)
+    for (i = 0; i < N_CM_LOG - 2; i++)
         open_log1(&(cm_log[cm_coreid][i]), cm_log_name[i], mode);
 }
 
@@ -43,3 +43,12 @@ void cm_replay_flush_log(void)
     coremu_debug("flushed log core %hu", cm_coreid);
 }
 
+extern int cm_run_mode;
+
+void cm_debug_open_log(void)
+{
+    if (cm_run_mode == 1)
+        open_log1(&(cm_log[cm_coreid][MEMREC]), "memrec", "w");
+    else
+        open_log1(&(cm_log[cm_coreid][MEMPLAY]), "memplay", "w");
+}

@@ -73,6 +73,7 @@ DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
         return *addr;
     }
 
+    //debug_mem_access(addr, 'r');
     /* XXX There are some address which are not allocated to emulate main
      * memory. We have to handle that in different ways. */
     if (cm_run_mode == CM_RUNMODE_RECORD)
@@ -90,6 +91,7 @@ void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
         return;
     }
 
+    //debug_mem_access(addr, 'w');
     if (cm_run_mode == CM_RUNMODE_RECORD)
         glue(record_crew_write, SUFFIX)(addr, val);
     else if (cm_run_mode == CM_RUNMODE_REPLAY)

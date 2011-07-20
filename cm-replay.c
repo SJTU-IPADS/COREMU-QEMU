@@ -228,6 +228,7 @@ void cm_replay_core_init(void)
 
     const char *mode = cm_run_mode == CM_RUNMODE_REPLAY ? "r" : "w";
     cm_open_log(mode);
+    cm_debug_open_log();
     if (cm_run_mode == CM_RUNMODE_REPLAY) {
         cm_read_intr_log();
         cm_read_dma_log();
@@ -324,9 +325,6 @@ void cm_replay_assert_pc(uint64_t eip)
                    cm_tb_exec_cnt[cm_coreid]);
             cm_print_replay_info();
             pthread_exit(NULL);
-        }
-        if (cm_coreid == 0 && cm_tb_exec_cnt[0] == 13360305) {
-            coremu_debug("about to fail");
         }
         if ((eip != next_eip)
                 || (recorded_memop != *memop)) {
