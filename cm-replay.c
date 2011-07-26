@@ -304,6 +304,9 @@ void cm_replay_assert_pc(uint64_t eip)
     uint64_t next_eip;
     uint32_t recorded_memop;
 
+    /* Update cpu eip so we get correct eip in debug code. */
+    cpu_single_env->eip = eip;
+
     /*
      *if (cm_tb_exec_cnt[cm_coreid] % 10240 != 0)
      *    return;

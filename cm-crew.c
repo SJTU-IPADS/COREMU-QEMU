@@ -17,7 +17,7 @@ extern int smp_cpus;
 
 /* Record memory operation count for each vCPU
  * Overflow should not cause problem if we do not sort the output log. */
-volatile uint32_t memop_cnt[4]; /* XXX what's the problem with original version? */
+volatile uint32_t *memop_cnt; /* XXX what's the problem with original version? */
 __thread volatile uint32_t *memop;
 
 __thread uint32_t crew_inc_cnt;
@@ -60,7 +60,7 @@ static inline int memobj_id(const void *addr)
     int id = r >> TARGET_PAGE_BITS;
     coremu_assert(id >= 0 && id <= n_memobj,
                   "addr: %p, id: %d, memop: %d, n_memobj: %d", addr, id,
-                  *memop, n_memobj);
+                  memop_cnt[cm_coreid], n_memobj);
     return id;
 }
 
@@ -217,13 +217,11 @@ void cm_apply_replay_log(void)
 
 void cm_crew_init(void)
 {
-    /*
-     *memop_cnt = calloc(smp_cpus, sizeof(*memop_cnt));
-     *if (!memop_cnt) {
-     *    printf("Can't allocate memop count\n");
-     *    exit(1);
-     *}
-     */
+    memop_cnt = calloc(smp_cpus, sizeof(*memop_cnt));
+    if (!memop_cnt) {
+        printf("Can't allocate memop count\n");
+        exit(1);
+    }
 
     /* 65536 is for cirrus_vga.rom, added in hw/pci.c:pci_add_option_rom */
     /*n_memobj = (ram_size+PC_ROM_SIZE+VGA_RAM_SIZE+65536+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;*/
@@ -259,16 +257,38 @@ void cm_crew_core_init(void)
 #include <assert.h>
 #include "cpu.h"
 
-static __thread uint32_t memacc_cnt;
+__thread uint32_t memacc_cnt;
 
-static inline void debug_mem_access(const void *addr, char c) {
-    assert(memacc_cnt++ == *memop);
+void debug_mem_access(const void *addr, char c, int in_tc);
+void debug_mem_access(const void *addr, char c, int in_tc) {
+    if (cm_run_mode == CM_RUNMODE_NORMAL)
+        return;
+    if (memacc_cnt != *memop) {
+        coremu_debug("error memacc_cnt = %u", memacc_cnt);
+        cm_print_replay_info();
+        exit(1);
+    }
     if (cm_run_mode == CM_RUNMODE_RECORD)
-        fprintf(cm_log[cm_coreid][MEMREC], "%c 0x%lx %p\n", c,
-                cpu_single_env->eip, addr);
-    else
-        fprintf(cm_log[cm_coreid][MEMPLAY], "%c 0x%lx %p\n", c,
-                cpu_single_env->eip, addr);
+        fprintf(cm_log[cm_coreid][MEMREC], "%d %c %lx\n", in_tc, c,
+                cpu_single_env->eip);
+    else {
+        fprintf(cm_log[cm_coreid][MEMPLAY], "%d %c %lx\n", in_tc, c,
+                cpu_single_env->eip);
+        /*
+         *int r_in_tc;
+         *char r_c;
+         *uint64_t r_eip;
+         *fscanf(cm_log[cm_coreid][MEMREC], "%d %c %lx\n", &r_in_tc, &r_c,
+         *       &r_eip);
+         *if (cpu_single_env->eip != r_eip) {
+         *    coremu_debug("error in eip == memcnt, r_eip = 0x%lx, eip = 0x%lx, memacc_cnt = %u", r_eip, cpu_single_env->eip, memacc_cnt);
+         *    cm_print_replay_info();
+         *    pthread_exit(NULL);
+         *}
+         */
+    }
+    if (in_tc)
+        memacc_cnt++;
 }
 
 #define DATA_BITS 8

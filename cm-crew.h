@@ -2,7 +2,7 @@
 #define _CM_CREW_H
 
 extern __thread volatile uint32_t *memop;
-extern volatile uint32_t memop_cnt[4];
+extern volatile uint32_t *memop_cnt;
 extern __thread int cm_is_in_tc;
 
 void cm_crew_init(void);

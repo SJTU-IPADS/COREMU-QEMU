@@ -49,6 +49,8 @@ void cm_debug_open_log(void)
 {
     if (cm_run_mode == 1)
         open_log1(&(cm_log[cm_coreid][MEMREC]), "memrec", "w");
-    else
+    else {
         open_log1(&(cm_log[cm_coreid][MEMPLAY]), "memplay", "w");
+        open_log1(&(cm_log[cm_coreid][MEMREC]), "memrec", "r");
+    }
 }
