@@ -1,9 +1,3 @@
-#ifndef _SOFTMMU_TEMPLATE_H
-#define _SOFTMMU_TEMPLATE_H
-
-
-
-#endif /* _SOFTMMU_TEMPLATE_H */
 /*
  *  Software MMU support
  *
