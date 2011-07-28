@@ -4850,6 +4850,7 @@ static float approx_rcp(float a)
 #define MMUSUFFIX _mmu
 
 #if defined(CONFIG_COREMU) && defined(CONFIG_REPLAY)
+#define CREW_MMU
 #include "cm-crew.h"
 #endif
 
