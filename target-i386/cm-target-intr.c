@@ -77,7 +77,7 @@ static void cm_apicbus_intr_handler(void *opaque)
         cpu_interrupt(self, apicbus_intr->mask);
     }
 #ifdef CONFIG_REPLAY
-    /* Ignore local apic timer in Linux. */
+    /* Ignore timer interrupt in Linux. Note local apic timer is 0xef.  */
     if (apicbus_intr->vector_num != 0x30)
         cm_intr_handler_cnt++;
     /*

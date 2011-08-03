@@ -1243,16 +1243,16 @@ void do_interrupt(int intno, int is_int, int error_code,
         }
         break;
     case CM_RUNMODE_RECORD:
-       /* Only record hardware interrupt. */
-       if (!is_int && IS_HARDINT(intno)) {
-           cm_intr_cnt++;
-           /*
-            *coremu_debug("record intr cm_tb_exec_cnt = %lu, intno = %d, eip = %p",
-            *             cm_tb_exec_cnt[cm_coreid], intno, (void *)(long)env->eip);
-            */
-           cm_record_intr(intno, env->eip);
-       }
-       break;
+        /* Only record hardware interrupt. */
+        if (!is_int && IS_HARDINT(intno)) {
+            cm_intr_cnt++;
+            /*
+             *coremu_debug("record intr cm_tb_exec_cnt = %lu, intno = %d, eip = %p",
+             *             cm_tb_exec_cnt[cm_coreid], intno, (void *)(long)env->eip);
+             */
+            cm_record_intr(intno, env->eip);
+        }
+        break;
     }
 #endif
     if (qemu_loglevel_mask(CPU_LOG_INT)) {
@@ -1305,6 +1305,15 @@ void do_interrupt(int intno, int is_int, int error_code,
             handle_even_inj(intno, is_int, error_code, is_hw, 1);
 #endif
         do_interrupt_real(intno, is_int, error_code, next_eip);
+    }
+
+    if (cm_run_mode == CM_RUNMODE_REPLAY) {
+        if (intno == 0xef)
+            coremu_debug("local apic timer interrupt handler pc: %lx",
+                         env->eip);
+        if (intno == 0x30)
+            coremu_debug("timer interrupt handler pc: %lx",
+                         env->eip);
     }
 
 #if !defined(CONFIG_USER_ONLY)
