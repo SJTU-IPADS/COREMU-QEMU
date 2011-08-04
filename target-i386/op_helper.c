@@ -1228,6 +1228,7 @@ void do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw)
 {
 #ifdef CONFIG_REPLAY
+    cm_is_in_tc = 0;
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
         if (intno & CM_REPLAY_INT) {
@@ -1307,14 +1308,16 @@ void do_interrupt(int intno, int is_int, int error_code,
         do_interrupt_real(intno, is_int, error_code, next_eip);
     }
 
-    if (cm_run_mode == CM_RUNMODE_REPLAY) {
-        if (intno == 0xef)
-            coremu_debug("local apic timer interrupt handler pc: %lx",
-                         env->eip);
-        if (intno == 0x30)
-            coremu_debug("timer interrupt handler pc: %lx",
-                         env->eip);
-    }
+    /*
+     *if (cm_run_mode == CM_RUNMODE_REPLAY) {
+     *    if (intno == 0xef)
+     *        coremu_debug("local apic timer interrupt handler pc: %lx",
+     *                     env->eip);
+     *    if (intno == 0x30)
+     *        coremu_debug("timer interrupt handler pc: %lx",
+     *                     env->eip);
+     *}
+     */
 
 #if !defined(CONFIG_USER_ONLY)
     if (env->hflags & HF_SVMI_MASK) {
@@ -4874,6 +4877,10 @@ static float approx_rcp(float a)
 
 #define SHIFT 3
 #include "softmmu_template.h"
+
+#if defined(CONFIG_COREMU) && defined(CONFIG_REPLAY)
+#undef CREW_MMU
+#endif
 
 #endif
 

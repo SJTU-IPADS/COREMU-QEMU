@@ -57,6 +57,8 @@
 
 COREMU_THREAD int tb_invalidated_flag;
 
+static __thread uint32_t prev_memcnt = 0;
+
 // For debug
 extern COREMU_THREAD uint64_t cm_intr_cnt;
 
@@ -71,6 +73,8 @@ int qemu_cpu_has_work(CPUState *env)
 void cpu_loop_exit(void)
 {
     env->current_tb = NULL;
+    prev_memcnt = memop_cnt[cm_coreid];
+    cm_is_in_tc = 0;
     longjmp(env->jmp_env, 1);
 }
 
@@ -127,7 +131,13 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
     /* execute the generated code */
 #ifdef CONFIG_REPLAY
     cm_is_in_tc = 1;
+    if (memop_cnt[cm_coreid] != prev_memcnt) {
+        coremu_debug("prev_memcnt: %u memop_cnt[%u] = %u",
+                     prev_memcnt, cm_coreid, memop_cnt[cm_coreid]);
+        exit(1);
+    }
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
+    prev_memcnt = memop_cnt[cm_coreid];
     cm_is_in_tc = 0;
 #else
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
@@ -690,8 +700,14 @@ int cpu_exec(CPUState *env1)
                     cm_receive_intr();
 #ifdef CONFIG_REPLAY
                     cm_is_in_tc = 1;
+                    if (memop_cnt[cm_coreid] != prev_memcnt) {
+                        coremu_debug("prev_memcnt: %u memop_cnt[%u] = %u",
+                                     prev_memcnt, cm_coreid, memop_cnt[cm_coreid]);
+                        exit(1);
+                    }
                     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
                     cm_is_in_tc = 0;
+                    prev_memcnt = memop_cnt[cm_coreid];
 #else
                     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
 #endif

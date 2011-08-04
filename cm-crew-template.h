@@ -31,7 +31,8 @@ static inline DATA_TYPE glue(record_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
     memobj_t *mo = cm_read_lock(addr);
     DATA_TYPE val = *addr;
-    (*memop)++;
+    if (cm_is_in_tc)
+        (*memop)++;
     cm_read_unlock(mo);
 
     return val;
@@ -41,7 +42,8 @@ static inline void glue(record_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE va
 {
     memobj_t *mo = cm_write_lock(addr);
     *addr = val;
-    (*memop)++;
+    if (cm_is_in_tc)
+        (*memop)++;
     cm_write_unlock(mo);
 }
 
@@ -52,7 +54,8 @@ static inline DATA_TYPE glue(replay_crew_read, SUFFIX)(const DATA_TYPE *addr)
     cm_apply_replay_log();
 
     DATA_TYPE val = *addr;
-    (*memop)++;
+    if (cm_is_in_tc)
+        (*memop)++;
 
     return val;
 }
@@ -62,7 +65,8 @@ static inline void glue(replay_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE va
     cm_apply_replay_log();
 
     *addr = val;
-    (*memop)++;
+    if (cm_is_in_tc)
+        (*memop)++;
 }
 
 /* Call record or replay depending on the run mode. */
