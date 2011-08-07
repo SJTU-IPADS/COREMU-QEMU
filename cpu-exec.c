@@ -73,8 +73,10 @@ int qemu_cpu_has_work(CPUState *env)
 void cpu_loop_exit(void)
 {
     env->current_tb = NULL;
+#ifdef CONFIG_REPLAY
     prev_memcnt = memop_cnt[cm_coreid];
     cm_is_in_tc = 0;
+#endif
     longjmp(env->jmp_env, 1);
 }
 
@@ -110,6 +112,10 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
     }
 #endif
     env->exception_index = -1;
+#ifdef CONFIG_REPLAY
+    prev_memcnt = memop_cnt[cm_coreid];
+    cm_is_in_tc = 0;
+#endif
     longjmp(env->jmp_env, 1);
 }
 
@@ -130,12 +136,12 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
     env->current_tb = tb;
     /* execute the generated code */
 #ifdef CONFIG_REPLAY
-    cm_is_in_tc = 1;
     if (memop_cnt[cm_coreid] != prev_memcnt) {
         coremu_debug("prev_memcnt: %u memop_cnt[%u] = %u",
                      prev_memcnt, cm_coreid, memop_cnt[cm_coreid]);
         exit(1);
     }
+    cm_is_in_tc = 1;
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
     prev_memcnt = memop_cnt[cm_coreid];
     cm_is_in_tc = 0;
@@ -338,6 +344,9 @@ int cpu_exec(CPUState *env1)
     for(;;) {
         if (setjmp(env->jmp_env) == 0) {
 #ifdef CONFIG_COREMU
+#ifdef CONFIG_REPLAY
+                cm_is_in_tc = 0;
+#endif
                 cm_receive_intr();
 #endif
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)

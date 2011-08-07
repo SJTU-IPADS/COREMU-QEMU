@@ -1228,7 +1228,7 @@ void do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw)
 {
 #ifdef CONFIG_REPLAY
-    cm_is_in_tc = 0;
+    assert(cm_is_in_tc == 0);
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
         if (intno & CM_REPLAY_INT) {
@@ -1307,17 +1307,6 @@ void do_interrupt(int intno, int is_int, int error_code,
 #endif
         do_interrupt_real(intno, is_int, error_code, next_eip);
     }
-
-    /*
-     *if (cm_run_mode == CM_RUNMODE_REPLAY) {
-     *    if (intno == 0xef)
-     *        coremu_debug("local apic timer interrupt handler pc: %lx",
-     *                     env->eip);
-     *    if (intno == 0x30)
-     *        coremu_debug("timer interrupt handler pc: %lx",
-     *                     env->eip);
-     *}
-     */
 
 #if !defined(CONFIG_USER_ONLY)
     if (env->hflags & HF_SVMI_MASK) {
@@ -4891,6 +4880,12 @@ static float approx_rcp(float a)
 /* XXX: fix it to restore all registers */
 void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
+/*
+ *#ifdef CONFIG_REPLAY
+ *    int saved_in_tc = cm_is_in_tc;
+ *    cm_is_in_tc = 0;
+ *#endif
+ */
     TranslationBlock *tb;
     int ret;
     unsigned long pc;
@@ -4916,6 +4911,11 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
         raise_exception_err(env->exception_index, env->error_code);
     }
     env = saved_env;
+/*
+ *#ifdef CONFIG_REPLAY
+ *    cm_is_in_tc = saved_in_tc;
+ *#endif
+ */
 }
 #endif
 
