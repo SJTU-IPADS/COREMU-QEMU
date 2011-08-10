@@ -12,6 +12,9 @@ enum {
     DISK_DMA,
     CREW_INC,
     ALLPC,
+    TLBFLUSH,
+    GENCODE,
+    // the last two logs are initialized in cm_debug_open_log
     MEMREC,
     MEMPLAY,
     N_CM_LOG,
@@ -22,8 +25,8 @@ typedef FILE *log_t;
  * the specific log. */
 extern log_t **cm_log;
 
-void cm_open_log(const char *mode);
-void cm_replay_flush_log(void);
+void cm_replay_flush_log(int coreid);
 
-void cm_debug_open_log(void);
+void cm_log_init(const char *mode);
+
 #endif /* _CM_LOG_H */

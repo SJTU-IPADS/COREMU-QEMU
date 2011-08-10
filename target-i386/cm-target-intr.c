@@ -118,7 +118,7 @@ static void cm_tlb_flush_req_handler(void *opaque)
 static void cm_exit_intr_handler(void *opaque)
 {
     coremu_debug("exiting");
-    cm_replay_flush_log();
+    cm_replay_flush_log(cm_coreid);
 #ifdef CONFIG_REPLAY
     cm_print_replay_info();
 #endif

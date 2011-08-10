@@ -177,6 +177,7 @@ int main(int argc, char **argv)
 #include "cm-intr.h"
 #include "cm-init.h"
 #include "cm-timer.h"
+#include "cm-log.h"
 #include "cm-replay.h"
 
 //#include "cm-i386-intr.h"
@@ -2067,7 +2068,10 @@ int main(int argc, char **argv, char **envp)
                     printf("wrong mode\n");
                     exit(1);
                 }
+                /* XXX This is not the best place to do log initialization. */
                 coremu_run_mode = cm_run_mode;
+                cm_log_init(cm_run_mode == CM_RUNMODE_REPLAY ? "r" : "w");
+                /*cm_replay_init();*/
 #endif
                 break;
             case QEMU_OPTION_M:

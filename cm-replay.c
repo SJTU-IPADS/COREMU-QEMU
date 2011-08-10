@@ -207,14 +207,6 @@ void cm_replay_init(void)
     /* Setup CPU local variable */
     cm_tb_exec_cnt = calloc(smp_cpus, sizeof(uint64_t));
 
-    cm_log = calloc(smp_cpus, sizeof(FILE **));
-    assert(cm_log);
-    int i;
-    for (i = 0; i < smp_cpus; i++) {
-        cm_log[i] = calloc(N_CM_LOG, sizeof(FILE *));
-        assert(cm_log[i]);
-    }
-
     /* For hardware thread, set cm_coreid to -1. */
     cm_coreid = -1;
 
@@ -226,9 +218,6 @@ void cm_replay_core_init(void)
     if (cm_run_mode == CM_RUNMODE_NORMAL)
         return;
 
-    const char *mode = cm_run_mode == CM_RUNMODE_REPLAY ? "r" : "w";
-    cm_open_log(mode);
-    cm_debug_open_log();
     if (cm_run_mode == CM_RUNMODE_REPLAY) {
         cm_read_intr_log();
         cm_read_dma_log();
