@@ -1040,6 +1040,9 @@ TranslationBlock *tb_gen_code(CPUState *env,
                               target_ulong pc, target_ulong cs_base,
                               int flags, int cflags)
 {
+#ifdef CONFIG_REPLAY
+    cm_replay_assert_gencode(pc);
+#endif
     TranslationBlock *tb;
     uint8_t *tc_ptr;
     tb_page_addr_t phys_pc, phys_page2;
@@ -2125,6 +2128,9 @@ void tlb_flush(CPUState *env, int flush_global)
     env->tlb_flush_addr = -1;
     env->tlb_flush_mask = 0;
     tlb_flush_count++;
+#ifdef CONFIG_REPLAY
+    cm_replay_assert_tlbflush(cm_tb_exec_cnt[i], env->eip, env->cpuid_apic_id);
+#endif
 }
 
 static inline void tlb_flush_entry(CPUTLBEntry *tlb_entry, target_ulong addr)

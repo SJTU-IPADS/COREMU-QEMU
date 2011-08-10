@@ -55,7 +55,10 @@ static inline int memobj_id(const void *addr)
 {
     ram_addr_t r;
     /* XXX This is slow, but should be correct. It's possible to use hash to
-     * improve speed here. */
+     * improve speed here.
+     * Note this is getting the RAM address, not guest physical address. But as
+     * guest memory has RAM offset starting as 0, this should be the same assert
+     * physcal memory. */
     assert(qemu_ram_addr_from_host((void *)addr, &r) != -1);
     int id = r >> TARGET_PAGE_BITS;
     coremu_assert(id >= 0 && id <= n_memobj,
@@ -259,8 +262,8 @@ void cm_crew_core_init(void)
 
 __thread uint32_t memacc_cnt;
 
-void debug_mem_access(const void *addr, char c, int in_tc);
-void debug_mem_access(const void *addr, char c, int in_tc) {
+void debug_mem_access(const void *addr, char c);
+void debug_mem_access(const void *addr, char c) {
     if (cm_run_mode == CM_RUNMODE_NORMAL)
         return;
     if (memacc_cnt != *memop) {
@@ -269,10 +272,10 @@ void debug_mem_access(const void *addr, char c, int in_tc) {
         exit(1);
     }
     if (cm_run_mode == CM_RUNMODE_RECORD)
-        fprintf(cm_log[cm_coreid][MEMREC], "%d %c %lx\n", in_tc, c,
+        fprintf(cm_log[cm_coreid][MEMREC], "%d %c %lx\n", cm_is_in_tc, c,
                 cpu_single_env->eip);
     else {
-        fprintf(cm_log[cm_coreid][MEMPLAY], "%d %c %lx\n", in_tc, c,
+        fprintf(cm_log[cm_coreid][MEMPLAY], "%d %c %lx\n", cm_is_in_tc, c,
                 cpu_single_env->eip);
         /*
          *int r_in_tc;
@@ -287,7 +290,7 @@ void debug_mem_access(const void *addr, char c, int in_tc) {
          *}
          */
     }
-    if (in_tc)
+    if (cm_is_in_tc)
         memacc_cnt++;
 }
 

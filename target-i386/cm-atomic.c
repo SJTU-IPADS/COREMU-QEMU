@@ -140,7 +140,7 @@ void debug_mem_access(const void *addr, char c, int is_tc);
 static inline void cm_end_atomic_insn(memobj_t *mo)
 {
     if (cm_run_mode != CM_RUNMODE_NORMAL) {
-        /*debug_mem_access((void *)0xdeadbeef, 'a', cm_is_in_tc);*/
+        /*debug_mem_access((void *)0xdeadbeef, 'a');*/
         (*memop)++;
     }
     if (cm_run_mode == CM_RUNMODE_RECORD)

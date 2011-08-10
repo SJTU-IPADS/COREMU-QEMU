@@ -2068,7 +2068,9 @@ int main(int argc, char **argv, char **envp)
                     printf("wrong mode\n");
                     exit(1);
                 }
-                /* XXX This is not the best place to do log initialization. */
+                /* XXX tlbflush happens before calling cm_cpu_exec_init, so we
+                 * have to initialize logs early.
+                 * But this is not the best place to do log initialization. */
                 coremu_run_mode = cm_run_mode;
                 cm_log_init(cm_run_mode == CM_RUNMODE_REPLAY ? "r" : "w");
                 /*cm_replay_init();*/

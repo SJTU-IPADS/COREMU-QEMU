@@ -379,6 +379,82 @@ void cm_replay_assert_##name(type cur) \
     } \
 }
 
+#define TLBFLUSH_LOG_FMT "%ld %lx\n"
+void cm_replay_assert_tlbflush(uint64_t exec_cnt, uint64_t eip, int coreid)
+{
+    uint64_t recorded_exec_cnt, recorded_eip;
+
+    switch (cm_run_mode) {
+    case CM_RUNMODE_REPLAY:
+        if (fscanf(cm_log[coreid][TLBFLUSH], TLBFLUSH_LOG_FMT, &recorded_exec_cnt,
+                   &recorded_eip) == EOF) {
+            coremu_debug("no more tlbflush log, coreid = %u, cm_tb_exec_cnt = %lu", coreid,
+                   exec_cnt);
+            cm_print_replay_info();
+            pthread_exit(NULL);
+        }
+        /*
+         *if ((recorded_exec_cnt != cm_tb_exec_cnt[coreid])
+         *        || (recorded_eip != eip)) {
+         */
+        if (recorded_exec_cnt != cm_tb_exec_cnt[coreid]) {
+            coremu_debug("diff in tlbflush");
+            coremu_debug(
+                      "coreid = %u, eip = %0lx, recorded eip = %0lx, "
+                      "cm_tb_exec_cnt = %lu, recorded_exec_cnt = %lu",
+                      coreid,
+                      (long)eip,
+                      (long)recorded_eip,
+                      cm_tb_exec_cnt[coreid],
+                      recorded_exec_cnt);
+            pthread_exit(NULL);
+        }
+        break;
+    case CM_RUNMODE_RECORD:
+        fprintf(cm_log[coreid][TLBFLUSH], TLBFLUSH_LOG_FMT,
+                cm_tb_exec_cnt[coreid], eip);
+        break;
+    }
+}
+
+#define GENCODE_LOG_FMT "%ld %lx\n"
+void cm_replay_assert_gencode(uint64_t eip)
+{
+    uint64_t recorded_exec_cnt, recorded_eip;
+
+    switch (cm_run_mode) {
+    case CM_RUNMODE_REPLAY:
+        if (fscanf(cm_log[cm_coreid][GENCODE], GENCODE_LOG_FMT, &recorded_exec_cnt,
+                   &recorded_eip) == EOF) {
+            coremu_debug("no more gencode log, cm_coreid = %u, cm_tb_exec_cnt = %lu", cm_coreid,
+                   cm_tb_exec_cnt[cm_coreid]);
+            cm_print_replay_info();
+            pthread_exit(NULL);
+        }
+        /*
+         *if ((recorded_exec_cnt != cm_tb_exec_cnt[cm_coreid])
+         *        || (recorded_eip != eip)) {
+         */
+        if (recorded_exec_cnt != cm_tb_exec_cnt[cm_coreid]) {
+            coremu_debug("diff in gencode");
+            coremu_debug(
+                      "cm_coreid = %u, eip = %0lx, recorded eip = %0lx, "
+                      "cm_tb_exec_cnt = %lu, recorded_exec_cnt = %lu",
+                      cm_coreid,
+                      (long)eip,
+                      (long)recorded_eip,
+                      cm_tb_exec_cnt[cm_coreid],
+                      recorded_exec_cnt);
+            pthread_exit(NULL);
+        }
+        break;
+    case CM_RUNMODE_RECORD:
+        fprintf(cm_log[cm_coreid][GENCODE], GENCODE_LOG_FMT,
+                cm_tb_exec_cnt[cm_coreid], eip);
+        break;
+    }
+}
+
 void cm_print_replay_info(void)
 {
     coremu_debug("core_id = %u, cm_tb_exec_cnt = %lu, memop = %u",
