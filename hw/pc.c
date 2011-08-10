@@ -1007,6 +1007,11 @@ void pc_memory_init(ram_addr_t ram_size,
     /* allocate RAM */
     ram_addr = qemu_ram_alloc(NULL, "pc.ram",
                               below_4g_mem_size + above_4g_mem_size);
+#ifdef CONFIG_REPLAY
+    /* ram_addr == 0 here makes qemu_ram_addr_from_host gets the guest physical
+     * memory for RAM. */
+    assert(ram_addr == 0);
+#endif
     cpu_register_physical_memory(0, 0xa0000, ram_addr);
     cpu_register_physical_memory(0x100000,
                  below_4g_mem_size - 0x100000,
