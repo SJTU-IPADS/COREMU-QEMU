@@ -321,9 +321,9 @@ void cm_replay_assert_pc(uint64_t eip)
         if ((eip != next_eip)
                 || (recorded_memop != *memop)) {
             if (eip != next_eip)
-                coremu_debug("Error in execution path!");
+                coremu_debug("ERROR in execution path!");
             else if (*memop != recorded_memop)
-                coremu_debug("Error in memop cnt");
+                coremu_debug("ERROR in memop cnt");
             coremu_debug(
                       "cm_coreid = %u, eip = %016lx, recorded eip = %016lx, "
                       "memop_cnt = %u, recorded_memop = %u, "
@@ -370,7 +370,7 @@ void cm_replay_assert_##name(type cur) \
                       cm_inject_exec_cnt, \
                       cm_ioport_read_cnt, \
                       cm_mmio_read_cnt); \
-            coremu_debug("Error "#name" differs!"); \
+            coremu_debug("ERROR "#name" differs!"); \
         } \
         break; \
     case CM_RUNMODE_RECORD: \
@@ -383,6 +383,8 @@ void cm_replay_assert_##name(type cur) \
 void cm_replay_assert_tlbflush(uint64_t exec_cnt, uint64_t eip, int coreid)
 {
     uint64_t recorded_exec_cnt, recorded_eip;
+
+    /*coremu_debug("coreid %d calling tlb flush", cm_coreid);*/
 
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
@@ -407,7 +409,7 @@ void cm_replay_assert_tlbflush(uint64_t exec_cnt, uint64_t eip, int coreid)
                       (long)recorded_eip,
                       cm_tb_exec_cnt[coreid],
                       recorded_exec_cnt);
-            /*pthread_exit(NULL);*/
+            pthread_exit(NULL);
         }
         break;
     case CM_RUNMODE_RECORD:

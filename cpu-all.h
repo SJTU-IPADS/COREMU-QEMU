@@ -24,6 +24,7 @@
 
 #include "coremu-config.h"
 #include "cm-crew.h"
+#include "cm-replay.h"
 
 /* some important defines:
  *
@@ -208,16 +209,19 @@ typedef union {
  */
 static inline int ldub_p(const void *ptr)
 {
+    cm_assert_not_in_tc();
     return *(uint8_t *)ptr;
 }
 
 static inline int ldsb_p(const void *ptr)
 {
+    cm_assert_not_in_tc();
     return *(int8_t *)ptr;
 }
 
 static inline void stb_p(void *ptr, int v)
 {
+    cm_assert_not_in_tc();
     *(uint8_t *)ptr = v;
 }
 
@@ -345,36 +349,43 @@ static inline void stfq_le_p(void *ptr, float64 v)
 
 static inline int lduw_le_p(const void *ptr)
 {
+    cm_assert_not_in_tc();
     return *(uint16_t *)ptr;
 }
 
 static inline int ldsw_le_p(const void *ptr)
 {
+    cm_assert_not_in_tc();
     return *(int16_t *)ptr;
 }
 
 static inline int ldl_le_p(const void *ptr)
 {
+    cm_assert_not_in_tc();
     return *(uint32_t *)ptr;
 }
 
 static inline uint64_t ldq_le_p(const void *ptr)
 {
+    cm_assert_not_in_tc();
     return *(uint64_t *)ptr;
 }
 
 static inline void stw_le_p(void *ptr, int v)
 {
+    cm_assert_not_in_tc();
     *(uint16_t *)ptr = v;
 }
 
 static inline void stl_le_p(void *ptr, int v)
 {
+    cm_assert_not_in_tc();
     *(uint32_t *)ptr = v;
 }
 
 static inline void stq_le_p(void *ptr, uint64_t v)
 {
+    cm_assert_not_in_tc();
     *(uint64_t *)ptr = v;
 }
 
@@ -382,21 +393,25 @@ static inline void stq_le_p(void *ptr, uint64_t v)
 
 static inline float32 ldfl_le_p(const void *ptr)
 {
+    cm_assert_not_in_tc();
     return *(float32 *)ptr;
 }
 
 static inline float64 ldfq_le_p(const void *ptr)
 {
+    cm_assert_not_in_tc();
     return *(float64 *)ptr;
 }
 
 static inline void stfl_le_p(void *ptr, float32 v)
 {
+    cm_assert_not_in_tc();
     *(float32 *)ptr = v;
 }
 
 static inline void stfq_le_p(void *ptr, float64 v)
 {
+    cm_assert_not_in_tc();
     *(float64 *)ptr = v;
 }
 #endif

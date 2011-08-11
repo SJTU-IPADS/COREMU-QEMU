@@ -289,17 +289,17 @@ void debug_read_access(uint64_t val)
         fscanf(cm_log[cm_coreid][READ], READ_LOG_FMT,
                &rec_eip, &rec_addr, &rec_val);
         if (rec_eip != cpu_single_env->eip) {
-            coremu_debug("read error in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
+            coremu_debug("read ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
                          cm_coreid, cpu_single_env->eip, rec_eip);
             error = 1;
         }
         if (pa_access != rec_addr) {
-            coremu_debug("read error in adr: coreid = %d, addr = %lx, recorded_addr = %lx",
+            coremu_debug("read ERROR in adr: coreid = %d, addr = %lx, recorded_addr = %lx",
                          cm_coreid, pa_access, rec_addr);
             error = 1;
         }
         if (val != rec_val) {
-            coremu_debug("read error in val: coreid = %d, val = %lx, recorded_val = %lx",
+            coremu_debug("read ERROR in val: coreid = %d, val = %lx, recorded_val = %lx",
                          cm_coreid, val, rec_val);
             error = 1;
         }
@@ -321,6 +321,21 @@ void debug_write_access(void)
         coremu_debug("write error memacc_cnt = %u", memacc_cnt);
         cm_print_replay_info();
         exit(1);
+    }
+}
+
+void cm_assert_not_in_tc(void)
+{
+    if (cm_is_in_tc) {
+        coremu_debug(
+             "cm_coreid = %u, eip = %0lx, "
+             "cm_tb_exec_cnt = %lu, "
+             "memop_cnt = %u",
+             cm_coreid,
+             (long)cpu_single_env->eip,
+             cm_tb_exec_cnt[cm_coreid],
+             *memop_cnt);
+        pthread_exit(NULL);
     }
 }
 

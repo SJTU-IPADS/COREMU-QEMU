@@ -1043,7 +1043,7 @@ TranslationBlock *tb_gen_code(CPUState *env,
 #ifdef CONFIG_REPLAY
     assert(cm_is_in_tc == 0);
     uint32_t cnt = *memop;
-    cm_replay_assert_gencode(pc);
+    /*cm_replay_assert_gencode(pc);*/
 #endif
     TranslationBlock *tb;
     uint8_t *tc_ptr;
