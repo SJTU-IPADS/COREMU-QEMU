@@ -53,6 +53,7 @@ static inline DATA_TYPE glue(replay_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
     cm_apply_replay_log();
 
+    memobj_id(addr); // To update pa_access
     DATA_TYPE val = *addr;
     if (cm_is_in_tc)
         (*memop)++;
@@ -64,6 +65,7 @@ static inline void glue(replay_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE va
 {
     cm_apply_replay_log();
 
+    memobj_id(addr); // To update pa_access
     *addr = val;
     if (cm_is_in_tc)
         (*memop)++;
@@ -76,14 +78,16 @@ DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
     if (!cm_is_in_tc) {
         return *addr;
     }
+    DATA_TYPE val;
 
-    //debug_mem_access(addr, 'r', cm_is_in_tc);
     if (cm_run_mode == CM_RUNMODE_RECORD)
-        return glue(record_crew_read, SUFFIX)(addr);
+        val = glue(record_crew_read, SUFFIX)(addr);
     else if (cm_run_mode == CM_RUNMODE_REPLAY)
-        return glue(replay_crew_read, SUFFIX)(addr);
+        val = glue(replay_crew_read, SUFFIX)(addr);
     else
-        return *addr;
+        val = *addr;
+    debug_read_access(val);
+    return val;
 }
 
 void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
@@ -93,13 +97,13 @@ void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
         return;
     }
 
-    //debug_mem_access(addr, 'w', cm_is_in_tc);
     if (cm_run_mode == CM_RUNMODE_RECORD)
         glue(record_crew_write, SUFFIX)(addr, val);
     else if (cm_run_mode == CM_RUNMODE_REPLAY)
         glue(replay_crew_write, SUFFIX)(addr, val);
     else
         *addr = val;
+    debug_write_access();
 }
 
 #undef DATA_BITS

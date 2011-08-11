@@ -51,6 +51,9 @@ enum {
 };
 #define READLOG_N 3
 
+/* Ugly. For debugging, store the target physical address trying to access. */
+__thread ram_addr_t pa_access;
+
 static inline int memobj_id(const void *addr)
 {
     ram_addr_t r;
@@ -60,6 +63,7 @@ static inline int memobj_id(const void *addr)
      * guest memory has RAM offset starting as 0, this should be the same assert
      * physcal memory. */
     assert(qemu_ram_addr_from_host((void *)addr, &r) != -1);
+    pa_access = r;
     int id = r >> TARGET_PAGE_BITS;
     coremu_assert(id >= 0 && id <= n_memobj,
                   "addr: %p, id: %d, memop: %d, n_memobj: %d", addr, id,
@@ -262,36 +266,62 @@ void cm_crew_core_init(void)
 
 __thread uint32_t memacc_cnt;
 
-void debug_mem_access(const void *addr, char c);
-void debug_mem_access(const void *addr, char c) {
+#define READ_LOG_FMT "%lx %lx %lx\n"
+void debug_read_access(uint64_t val)
+{
     if (cm_run_mode == CM_RUNMODE_NORMAL)
         return;
+    if (cm_is_in_tc)
+        memacc_cnt++;
     if (memacc_cnt != *memop) {
-        coremu_debug("error memacc_cnt = %u", memacc_cnt);
+        coremu_debug("read error memacc_cnt = %u", memacc_cnt);
         cm_print_replay_info();
         exit(1);
     }
     if (cm_run_mode == CM_RUNMODE_RECORD)
-        fprintf(cm_log[cm_coreid][MEMREC], "%d %c %lx\n", cm_is_in_tc, c,
-                cpu_single_env->eip);
+        fprintf(cm_log[cm_coreid][READ], READ_LOG_FMT,
+                cpu_single_env->eip, pa_access, val);
+    /*else if (*memop > 1000000) {*/
     else {
-        fprintf(cm_log[cm_coreid][MEMPLAY], "%d %c %lx\n", cm_is_in_tc, c,
-                cpu_single_env->eip);
-        /*
-         *int r_in_tc;
-         *char r_c;
-         *uint64_t r_eip;
-         *fscanf(cm_log[cm_coreid][MEMREC], "%d %c %lx\n", &r_in_tc, &r_c,
-         *       &r_eip);
-         *if (cpu_single_env->eip != r_eip) {
-         *    coremu_debug("error in eip == memcnt, r_eip = 0x%lx, eip = 0x%lx, memacc_cnt = %u", r_eip, cpu_single_env->eip, memacc_cnt);
-         *    cm_print_replay_info();
-         *    pthread_exit(NULL);
-         *}
-         */
+        uint64_t rec_eip, rec_val;
+        ram_addr_t rec_addr;
+        int error = 0;
+        fscanf(cm_log[cm_coreid][READ], READ_LOG_FMT,
+               &rec_eip, &rec_addr, &rec_val);
+        if (rec_eip != cpu_single_env->eip) {
+            coremu_debug("read error in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
+                         cm_coreid, cpu_single_env->eip, rec_eip);
+            error = 1;
+        }
+        if (pa_access != rec_addr) {
+            coremu_debug("read error in adr: coreid = %d, addr = %lx, recorded_addr = %lx",
+                         cm_coreid, pa_access, rec_addr);
+            error = 1;
+        }
+        if (val != rec_val) {
+            coremu_debug("read error in val: coreid = %d, val = %lx, recorded_val = %lx",
+                         cm_coreid, val, rec_val);
+            error = 1;
+        }
+        if (error) {
+            cm_print_replay_info();
+            pthread_exit(NULL);
+        }
     }
+}
+
+#define WRITE_LOG_FMT "%lx\n"
+void debug_write_access(void)
+{
+    if (cm_run_mode == CM_RUNMODE_NORMAL)
+        return;
     if (cm_is_in_tc)
         memacc_cnt++;
+    if (memacc_cnt != *memop) {
+        coremu_debug("write error memacc_cnt = %u", memacc_cnt);
+        cm_print_replay_info();
+        exit(1);
+    }
 }
 
 #define DATA_BITS 8

@@ -14,9 +14,8 @@ enum {
     ALLPC,
     TLBFLUSH,
     GENCODE,
-    // the last two logs are initialized in cm_debug_open_log
-    MEMREC,
-    MEMPLAY,
+    READ,
+    WRITE,
     N_CM_LOG,
 };
 

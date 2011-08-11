@@ -136,12 +136,14 @@ static inline memobj_t *cm_start_atomic_insn(const void *q_addr)
     return mo;
 }
 
-void debug_mem_access(const void *addr, char c, int is_tc);
+extern __thread ram_addr_t pa_access;
+
 static inline void cm_end_atomic_insn(memobj_t *mo)
 {
     if (cm_run_mode != CM_RUNMODE_NORMAL) {
-        /*debug_mem_access((void *)0xdeadbeef, 'a');*/
         (*memop)++;
+        pa_access = 0xdeadbeef;
+        debug_write_access();
     }
     if (cm_run_mode == CM_RUNMODE_RECORD)
         cm_write_unlock(mo);

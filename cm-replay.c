@@ -407,7 +407,7 @@ void cm_replay_assert_tlbflush(uint64_t exec_cnt, uint64_t eip, int coreid)
                       (long)recorded_eip,
                       cm_tb_exec_cnt[coreid],
                       recorded_exec_cnt);
-            pthread_exit(NULL);
+            /*pthread_exit(NULL);*/
         }
         break;
     case CM_RUNMODE_RECORD:
@@ -439,13 +439,15 @@ void cm_replay_assert_gencode(uint64_t eip)
             coremu_debug("diff in gencode");
             coremu_debug(
                       "cm_coreid = %u, eip = %0lx, recorded eip = %0lx, "
-                      "cm_tb_exec_cnt = %lu, recorded_exec_cnt = %lu",
+                      "cm_tb_exec_cnt = %lu, recorded_exec_cnt = %lu, "
+                      "memop_cnt = %u",
                       cm_coreid,
                       (long)eip,
                       (long)recorded_eip,
                       cm_tb_exec_cnt[cm_coreid],
-                      recorded_exec_cnt);
-            pthread_exit(NULL);
+                      recorded_exec_cnt,
+                      *memop_cnt);
+            /*pthread_exit(NULL);*/
         }
         break;
     case CM_RUNMODE_RECORD:

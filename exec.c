@@ -1041,6 +1041,8 @@ TranslationBlock *tb_gen_code(CPUState *env,
                               int flags, int cflags)
 {
 #ifdef CONFIG_REPLAY
+    assert(cm_is_in_tc == 0);
+    uint32_t cnt = *memop;
     cm_replay_assert_gencode(pc);
 #endif
     TranslationBlock *tb;
@@ -1074,6 +1076,9 @@ TranslationBlock *tb_gen_code(CPUState *env,
         phys_page2 = get_page_addr_code(env, virt_page2);
     }
     tb_link_page(tb, phys_pc, phys_page2);
+#ifdef CONFIG_REPLAY
+    coremu_assert(cnt == *memop, "cnt = %u, memop = %u", cnt, *memop)
+#endif
     return tb;
 }
 

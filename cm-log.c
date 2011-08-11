@@ -8,7 +8,7 @@
 
 static const char *cm_log_name[] = {
     "intr", "pc", "in", "rdtsc", "mmio", "dma", "crewinc", "allpc", "tlbflush",
-    "gencode"
+    "gencode", "read", "write"
 };
 
 log_t **cm_log;
@@ -31,7 +31,7 @@ static void open_log1(FILE **log, const char* logname, const char *mode, int cor
 static void cm_open_log(const char *mode, int coreid)
 {
     int i;
-    for (i = 0; i < N_CM_LOG - 2; i++)
+    for (i = 0; i < N_CM_LOG; i++)
         open_log1(&(cm_log[coreid][i]), cm_log_name[i], mode, coreid);
 }
 
@@ -48,12 +48,14 @@ extern int cm_run_mode;
 
 static void cm_debug_open_log(int coreid)
 {
-    if (cm_run_mode == 1)
-        open_log1(&(cm_log[coreid][MEMREC]), "memrec", "w", coreid);
-    else {
-        open_log1(&(cm_log[coreid][MEMPLAY]), "memplay", "w", coreid);
-        open_log1(&(cm_log[coreid][MEMREC]), "memrec", "r", coreid);
-    }
+    /*
+     *if (cm_run_mode == 1)
+     *    open_log1(&(cm_log[coreid][MEMREC]), "memrec", "w", coreid);
+     *else {
+     *    open_log1(&(cm_log[coreid][MEMPLAY]), "memplay", "w", coreid);
+     *    open_log1(&(cm_log[coreid][MEMREC]), "memrec", "r", coreid);
+     *}
+     */
 }
 
 extern int smp_cpus;
