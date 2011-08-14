@@ -4880,12 +4880,12 @@ static float approx_rcp(float a)
 /* XXX: fix it to restore all registers */
 void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
-/*
- *#ifdef CONFIG_REPLAY
- *    int saved_in_tc = cm_is_in_tc;
- *    cm_is_in_tc = 0;
- *#endif
- */
+#ifdef CONFIG_REPLAY
+    int saved_in_tc = cm_is_in_tc;
+    if (cm_is_in_tc)
+        cm_replay_assert_tlbfill();
+    /*cm_is_in_tc = 0;*/
+#endif
     TranslationBlock *tb;
     int ret;
     unsigned long pc;
@@ -4899,6 +4899,9 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
     ret = cpu_x86_handle_mmu_fault(env, addr, is_write, mmu_idx, 1);
     if (ret) {
         if (retaddr) {
+#ifdef CONFIG_REPLAY
+            assert(cm_is_in_tc);
+#endif
             /* now we have a real cpu fault */
             pc = (unsigned long)retaddr;
             tb = tb_find_pc(pc);
@@ -4907,15 +4910,17 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
                    a virtual CPU fault */
                 cpu_restore_state(tb, env, pc, NULL);
             }
+        } else {
+#ifdef CONFIG_REPLAY
+            assert(!cm_is_in_tc);
+#endif
         }
         raise_exception_err(env->exception_index, env->error_code);
     }
     env = saved_env;
-/*
- *#ifdef CONFIG_REPLAY
- *    cm_is_in_tc = saved_in_tc;
- *#endif
- */
+#ifdef CONFIG_REPLAY
+    cm_is_in_tc = saved_in_tc;
+#endif
 }
 #endif
 

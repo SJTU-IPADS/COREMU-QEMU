@@ -293,6 +293,8 @@ void cm_replay_assert_pc(uint64_t eip)
     uint64_t next_eip;
     uint32_t recorded_memop;
 
+    assert(cm_is_in_tc);
+
     /* Update cpu eip so we get correct eip in debug code. */
     cpu_single_env->eip = eip;
 
@@ -348,7 +350,6 @@ void cm_replay_assert_pc(uint64_t eip)
 }
 
 #define GEN_ASSERT(name, type, log_item, fmt) \
-void cm_replay_assert_##name(type); \
 void cm_replay_assert_##name(type cur) \
 { \
     type recorded; \
@@ -356,9 +357,9 @@ void cm_replay_assert_##name(type cur) \
     case CM_RUNMODE_REPLAY: \
         if (fscanf(cm_log[cm_coreid][log_item], fmt, &recorded) == EOF) { \
             printf("no more " #name " log\n"); \
-            exit(1); \
         } \
         if (cur != recorded) { \
+            coremu_debug("diff in "#name); \
             coremu_debug( \
                       #name" = %lx, recorded "#name" = %lx, " \
                       "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, " \
@@ -378,6 +379,8 @@ void cm_replay_assert_##name(type cur) \
         break; \
     } \
 }
+
+GEN_ASSERT(tbflush, uint64_t, TBFLUSH, "%ld\n");
 
 #define TLBFLUSH_LOG_FMT "%ld %lx\n"
 void cm_replay_assert_tlbflush(uint64_t exec_cnt, uint64_t eip, int coreid)
@@ -459,10 +462,48 @@ void cm_replay_assert_gencode(uint64_t eip)
     }
 }
 
+#define TLBFILL_LOG_FMT "%lu %u\n"
+void cm_replay_assert_tlbfill(void)
+{
+    uint64_t recorded_exec_cnt;
+    uint32_t recorded_memop;
+
+    switch (cm_run_mode) {
+    case CM_RUNMODE_REPLAY:
+        if (fscanf(cm_log[cm_coreid][TLBFILL], TLBFILL_LOG_FMT, &recorded_exec_cnt,
+                   &recorded_memop) == EOF) {
+            coremu_debug("no more tlbfill log, cm_coreid = %u, cm_tb_exec_cnt = %lu", cm_coreid,
+                   cm_tb_exec_cnt[cm_coreid]);
+            cm_print_replay_info();
+            pthread_exit(NULL);
+        }
+        if ((recorded_exec_cnt != cm_tb_exec_cnt[cm_coreid])
+                || (recorded_memop != *memop)) {
+            coremu_debug("diff in tlbfill");
+            coremu_debug(
+                      "cm_coreid = %u, "
+                      "cm_tb_exec_cnt = %lu, recorded_exec_cnt = %lu, "
+                      "memop = %u, recorded_memop = %u",
+                      cm_coreid,
+                      cm_tb_exec_cnt[cm_coreid],
+                      recorded_exec_cnt,
+                      *memop_cnt,
+                      recorded_memop);
+            /*pthread_exit(NULL);*/
+        }
+        break;
+    case CM_RUNMODE_RECORD:
+        fprintf(cm_log[cm_coreid][TLBFILL], TLBFILL_LOG_FMT,
+                cm_tb_exec_cnt[cm_coreid], *memop);
+        break;
+    }
+}
 void cm_print_replay_info(void)
 {
-    coremu_debug("core_id = %u, cm_tb_exec_cnt = %lu, memop = %u",
+    coremu_debug("core_id = %u, eip = %lx, cm_tb_exec_cnt = %lu, memop = %u",
                  cm_coreid,
+                 cpu_single_env->eip,
                  cm_tb_exec_cnt[cm_coreid],
                  *memop);
 }
+

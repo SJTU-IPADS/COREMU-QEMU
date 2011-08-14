@@ -75,9 +75,7 @@ static inline void glue(replay_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE va
 
 DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
-    if (!cm_is_in_tc) {
-        return *addr;
-    }
+    assert(cm_is_in_tc);
 
     DATA_TYPE val;
     if (cm_run_mode == CM_RUNMODE_RECORD)
@@ -92,18 +90,14 @@ DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
 
 void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
-    if (!cm_is_in_tc) {
-        *addr = val;
-        return;
-    }
-
+    assert(cm_is_in_tc);
     if (cm_run_mode == CM_RUNMODE_RECORD)
         glue(record_crew_write, SUFFIX)(addr, val);
     else if (cm_run_mode == CM_RUNMODE_REPLAY)
         glue(replay_crew_write, SUFFIX)(addr, val);
     else
         *addr = val;
-    debug_write_access();
+    debug_write_access(val);
 }
 
 #undef DATA_BITS

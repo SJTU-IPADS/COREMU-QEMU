@@ -16,6 +16,8 @@ enum {
     GENCODE,
     READ,
     WRITE,
+    TLBFILL,
+    TBFLUSH,
     N_CM_LOG,
 };
 

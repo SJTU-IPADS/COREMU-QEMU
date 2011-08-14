@@ -33,7 +33,7 @@ void cm_crew_writel(uint32_t *addr, uint32_t val);
 void cm_crew_writeq(uint64_t *addr, uint64_t val);
 
 void debug_read_access(uint64_t val);
-void debug_write_access(void);
+void debug_write_access(uint64_t val);
 
 void cm_assert_not_in_tc(void);
 

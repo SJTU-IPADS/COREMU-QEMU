@@ -55,6 +55,8 @@ void cm_debug_mmio(void *);
 void cm_replay_assert_pc(uint64_t);
 void cm_replay_assert_tlbflush(uint64_t exec_cnt, uint64_t eip, int coreid);
 void cm_replay_assert_gencode(uint64_t);
+void cm_replay_assert_tbflush(uint64_t);
+void cm_replay_assert_tlbfill(void);
 
 void cm_print_replay_info(void);
 

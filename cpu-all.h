@@ -209,19 +209,31 @@ typedef union {
  */
 static inline int ldub_p(const void *ptr)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        return (uint8_t)cm_crew_readb(ptr);
+    else
+#endif
     return *(uint8_t *)ptr;
 }
 
 static inline int ldsb_p(const void *ptr)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        return (int8_t)cm_crew_readb(ptr);
+    else
+#endif
     return *(int8_t *)ptr;
 }
 
 static inline void stb_p(void *ptr, int v)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        cm_crew_writeb(ptr, v);
+    else
+#endif
     *(uint8_t *)ptr = v;
 }
 
@@ -349,43 +361,71 @@ static inline void stfq_le_p(void *ptr, float64 v)
 
 static inline int lduw_le_p(const void *ptr)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        return (uint16_t)cm_crew_readw(ptr);
+    else
+#endif
     return *(uint16_t *)ptr;
 }
 
 static inline int ldsw_le_p(const void *ptr)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        return (int16_t)cm_crew_readw(ptr);
+    else
+#endif
     return *(int16_t *)ptr;
 }
 
 static inline int ldl_le_p(const void *ptr)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        return (uint32_t)cm_crew_readl(ptr);
+    else
+#endif
     return *(uint32_t *)ptr;
 }
 
 static inline uint64_t ldq_le_p(const void *ptr)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        return (uint64_t)cm_crew_readq(ptr);
+    else
+#endif
     return *(uint64_t *)ptr;
 }
 
 static inline void stw_le_p(void *ptr, int v)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        cm_crew_writew(ptr, v);
+    else
+#endif
     *(uint16_t *)ptr = v;
 }
 
 static inline void stl_le_p(void *ptr, int v)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        cm_crew_writel(ptr, v);
+    else
+#endif
     *(uint32_t *)ptr = v;
 }
 
 static inline void stq_le_p(void *ptr, uint64_t v)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        cm_crew_writeq(ptr, v);
+    else
+#endif
     *(uint64_t *)ptr = v;
 }
 
@@ -393,25 +433,41 @@ static inline void stq_le_p(void *ptr, uint64_t v)
 
 static inline float32 ldfl_le_p(const void *ptr)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        return (uint32_t)cm_crew_readl(ptr);
+    else
+#endif
     return *(float32 *)ptr;
 }
 
 static inline float64 ldfq_le_p(const void *ptr)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        return (uint64_t)cm_crew_readq(ptr);
+    else
+#endif
     return *(float64 *)ptr;
 }
 
 static inline void stfl_le_p(void *ptr, float32 v)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        cm_crew_writel(ptr, v);
+    else
+#endif
     *(float32 *)ptr = v;
 }
 
 static inline void stfq_le_p(void *ptr, float64 v)
 {
-    cm_assert_not_in_tc();
+#ifdef CONFIG_REPLAY
+    if (cm_is_in_tc)
+        cm_crew_writeq(ptr, v);
+    else
+#endif
     *(float64 *)ptr = v;
 }
 #endif
