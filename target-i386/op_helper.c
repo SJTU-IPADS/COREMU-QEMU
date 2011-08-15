@@ -4888,7 +4888,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
      */
     if (cm_is_in_tc)
         tlb_fill_cnt++;
-    /*cm_is_in_tc = 0;*/
+    cm_is_in_tc = 0;
 #endif
     TranslationBlock *tb;
     int ret;
@@ -4904,7 +4904,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
     if (ret) {
         if (retaddr) {
 #ifdef CONFIG_REPLAY
-            assert(cm_is_in_tc);
+            /*assert(cm_is_in_tc);*/
 #endif
             /* now we have a real cpu fault */
             pc = (unsigned long)retaddr;
