@@ -26,6 +26,8 @@ __thread int cm_is_in_tc;
 
 static __thread uint32_t *incop;
 
+__thread uint32_t tlb_fill_cnt;
+
 static const uint16_t SHARED_READ = 0xffff;
 static const uint16_t NONRIGHT = 0xfffe;
 
@@ -266,7 +268,7 @@ void cm_crew_core_init(void)
 
 __thread uint32_t memacc_cnt;
 
-#define READ_LOG_FMT "%lx %lx %lx\n"
+#define READ_LOG_FMT "%lx %lx %lx %u\n"
 void debug_read_access(uint64_t val)
 {
     if (cm_run_mode == CM_RUNMODE_NORMAL)
@@ -280,14 +282,15 @@ void debug_read_access(uint64_t val)
     }
     if (cm_run_mode == CM_RUNMODE_RECORD)
         fprintf(cm_log[cm_coreid][READ], READ_LOG_FMT,
-                cpu_single_env->eip, pa_access, val);
+                cpu_single_env->eip, pa_access, val, tlb_fill_cnt);
     /*else if (*memop > 1000000) {*/
     else {
         uint64_t rec_eip, rec_val;
         ram_addr_t rec_addr;
+        uint32_t cnt;
         int error = 0;
         fscanf(cm_log[cm_coreid][READ], READ_LOG_FMT,
-               &rec_eip, &rec_addr, &rec_val);
+               &rec_eip, &rec_addr, &rec_val, &cnt);
         if (rec_eip != cpu_single_env->eip) {
             coremu_debug("read ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
                          cm_coreid, cpu_single_env->eip, rec_eip);
@@ -303,6 +306,11 @@ void debug_read_access(uint64_t val)
                          cm_coreid, val, rec_val);
             error = 1;
         }
+        if (tlb_fill_cnt != cnt) {
+            coremu_debug("read ERROR in tlb fill cnt: coreid = %d, cnt = %u, recorded_cnt = %u",
+                         cm_coreid, tlb_fill_cnt, cnt);
+            error = 1;
+        }
         if (error) {
             cm_print_replay_info();
             /*pthread_exit(NULL);*/
@@ -310,7 +318,7 @@ void debug_read_access(uint64_t val)
     }
 }
 
-#define WRITE_LOG_FMT "%lx %lx %lx\n"
+#define WRITE_LOG_FMT "%lx %lx %lx %u\n"
 void debug_write_access(uint64_t val)
 {
     if (cm_run_mode == CM_RUNMODE_NORMAL)
@@ -324,14 +332,15 @@ void debug_write_access(uint64_t val)
     }
     if (cm_run_mode == CM_RUNMODE_RECORD)
         fprintf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
-                cpu_single_env->eip, pa_access, val);
+                cpu_single_env->eip, pa_access, val, tlb_fill_cnt);
     /*else if (*memop > 1000000) {*/
     else {
         uint64_t rec_eip, rec_val;
         ram_addr_t rec_addr;
+        uint32_t cnt;
         int error = 0;
         fscanf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
-               &rec_eip, &rec_addr, &rec_val);
+               &rec_eip, &rec_addr, &rec_val, &cnt);
         if (rec_eip != cpu_single_env->eip) {
             coremu_debug("write ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
                          cm_coreid, cpu_single_env->eip, rec_eip);
@@ -345,6 +354,11 @@ void debug_write_access(uint64_t val)
         if (val != rec_val) {
             coremu_debug("write ERROR in val: coreid = %d, val = %lx, recorded_val = %lx",
                          cm_coreid, val, rec_val);
+            error = 1;
+        }
+        if (tlb_fill_cnt != cnt) {
+            coremu_debug("read ERROR in tlb fill cnt: coreid = %d, cnt = %u, recorded_cnt = %u",
+                         cm_coreid, tlb_fill_cnt, cnt);
             error = 1;
         }
         if (error) {

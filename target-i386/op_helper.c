@@ -4882,8 +4882,12 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
 #ifdef CONFIG_REPLAY
     int saved_in_tc = cm_is_in_tc;
+    /*
+     *if (cm_is_in_tc)
+     *    cm_replay_assert_tlbfill();
+     */
     if (cm_is_in_tc)
-        cm_replay_assert_tlbfill();
+        tlb_fill_cnt++;
     /*cm_is_in_tc = 0;*/
 #endif
     TranslationBlock *tb;
