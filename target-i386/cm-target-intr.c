@@ -80,11 +80,9 @@ static void cm_apicbus_intr_handler(void *opaque)
     assert(cm_is_in_tc == 0);
     /* Ignore timer interrupt in Linux. Note local apic timer is 0xef.  */
     if (apicbus_intr->vector_num != 0x30)
-        cm_intr_handler_cnt++;
-    /*
-     *coremu_debug("cm_coreid = %u cm_intr_handler_cnt = %lu vector_num = 0x%x",
-     *             cm_coreid, cm_intr_handler_cnt, apicbus_intr->vector_num);
-     */
+        atomic_incq((uint64_t *)&cm_intr_handler_cnt);
+    coremu_debug("cm_coreid = %u cm_intr_handler_cnt = %lu vector_num = 0x%x",
+                 cm_coreid, cm_intr_handler_cnt, apicbus_intr->vector_num);
 #endif
 }
 

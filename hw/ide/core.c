@@ -38,7 +38,7 @@
 #include "coremu-atomic.h"
 #include "cm-replay.h"
 
-/*#define DEBUG_COREMU*/
+#define DEBUG_COREMU
 #include "coremu-debug.h"
 
 static const int smart_attributes[][5] = {
@@ -532,9 +532,13 @@ void ide_read_dma_cb(void *opaque, int ret)
         /* Record the time when DMA is done. */
         if (cm_run_mode == CM_RUNMODE_RECORD)
             cm_record_disk_dma();
-        else if (cm_run_mode == CM_RUNMODE_REPLAY)
-            /* For replay, the interrupt will be injected when necessary. */
+        else if (cm_run_mode == CM_RUNMODE_REPLAY) {
+            /* For replay, the interrupt will be injected when necessary.
+             * But we need to increase the interrupt handler cnt since none will
+             * be executed for DMA interrupt. Ugly, I know. */
+            atomic_incq((uint64_t *)&cm_intr_handler_cnt);
             return;
+        }
 #endif
         ide_set_irq(s->bus);
         return;

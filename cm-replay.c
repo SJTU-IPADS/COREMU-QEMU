@@ -44,7 +44,7 @@ __thread uint16_t cm_coreid;
 /* Array containing tb execution count for each cpu. */
 uint64_t *cm_tb_exec_cnt;
 /* How many times the interrupt handler is called. */
-__thread volatile uint64_t cm_intr_handler_cnt;
+volatile uint64_t cm_intr_handler_cnt;
 
 /* Inject interrupt when cm_tb_exec_cnt reaches this value */
 __thread uint64_t cm_inject_exec_cnt = -1;

@@ -13,7 +13,7 @@ enum {
 extern __thread uint64_t cm_inject_exec_cnt;
 extern __thread int cm_inject_intno;
 extern __thread long cm_inject_eip; // For debug
-extern __thread volatile uint64_t cm_intr_handler_cnt;
+extern volatile uint64_t cm_intr_handler_cnt;
 
 /* Mark the interrupt being generated from the log. */
 #define CM_REPLAY_INT 0x80000000
