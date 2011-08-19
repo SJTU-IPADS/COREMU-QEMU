@@ -82,11 +82,22 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
     addr = ptr;
     page_index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     mmu_idx = CPU_MMU_INDEX;
+#ifdef CONFIG_REPLAY
+    CPUTLBEntry *te = cm_is_in_tc ?
+        &(env->tlb_table[mmu_idx][page_index]) :
+        &(env->tlb_table2[mmu_idx][page_index]);
+    if (unlikely(te->ADDR_READ !=
+#else
     if (unlikely(env->tlb_table[mmu_idx][page_index].ADDR_READ !=
+#endif
                  (addr & (TARGET_PAGE_MASK | (DATA_SIZE - 1))))) {
         res = glue(glue(__ld, SUFFIX), MMUSUFFIX)(addr, mmu_idx);
     } else {
+#ifdef CONFIG_REPLAY
+        physaddr = addr + te->addend;
+#else
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
+#endif
         res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)physaddr);
     }
     return res;
@@ -103,11 +114,22 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
     addr = ptr;
     page_index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     mmu_idx = CPU_MMU_INDEX;
+#ifdef CONFIG_REPLAY
+    CPUTLBEntry *te = cm_is_in_tc ?
+        &(env->tlb_table[mmu_idx][page_index]) :
+        &(env->tlb_table2[mmu_idx][page_index]);
+    if (unlikely(te->ADDR_READ !=
+#else
     if (unlikely(env->tlb_table[mmu_idx][page_index].ADDR_READ !=
+#endif
                  (addr & (TARGET_PAGE_MASK | (DATA_SIZE - 1))))) {
         res = (DATA_STYPE)glue(glue(__ld, SUFFIX), MMUSUFFIX)(addr, mmu_idx);
     } else {
+#ifdef CONFIG_REPLAY
+        physaddr = addr + te->addend;
+#else
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
+#endif
         res = glue(glue(lds, SUFFIX), _raw)((uint8_t *)physaddr);
     }
     return res;
@@ -128,11 +150,22 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
     addr = ptr;
     page_index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     mmu_idx = CPU_MMU_INDEX;
+#ifdef CONFIG_REPLAY
+    CPUTLBEntry *te = cm_is_in_tc ?
+        &(env->tlb_table[mmu_idx][page_index]) :
+        &(env->tlb_table2[mmu_idx][page_index]);
+    if (unlikely(te->addr_write !=
+#else
     if (unlikely(env->tlb_table[mmu_idx][page_index].addr_write !=
+#endif
                  (addr & (TARGET_PAGE_MASK | (DATA_SIZE - 1))))) {
         glue(glue(__st, SUFFIX), MMUSUFFIX)(addr, v, mmu_idx);
     } else {
+#ifdef CONFIG_REPLAY
+        physaddr = addr + te->addend;
+#else
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
+#endif
         glue(glue(st, SUFFIX), _raw)((uint8_t *)physaddr, v);
     }
 }
