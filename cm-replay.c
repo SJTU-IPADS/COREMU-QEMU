@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <pthread.h>
+#include "exec-all.h"
 #include "cm-crew.h"
 #include "cm-intr.h"
 #include "cm-replay.h"
@@ -79,7 +80,15 @@ int cm_replay_intr(void)
 
     cm_wait_disk_dma();
 
+next_log:
     if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt) {
+        if (cm_inject_intno == CM_CPU_TLBFLUSH) {
+            /*coremu_debug("tlb_flushed called as interrupt");*/
+            tlb_flush(cpu_single_env, 1);
+            cm_read_intr_log();
+            goto next_log; /* Well, goto is really handy here. */
+        }
+
         /* Wait the interrupt handler to be called. */
         while (cm_intr_handler_cnt < cm_inject_intr_handler_cnt)
             cm_receive_intr();
@@ -382,17 +391,18 @@ void cm_replay_assert_##name(type cur) \
 
 GEN_ASSERT(tbflush, uint64_t, TBFLUSH, "%ld\n");
 
-#define TLBFLUSH_LOG_FMT "%ld %lx\n"
+#define TLBFLUSH_LOG_FMT "%ld %lx %u\n"
 void cm_replay_assert_tlbflush(uint64_t exec_cnt, uint64_t eip, int coreid)
 {
     uint64_t recorded_exec_cnt, recorded_eip;
+    uint32_t recorded_tlb_fill_cnt;
 
     /*coremu_debug("coreid %d calling tlb flush", cm_coreid);*/
 
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
         if (fscanf(cm_log[coreid][TLBFLUSH], TLBFLUSH_LOG_FMT, &recorded_exec_cnt,
-                   &recorded_eip) == EOF) {
+                   &recorded_eip, &recorded_tlb_fill_cnt) == EOF) {
             coremu_debug("no more tlbflush log, coreid = %u, cm_tb_exec_cnt = %lu", coreid,
                    exec_cnt);
             cm_print_replay_info();
@@ -402,6 +412,7 @@ void cm_replay_assert_tlbflush(uint64_t exec_cnt, uint64_t eip, int coreid)
          *if ((recorded_exec_cnt != cm_tb_exec_cnt[coreid])
          *        || (recorded_eip != eip)) {
          */
+        int error = 0;
         if (recorded_exec_cnt != cm_tb_exec_cnt[coreid]) {
             coremu_debug("diff in tlbflush");
             coremu_debug(
@@ -412,12 +423,21 @@ void cm_replay_assert_tlbflush(uint64_t exec_cnt, uint64_t eip, int coreid)
                       (long)recorded_eip,
                       cm_tb_exec_cnt[coreid],
                       recorded_exec_cnt);
-            pthread_exit(NULL);
+            error = 1;
         }
+        if (recorded_tlb_fill_cnt != tlb_fill_cnt) {
+            coremu_debug(
+                      "coreid = %u, eip = %0lx, cm_tb_exec_cnt = %lu, "
+                      "tlb_fill_cnt = %u, recorded_tlb_fill_cnt = %u",
+                      coreid, (long)eip, cm_tb_exec_cnt[coreid],
+                      tlb_fill_cnt, recorded_tlb_fill_cnt);
+        }
+        if (error)
+            pthread_exit(NULL);
         break;
     case CM_RUNMODE_RECORD:
         fprintf(cm_log[coreid][TLBFLUSH], TLBFLUSH_LOG_FMT,
-                cm_tb_exec_cnt[coreid], eip);
+                cm_tb_exec_cnt[coreid], eip, tlb_fill_cnt);
         break;
     }
 }

@@ -70,8 +70,10 @@
 #include "coremu-malloc.h"
 #include "coremu-atomic.h"
 #include "coremu-hw.h"
+#include "coremu-init.h"
 #include "cm-tbinval.h"
 #include "cm-replay.h"
+#include "cm-target-intr.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
@@ -2882,16 +2884,19 @@ void cpu_register_physical_memory_offset(target_phys_addr_t start_addr,
        reset the modified entries */
     /* XXX: slow ! */
     for(env = first_cpu; env != NULL; env = env->next_cpu) {
-#if defined(CONFIG_COREMU) && defined(COREMU_FLUSH_TLB)
+#if defined(CONFIG_COREMU) && defined(CONFIG_REPLAY)
         /* If there is no hot plug device this function won't be invoked
-           after pci bus initialized, so we don't enable broadcast flush
-           tlb in common case. */
-        if(coremu_init_done_p())
+         * after pci bus initialized, so we don't enable broadcast flush
+         * tlb in common case.
+         * For replay, tlb flush should also be deterministic. We should only
+         * invoke tlb_flush() for a vCPU at the "right" time. Treating tlb flush as
+         * interrupt and let vCPU call tlb_flush() by themselves should solve
+         * this problem. */
+        if (coremu_init_done_p())
             cm_send_tlb_flush_req(env->cpuid_apic_id);
         else
             tlb_flush(env, 1);
 #else
-        /* TODO Should wait other processors until they can do a tlb flush. */
         tlb_flush(env, 1);
 #endif
     }

@@ -257,19 +257,22 @@ static void cpu_handle_debug_exception(CPUState *env)
 /* main execution loop */
 
 #ifdef CONFIG_REPLAY
-static void cm_handle_cpu_start(int intno)
+static void cm_do_cpu_init(void)
 {
-    if (intno == CM_CPU_INIT) {
-        cm_replay_all_exec_cnt();
-        /* XXX Here we need to wait until the BSP sets the jump insn. */
-        svm_check_intercept(SVM_EXIT_INIT);
-        do_cpu_init(env);
-        env->exception_index = EXCP_HALTED;
-        cpu_loop_exit();
-    } else if (intno == CM_CPU_SIPI) {
-        cm_replay_all_exec_cnt();
-        do_cpu_sipi(env);
-    }
+    /* XXX Here we need to wait until the BSP sets the jump insn.
+     * WTF? I am not clear about the reason for waiting other vCPU here
+     * now... */
+    cm_replay_all_exec_cnt();
+    svm_check_intercept(SVM_EXIT_INIT);
+    do_cpu_init(env);
+    env->exception_index = EXCP_HALTED;
+    cpu_loop_exit();
+}
+
+static void cm_do_cpu_sipi(void)
+{
+    cm_replay_all_exec_cnt();
+    do_cpu_sipi(env);
 }
 #endif
 
@@ -447,7 +450,7 @@ int cpu_exec(CPUState *env1)
 #if defined(TARGET_I386)
                     if (interrupt_request & CPU_INTERRUPT_INIT) {
 #ifdef CONFIG_REPLAY
-                        /* do_cpu_init will be called by cm_handle_cpu_start
+                        /* do_cpu_init() will be called by cm_do_cpu_init()
                          * during replay. */
                         if (cm_run_mode != CM_RUNMODE_REPLAY) {
                             svm_check_intercept(SVM_EXIT_INIT);
@@ -463,7 +466,7 @@ int cpu_exec(CPUState *env1)
 #endif
                     } else if (interrupt_request & CPU_INTERRUPT_SIPI) {
 #ifdef CONFIG_REPLAY
-                        /* do_cpu_sipi will be called by cm_handle_cpu_start
+                        /* do_cpu_sipi() will be called by cm_do_cpu_sipi()
                          * during replay. */
                         if (cm_run_mode != CM_RUNMODE_REPLAY)
                             do_cpu_sipi(env);
@@ -651,17 +654,23 @@ int cpu_exec(CPUState *env1)
                 unsigned long inject_eip = cm_inject_eip;
                 if (cm_run_mode == CM_RUNMODE_REPLAY &&
                         (inject_intno = cm_replay_intr()) != -1) {
-                    if ((inject_intno == CM_CPU_INIT) || (inject_intno == CM_CPU_SIPI)) {
-                        cm_handle_cpu_start(inject_intno);
-                    } else {
+                    switch (inject_intno) {
+                    case CM_CPU_INIT:
+                        cm_do_cpu_init();
+                        break;
+                    case CM_CPU_SIPI:
+                        cm_do_cpu_sipi();
+                        break;
+                    default:
                         coremu_assert(env->eip == inject_eip,
                                       "abort: cm_coreid = %u, eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
                                       cm_coreid, (void *)(long)env->eip,
                                       (void *)cm_inject_eip, cm_tb_exec_cnt[cm_coreid]);
                         do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
+                        break;
                     }
                     /* XXX ensure that no TB jump will be modified as
-                       the program flow was changed */
+                     * the program flow was changed. */
                     next_tb = 0;
                 }
 #endif

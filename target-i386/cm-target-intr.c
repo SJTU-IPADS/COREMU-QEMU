@@ -78,6 +78,8 @@ static void cm_apicbus_intr_handler(void *opaque)
     }
 #ifdef CONFIG_REPLAY
     assert(!cm_is_in_tc);
+    /* To replay corey, uncomment the following. Not clear why now. */
+    /*cm_intr_handler_cnt++;*/
     /*
      *coremu_debug("cm_coreid = %u cm_intr_handler_cnt = %lu vector_num = 0x%x",
      *             cm_coreid, cm_intr_handler_cnt, apicbus_intr->vector_num);
@@ -115,6 +117,16 @@ static void cm_ipi_intr_handler(void *opaque)
 /* Handler the tlb flush request */
 static void cm_tlb_flush_req_handler(void *opaque)
 {
+#ifdef CONFIG_REPLAY
+    assert(!cm_is_in_tc);
+    assert(cm_run_mode != CM_RUNMODE_REPLAY);
+    if (cm_run_mode == CM_RUNMODE_RECORD) {
+        /* Record tlb flush as an interrupt. This is handled somewhat like the
+         * INIT and SIPI ipi. Refer to do_cpu_sipi() */
+        cm_record_intr(CM_CPU_TLBFLUSH, cpu_single_env->eip);
+    }
+    /*coremu_debug("called");*/
+#endif
     tlb_flush(cpu_single_env, 1);
 }
 
@@ -190,7 +202,11 @@ void cm_send_ipi_intr(int target, int vector_num, int deliver_mode)
 
 void cm_send_tlb_flush_req(int target)
 {
-    assert(0);
+#ifdef CONFIG_REPLAY
+    /* We've recorded when to do TLB flush. */
+    if (cm_run_mode == CM_RUNMODE_REPLAY)
+        return;
+#endif
     coremu_send_intr(cm_tlb_flush_req_init(), target);
 }
 
