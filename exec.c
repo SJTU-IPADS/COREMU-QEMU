@@ -1044,8 +1044,7 @@ TranslationBlock *tb_gen_code(CPUState *env,
                               int flags, int cflags)
 {
 #ifdef CONFIG_REPLAY
-    assert(cm_is_in_tc == 0);
-    uint32_t cnt = *memop;
+    assert(!cm_is_in_tc);
     /*cm_replay_assert_gencode(pc);*/
 #endif
     TranslationBlock *tb;
@@ -1079,9 +1078,6 @@ TranslationBlock *tb_gen_code(CPUState *env,
         phys_page2 = get_page_addr_code(env, virt_page2);
     }
     tb_link_page(tb, phys_pc, phys_page2);
-#ifdef CONFIG_REPLAY
-    coremu_assert(cnt == *memop, "cnt = %u, memop = %u", cnt, *memop)
-#endif
     return tb;
 }
 
@@ -2886,15 +2882,16 @@ void cpu_register_physical_memory_offset(target_phys_addr_t start_addr,
        reset the modified entries */
     /* XXX: slow ! */
     for(env = first_cpu; env != NULL; env = env->next_cpu) {
-    /* If there is no hot plug device this function won't be invoked
-       after pci bus initialized, so we don't enable broadcast flush
-       tlb in common case. */
 #if defined(CONFIG_COREMU) && defined(COREMU_FLUSH_TLB)
+        /* If there is no hot plug device this function won't be invoked
+           after pci bus initialized, so we don't enable broadcast flush
+           tlb in common case. */
         if(coremu_init_done_p())
             cm_send_tlb_flush_req(env->cpuid_apic_id);
         else
             tlb_flush(env, 1);
 #else
+        /* TODO Should wait other processors until they can do a tlb flush. */
         tlb_flush(env, 1);
 #endif
     }
@@ -3971,7 +3968,13 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
                 addr1 = (pd & TARGET_PAGE_MASK) + (addr & ~TARGET_PAGE_MASK);
                 /* RAM case */
                 ptr = qemu_get_ram_ptr(addr1);
+#ifdef CONFIG_REPLAY
+                /* TODO Log memory order here. This may be invoked from DMA,
+                 * stq_phys and the like. */
                 memcpy(ptr, buf, l);
+#else
+                memcpy(ptr, buf, l);
+#endif
                 if (!cpu_physical_memory_is_dirty(addr1)) {
                     /* invalidate code */
 #ifdef CONFIG_COREMU

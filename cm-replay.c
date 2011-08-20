@@ -462,16 +462,16 @@ void cm_replay_assert_gencode(uint64_t eip)
     }
 }
 
-#define TLBFILL_LOG_FMT "%lu %u\n"
-void cm_replay_assert_tlbfill(void)
+#define TLBFILL_LOG_FMT "%lu %lu %u\n"
+void cm_replay_assert_tlbfill(uint64_t addr)
 {
-    uint64_t recorded_exec_cnt;
+    uint64_t recorded_exec_cnt, recorded_addr;
     uint32_t recorded_memop;
 
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
         if (fscanf(cm_log[cm_coreid][TLBFILL], TLBFILL_LOG_FMT, &recorded_exec_cnt,
-                   &recorded_memop) == EOF) {
+                   &recorded_addr, &recorded_memop) == EOF) {
             coremu_debug("no more tlbfill log, cm_coreid = %u, cm_tb_exec_cnt = %lu", cm_coreid,
                    cm_tb_exec_cnt[cm_coreid]);
             cm_print_replay_info();
@@ -494,7 +494,7 @@ void cm_replay_assert_tlbfill(void)
         break;
     case CM_RUNMODE_RECORD:
         fprintf(cm_log[cm_coreid][TLBFILL], TLBFILL_LOG_FMT,
-                cm_tb_exec_cnt[cm_coreid], *memop);
+                cm_tb_exec_cnt[cm_coreid], addr, *memop);
         break;
     }
 }

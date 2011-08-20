@@ -1239,7 +1239,7 @@ void do_interrupt(int intno, int is_int, int error_code,
              */
         } else if (!is_int && IS_HARDINT(intno)) {
             /* Do not inject hardware interrupt if not read from log. */
-            coremu_debug("core %u ignore hardware intr %x not from log", cm_coreid, intno);
+            /*coremu_debug("core %u ignore hardware intr %x not from log", cm_coreid, intno);*/
             return;
         }
         break;
@@ -4886,8 +4886,10 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
      *if (cm_is_in_tc)
      *    cm_replay_assert_tlbfill();
      */
-    if (cm_is_in_tc)
+    if (cm_is_in_tc) {
+        cm_replay_assert_tlbfill(addr);
         tlb_fill_cnt++;
+    }
     /*cm_is_in_tc = 0;*/
 #endif
     TranslationBlock *tb;
