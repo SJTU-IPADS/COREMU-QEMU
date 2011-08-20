@@ -77,12 +77,11 @@ static void cm_apicbus_intr_handler(void *opaque)
         cpu_interrupt(self, apicbus_intr->mask);
     }
 #ifdef CONFIG_REPLAY
-    assert(cm_is_in_tc == 0);
-    /* Ignore timer interrupt in Linux. Note local apic timer is 0xef.  */
-    if (apicbus_intr->vector_num != 0x30)
-        atomic_incq((uint64_t *)&cm_intr_handler_cnt);
-    coremu_debug("cm_coreid = %u cm_intr_handler_cnt = %lu vector_num = 0x%x",
-                 cm_coreid, cm_intr_handler_cnt, apicbus_intr->vector_num);
+    assert(!cm_is_in_tc);
+    /*
+     *coremu_debug("cm_coreid = %u cm_intr_handler_cnt = %lu vector_num = 0x%x",
+     *             cm_coreid, cm_intr_handler_cnt, apicbus_intr->vector_num);
+     */
 #endif
 }
 
@@ -95,11 +94,17 @@ static void cm_ipi_intr_handler(void *opaque)
 
     if (ipi_intr->deliver_mode) {
         /* SIPI */
-        /*coremu_debug("core %u handling START IPI", cm_coreid);*/
+        /*
+         *coremu_debug("core %u handling START IPI, vector_num = %d, intr_handler_cnt = %lu",
+         *             cm_coreid, ipi_intr->vector_num, cm_intr_handler_cnt);
+         */
         cm_apic_startup(self->apic_state, ipi_intr->vector_num);
     } else {
         /* the INIT level de-assert */
-        /*coremu_debug("core %u handling INIT IPI", cm_coreid);*/
+        /*
+         *coremu_debug("core %u handling INIT IPI, vector_num = %d, intr_handler_cnt = %lu",
+         *             cm_coreid, ipi_intr->vector_num, cm_intr_handler_cnt);
+         */
         cm_apic_setup_arbid(self->apic_state);
     }
 #ifdef CONFIG_REPLAY

@@ -533,10 +533,7 @@ void ide_read_dma_cb(void *opaque, int ret)
         if (cm_run_mode == CM_RUNMODE_RECORD)
             cm_record_disk_dma();
         else if (cm_run_mode == CM_RUNMODE_REPLAY) {
-            /* For replay, the interrupt will be injected when necessary.
-             * But we need to increase the interrupt handler cnt since none will
-             * be executed for DMA interrupt. Ugly, I know. */
-            atomic_incq((uint64_t *)&cm_intr_handler_cnt);
+            /* For replay, the interrupt will be injected when necessary. */
             return;
         }
 #endif

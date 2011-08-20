@@ -262,6 +262,7 @@ static void cm_handle_cpu_start(int intno)
     if (intno == CM_CPU_INIT) {
         cm_replay_all_exec_cnt();
         /* XXX Here we need to wait until the BSP sets the jump insn. */
+        svm_check_intercept(SVM_EXIT_INIT);
         do_cpu_init(env);
         env->exception_index = EXCP_HALTED;
         cpu_loop_exit();
@@ -445,12 +446,30 @@ int cpu_exec(CPUState *env1)
 #endif
 #if defined(TARGET_I386)
                     if (interrupt_request & CPU_INTERRUPT_INIT) {
+#ifdef CONFIG_REPLAY
+                        /* do_cpu_init will be called by cm_handle_cpu_start
+                         * during replay. */
+                        if (cm_run_mode != CM_RUNMODE_REPLAY) {
                             svm_check_intercept(SVM_EXIT_INIT);
                             do_cpu_init(env);
                             env->exception_index = EXCP_HALTED;
                             cpu_loop_exit();
+                        }
+#else
+                            svm_check_intercept(SVM_EXIT_INIT);
+                            do_cpu_init(env);
+                            env->exception_index = EXCP_HALTED;
+                            cpu_loop_exit();
+#endif
                     } else if (interrupt_request & CPU_INTERRUPT_SIPI) {
+#ifdef CONFIG_REPLAY
+                        /* do_cpu_sipi will be called by cm_handle_cpu_start
+                         * during replay. */
+                        if (cm_run_mode != CM_RUNMODE_REPLAY)
                             do_cpu_sipi(env);
+#else
+                            do_cpu_sipi(env);
+#endif
                     } else if (env->hflags2 & HF2_GIF_MASK) {
                         if ((interrupt_request & CPU_INTERRUPT_SMI) &&
                             !(env->hflags & HF_SMM_MASK)) {
