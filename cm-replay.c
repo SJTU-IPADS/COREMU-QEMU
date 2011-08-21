@@ -57,8 +57,18 @@ __thread uint64_t cm_inject_intr_handler_cnt;
 
 #define LOG_INTR_FMT "%x %lu %lu %p\n"
 
+/* XXX hope disk DMA intterrupt number could be somewhat fixed. */
+#define IS_DMA_INT(intno) \
+    ((intno == 0x3e))
+
 void cm_record_intr(int intno, long eip)
 {
+    /* For DMA, we should wait until it finishes.
+     * Linux uses 0xfd as DMA interrupt. */
+    /*coremu_debug("recording dma interrupt");*/
+    if (IS_DMA_INT(intno)) {
+        cm_record_disk_dma();
+    }
     fprintf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, intno,
             cm_tb_exec_cnt[cm_coreid], cm_intr_handler_cnt, (void *)(long)eip);
 }
@@ -78,9 +88,8 @@ int cm_replay_intr(void)
 {
     int intno;
 
-    cm_wait_disk_dma();
-
 next_log:
+    /* We should only wait when it needs to inject an interrupt. */
     if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt) {
         if (cm_inject_intno == CM_CPU_TLBFLUSH) {
             /*coremu_debug("tlb_flushed called as interrupt");*/
@@ -92,6 +101,9 @@ next_log:
         /* Wait the interrupt handler to be called. */
         while (cm_intr_handler_cnt < cm_inject_intr_handler_cnt)
             cm_receive_intr();
+
+        if (IS_DMA_INT(cm_inject_intno))
+            cm_wait_disk_dma();
 
         /*
          *coremu_debug("coreid %hu injecting interrupt %d at cm_tb_exec_cnt = %lu with "
@@ -172,41 +184,53 @@ __thread uint64_t cm_dma_done_exec_cnt;
 #define DMA_LOG_FMT "%lu\n"
 void cm_record_disk_dma(void)
 {
-    int i;
     /* For each CPU, record when the DMA is done.
-     * XXX can we improve this since only one CPU will record this, and other
+     * XXX can we improve this by letting only one CPU record this, and other
      * CPU accessing the DMA memory can be recorded through memory ordering. */
-    for (i = 0; i < smp_cpus; i++)
-        fprintf(cm_log[i][DISK_DMA], DMA_LOG_FMT, cm_tb_exec_cnt[i]);
+    /*
+     *int i;
+     *for (i = 0; i < smp_cpus; i++)
+     *    fprintf(cm_log[i][DISK_DMA], DMA_LOG_FMT, cm_tb_exec_cnt[i]);
+     */
+     fprintf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, cm_dma_cnt);
 }
 
 static inline void cm_read_dma_log(void)
 {
-    if (fscanf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, &cm_dma_done_exec_cnt) == EOF) {
-        /* Set dma done cnt to max possible value so will not wait any more. */
-        cm_dma_done_exec_cnt = (uint64_t)-1;
-    }
+    /*
+     *if (fscanf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, &cm_dma_done_exec_cnt) == EOF) {
+     *    [> Set dma done cnt to max possible value so will not wait any more. <]
+     *    cm_dma_done_exec_cnt = (uint64_t)-1;
+     *}
+     */
+     fscanf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, &cm_next_dma_cnt);
 }
 
 static void cm_wait_disk_dma(void)
 {
     /* We only need to wait for DMA operation to complete if current executed tb
      * is more then when DMA is done during recording. */
-    if (cm_tb_exec_cnt[cm_coreid] < cm_dma_done_exec_cnt)
-        return;
+    /*
+     *if (cm_tb_exec_cnt[cm_coreid] < cm_dma_done_exec_cnt)
+     *    return;
+     */
 
     /*
      *coremu_debug("CPU %d waiting DMA cnt to be %lu, cm_tb_exec_cnt = %lu "
      *             "cm_dma_done_exec_cnt = %lu", cm_coreid,
      *             cm_next_dma_cnt, cm_tb_exec_cnt[cm_coreid], cm_dma_done_exec_cnt);
      */
+    cm_read_dma_log();
+    /*
+     *coremu_debug("core %u get next_dma_cnt %lu at eip %p",
+     *             cm_coreid, cm_dma_cnt, (void *)cpu_single_env->eip);
+     */
     while (cm_dma_cnt < cm_next_dma_cnt) {
         /* Waiting for DMA operation to complete. */
         pthread_yield();
     }
     /*coremu_debug("DMA done, cm_tb_exec_cnt = %lu", cm_tb_exec_cnt[cm_coreid]);*/
-    cm_read_dma_log();
-    cm_next_dma_cnt = cm_dma_cnt + 1;
+    /*cm_next_dma_cnt = cm_dma_cnt + 1;*/
 }
 
 /* init */
@@ -229,7 +253,6 @@ void cm_replay_core_init(void)
 
     if (cm_run_mode == CM_RUNMODE_REPLAY) {
         cm_read_intr_log();
-        cm_read_dma_log();
     }
 
     cm_crew_core_init();

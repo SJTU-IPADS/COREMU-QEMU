@@ -78,7 +78,8 @@ static void cm_apicbus_intr_handler(void *opaque)
     }
 #ifdef CONFIG_REPLAY
     assert(!cm_is_in_tc);
-    /* To replay corey, uncomment the following. Not clear why now. */
+    /* XXX To replay corey, uncomment the following. For Linux, comment it. Not
+     * clear why now. */
     /*cm_intr_handler_cnt++;*/
     /*
      *coremu_debug("cm_coreid = %u cm_intr_handler_cnt = %lu vector_num = 0x%x",

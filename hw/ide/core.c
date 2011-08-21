@@ -527,12 +527,17 @@ void ide_read_dma_cb(void *opaque, int ret)
         ide_set_inactive(s);
 #ifdef CONFIG_REPLAY
         atomic_incq((uint64_t *)&cm_dma_cnt);
-        coremu_debug("dma done, cnt = %lu, cm_tb_exec_cnt = %lu",
-                     cm_dma_cnt, cm_tb_exec_cnt[0]);
+        /*
+         *coremu_debug("core %u dma done, cnt = %lu, cm_tb_exec_cnt[0] = %lu, cm_tb_exec_cnt[1] = %lu",
+         *             cm_coreid, cm_dma_cnt, cm_tb_exec_cnt[0], cm_tb_exec_cnt[1]);
+         */
         /* Record the time when DMA is done. */
-        if (cm_run_mode == CM_RUNMODE_RECORD)
-            cm_record_disk_dma();
-        else if (cm_run_mode == CM_RUNMODE_REPLAY) {
+        /*
+         *if (cm_run_mode == CM_RUNMODE_RECORD)
+         *    cm_record_disk_dma();
+         *else
+         */
+        if (cm_run_mode == CM_RUNMODE_REPLAY) {
             /* For replay, the interrupt will be injected when necessary. */
             return;
         }
@@ -568,7 +573,10 @@ static void ide_sector_read_dma(IDEState *s)
     s->io_buffer_index = 0;
     s->io_buffer_size = 0;
     s->is_read = 1;
-    coremu_debug("dma start, cm_tb_exec_cnt = %lu", cm_tb_exec_cnt[0]);
+    /*
+     *coremu_debug("core %u dma start, cm_tb_exec_cnt[0] = %lu, cm_tb_exec_cnt[1] = %lu",
+     *             cm_coreid, cm_tb_exec_cnt[0], cm_tb_exec_cnt[1]);
+     */
     s->bus->dma->ops->start_dma(s->bus->dma, s, ide_read_dma_cb);
 }
 
@@ -654,12 +662,17 @@ void ide_write_dma_cb(void *opaque, int ret)
         ide_set_inactive(s);
 #ifdef CONFIG_REPLAY
         atomic_incq((uint64_t *)&cm_dma_cnt);
-        coremu_debug("dma done, cnt = %lu, cm_tb_exec_cnt = %lu",
-                     cm_dma_cnt, cm_tb_exec_cnt[0]);
+        /*
+         *coremu_debug("core %u dma done, cnt = %lu, cm_tb_exec_cnt[0] = %lu, cm_tb_exec_cnt[1] = %lu",
+         *             cm_coreid, cm_dma_cnt, cm_tb_exec_cnt[0], cm_tb_exec_cnt[1]);
+         */
         /* Record the time when DMA is done. */
-        if (cm_run_mode == CM_RUNMODE_RECORD)
-            cm_record_disk_dma();
-        else if (cm_run_mode == CM_RUNMODE_REPLAY)
+        /*
+         *if (cm_run_mode == CM_RUNMODE_RECORD)
+         *    cm_record_disk_dma();
+         *else
+         */
+        if (cm_run_mode == CM_RUNMODE_REPLAY)
             return;
 #endif
         ide_set_irq(s->bus);
@@ -692,6 +705,10 @@ static void ide_sector_write_dma(IDEState *s)
     s->io_buffer_index = 0;
     s->io_buffer_size = 0;
     s->is_read = 0;
+    /*
+     *coremu_debug("core %u dma start, cm_tb_exec_cnt[0] = %lu, cm_tb_exec_cnt[1] = %lu",
+     *             cm_coreid, cm_tb_exec_cnt[0], cm_tb_exec_cnt[1]);
+     */
     s->bus->dma->ops->start_dma(s->bus->dma, s, ide_write_dma_cb);
 }
 
