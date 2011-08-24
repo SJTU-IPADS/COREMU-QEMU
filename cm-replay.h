@@ -42,6 +42,8 @@ void cm_replay_flush_log(void);
 
 void cm_replay_assert_pc(uint64_t);
 
+void cm_record_buffer_init(void);
+void* cm_record_thread(void* arg);
 #undef GEN_HEADER
 
 #endif /* _CM_REPLAY_H */
