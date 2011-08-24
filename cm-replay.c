@@ -32,6 +32,8 @@
 #include "coremu-debug.h"
 
 #define MAXLOGLEN 256
+#define MAXBUFFERLEN 256
+#define MAXQUEUELEN 256
 
 extern int smp_cpus;
 
@@ -43,6 +45,9 @@ __thread int cm_coreid;
 
 /* Array containing tb execution count for each cpu. */
 uint64_t *cm_tb_exec_cnt;
+
+/*rdtsc buffer*/
+uint64_t *cm_record_rdtsc_buffer;
 
 /* Inject interrupt when cm_tb_exec_cnt reaches this value */
 __thread uint64_t cm_inject_exec_cnt = -1;
@@ -94,6 +99,8 @@ void cm_replay_flush_log(void) {
     for (i = 0; i < N_CM_LOG; i++)
         fflush(cm_log[cm_coreid][i]);
 }
+
+/* buffer */
 
 /* interrupt */
 
@@ -175,8 +182,15 @@ void cm_debug_mmio(void *f) {
 
 /* rdtsc */
 #define RDTSC_LOG_FMT "%lu\n"
-GEN_FUNC(rdtsc, uint64_t, cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT);
-
+//GEN_FUNC(rdtsc, uint64_t, cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT);
+void cm_record_rdtsc(uint64_t arg){
+    
+}
+void cm_replay_rdtsc(uint64_t* arg){
+    if (fscanf(cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT, arg) == EOF) 
+        return 0; 
+    return 1; 
+}
 /* dma */
 
 /* Count how many disk DMA operations are done. */
