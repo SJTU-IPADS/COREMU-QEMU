@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <pthread.h>
+#include <unistd.h>
 #include "coremu-core.h"
 #include "cm-replay.h"
 
@@ -52,12 +53,6 @@ int cm_record_rdtsc_buffer_pt;
 /* Pipe fd */
 int cm_record_pipe_fd[2];
 
-/* Pipe tramsmission structure */
-struct PipeUnit{  
-    uint64_t *cm_record_buffer;    
-    int      cm_coreid;
-    int      cm_record_type;
-};
 /* Inject interrupt when cm_tb_exec_cnt reaches this value */
 __thread uint64_t cm_inject_exec_cnt = -1;
 static __thread int cm_inject_intno;
@@ -110,7 +105,7 @@ void cm_replay_flush_log(void) {
 }
 
 /* buffer init*/
-void cm_record_buffer_init(){
+void cm_record_buffer_init(void){
     cm_record_rdtsc_buffer_pt=0;
     cm_record_rdtsc_buffer=(uint64_t*)calloc(MAXBUFFERLEN,sizeof(uint64_t));
 
@@ -192,7 +187,6 @@ GEN_FUNC(mmio, uint32_t, cm_log[cm_coreid][MMIO], MMIO_LOG_FMT);
 void cm_debug_mmio(void *f) {
     fprintf(cm_log[cm_coreid][MMIO], "%p\n", f);
 }
-
 /* rdtsc */
 #define RDTSC_LOG_FMT "%lu\n"
 //GEN_FUNC(rdtsc, uint64_t, cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT);
@@ -202,16 +196,16 @@ void cm_record_rdtsc(uint64_t arg){
     cm_record_rdtsc_buffer_pt++;
     if (cm_record_rdtsc_buffer_pt==MAXBUFFERLEN){
         /* Need to be modified. */
-        struct PipeUnit *pipe_unit=malloc(sizeof(PipeUnit));
+        CMPipeUnit *pipe_unit=malloc(sizeof(struct PipeUnit));
         pipe_unit->cm_record_buffer=cm_record_rdtsc_buffer;
         pipe_unit->cm_coreid=cm_coreid;
         pipe_unit->cm_record_type=RDTSC;
-        write(cm_record_pipe_fd[1],pipe_unit,sizeof(pipe_unit));
+        write(cm_record_pipe_fd[1],&pipe_unit,sizeof(pipe_unit));
         cm_record_rdtsc_buffer_pt=0;
         cm_record_rdtsc_buffer=(uint64_t*)calloc(MAXBUFFERLEN,sizeof(uint64_t));
     }
 }
-void cm_replay_rdtsc(uint64_t* arg){
+int cm_replay_rdtsc(uint64_t* arg){
     if (fscanf(cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT, arg) == EOF) 
         return 0; 
     return 1; 
@@ -263,13 +257,17 @@ static void cm_wait_disk_dma(void) {
 
 /* Record thread */
 void* cm_record_thread(void *arg){    
-    struct PipeUnit *pipe_unit;
-    while (read(cm_record_pipe_fd[0],pipe_unit,sizeof(pipe_unit))>0){
+    CMPipeUnit *pipe_unit;
+    int res;
+    while ((res=read(cm_record_pipe_fd[0],&pipe_unit,sizeof(pipe_unit)))>0){
         int i;
         for (i=0;i < MAXBUFFERLEN;i++){
             fprintf(cm_log[pipe_unit->cm_coreid][pipe_unit->cm_record_type], RDTSC_LOG_FMT, pipe_unit->cm_record_buffer[i]);
         }
+        free(pipe_unit->cm_record_buffer);
+        free(pipe_unit);
     }
+    return NULL;
 }
 /* init */
 static int cm_replay_inited = 0;
