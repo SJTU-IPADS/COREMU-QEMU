@@ -25,9 +25,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <pthread.h>
+#include <memory.h>
 #include <unistd.h>
 #include "coremu-core.h"
 #include "cm-replay.h"
+#include "cm-buf.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
@@ -46,9 +48,10 @@ __thread int cm_coreid;
 /* Array containing tb execution count for each cpu. */
 uint64_t *cm_tb_exec_cnt;
 
-/* Rdtsc buffer */
-uint64_t *cm_record_rdtsc_buffer;
-int cm_record_rdtsc_buffer_pt;
+
+/* Record buffer */
+typedef CMLogBuf *buf_type;
+buf_type **cm_record_buffer;
 
 /* Pipe fd */
 int cm_record_pipe_fd[2];
@@ -106,12 +109,15 @@ void cm_replay_flush_log(void) {
 
 /* buffer init*/
 void cm_record_buffer_init(void){
-    cm_record_rdtsc_buffer_pt=0;
-    cm_record_rdtsc_buffer=(uint64_t*)calloc(MAXBUFFERLEN,sizeof(uint64_t));
-
+    cm_record_buffer = calloc(smp_cpus, sizeof(CMLogBuf **));
+    assert(cm_record_buffer);
+    int i;
+    for (i = 0; i < smp_cpus; i++) {
+        cm_record_buffer[i] = calloc(N_CM_LOG, sizeof(CMLogBuf*));
+        assert(cm_record_buffer[i]);
+    }
+   
 }
-/* interrupt */
-
 #define LOG_INTR_FMT "%x %lu %p\n"
 
 void cm_record_intr(int intno, long eip) {
@@ -183,7 +189,6 @@ GEN_FUNC(in, uint32_t, cm_log[cm_coreid][IN], IN_LOG_FMT);
 /* mmio */
 #define MMIO_LOG_FMT "%u\n"
 GEN_FUNC(mmio, uint32_t, cm_log[cm_coreid][MMIO], MMIO_LOG_FMT);
-
 void cm_debug_mmio(void *f) {
     fprintf(cm_log[cm_coreid][MMIO], "%p\n", f);
 }
@@ -192,17 +197,23 @@ void cm_debug_mmio(void *f) {
 //GEN_FUNC(rdtsc, uint64_t, cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT);
 void cm_record_rdtsc(uint64_t arg){ 
    // fprintf(cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT, arg);
-    cm_record_rdtsc_buffer[cm_record_rdtsc_buffer_pt]=arg;
-    cm_record_rdtsc_buffer_pt++;
-    if (cm_record_rdtsc_buffer_pt==MAXBUFFERLEN){
-        /* Need to be modified. */
-        CMPipeUnit *pipe_unit=malloc(sizeof(struct PipeUnit));
-        pipe_unit->cm_record_buffer=cm_record_rdtsc_buffer;
-        pipe_unit->cm_coreid=cm_coreid;
-        pipe_unit->cm_record_type=RDTSC;
-        write(cm_record_pipe_fd[1],&pipe_unit,sizeof(pipe_unit));
-        cm_record_rdtsc_buffer_pt=0;
-        cm_record_rdtsc_buffer=(uint64_t*)calloc(MAXBUFFERLEN,sizeof(uint64_t));
+    if (cm_record_buffer[cm_coreid][RDTSC]==NULL){
+        CMLogBuf *buf=malloc(sizeof(CMLogBuf));
+        malloc_new_buffer(buf, MAXBUFFERLEN*sizeof(uint64_t));
+        cm_record_buffer[cm_coreid][RDTSC]=buf;
+    }
+    if (!buffer_is_full(cm_record_buffer[cm_coreid][RDTSC])){
+        uint64_t *entry=(uint64_t *)get_buffer_entry(cm_record_buffer[cm_coreid][RDTSC],sizeof(uint64_t));                
+        *entry=arg;
+    }else{
+        CMPipeUnit *pipeunit=malloc(sizeof(struct PipeUnit));
+        pipeunit->cm_record_buffer=cm_record_buffer[cm_coreid][RDTSC]->buffer_head;
+        pipeunit->cm_coreid=cm_coreid;
+        pipeunit->cm_record_type=RDTSC;
+        write(cm_record_pipe_fd[1],&pipeunit,sizeof(pipeunit));
+        malloc_new_buffer(cm_record_buffer[cm_coreid][RDTSC], MAXBUFFERLEN*sizeof(uint64_t));
+        uint64_t *entry=(uint64_t *)get_buffer_entry(cm_record_buffer[cm_coreid][RDTSC],sizeof(uint64_t));                
+        *entry=arg;
     }
 }
 int cm_replay_rdtsc(uint64_t* arg){
@@ -255,17 +266,17 @@ static void cm_wait_disk_dma(void) {
     cm_next_dma_cnt = cm_dma_cnt + 1;
 }
 
-/* Record thread */
+/* Pipe writing thread */
 void* cm_record_thread(void *arg){    
     CMPipeUnit *pipe_unit;
     int res;
     while ((res=read(cm_record_pipe_fd[0],&pipe_unit,sizeof(pipe_unit)))>0){
         int i;
         for (i=0;i < MAXBUFFERLEN;i++){
-            fprintf(cm_log[pipe_unit->cm_coreid][pipe_unit->cm_record_type], RDTSC_LOG_FMT, pipe_unit->cm_record_buffer[i]);
+            fprintf(cm_log[pipe_unit->cm_coreid][pipe_unit->cm_record_type], RDTSC_LOG_FMT, ((uint64_t*)(pipe_unit->cm_record_buffer))[i]);
         }
-        free(pipe_unit->cm_record_buffer);
-        free(pipe_unit);
+       free(pipe_unit->cm_record_buffer);
+       free(pipe_unit);
     }
     return NULL;
 }
