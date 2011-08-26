@@ -107,13 +107,13 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
     /* test if there is match for unaligned or IO access */
     /* XXX: could done more in memory macro in a non portable way */
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
     CPUTLBEntry *te = cm_is_in_tc ?
         &(env->tlb_table[mmu_idx][index]) :
         &(env->tlb_table2[mmu_idx][index]);
 #endif
  redo:
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
     tlb_addr = te->ADDR_READ;
 #else
     tlb_addr = env->tlb_table[mmu_idx][index].ADDR_READ;
@@ -124,7 +124,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
             retaddr = GETPC();
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
             ioaddr = cm_is_in_tc ?
                 env->iotlb[mmu_idx][index] :
                 env->iotlb2[mmu_idx][index];
@@ -149,7 +149,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                 do_unaligned_access(addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
             }
 #endif
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
             addend = te->addend;
 #else
             addend = env->tlb_table[mmu_idx][index].addend;
@@ -181,13 +181,13 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
     target_ulong tlb_addr, addr1, addr2;
 
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
     CPUTLBEntry *te = cm_is_in_tc ?
         &(env->tlb_table[mmu_idx][index]) :
         &(env->tlb_table2[mmu_idx][index]);
 #endif
  redo:
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
     tlb_addr = te->ADDR_READ;
 #else
     tlb_addr = env->tlb_table[mmu_idx][index].ADDR_READ;
@@ -197,7 +197,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* IO access */
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
             ioaddr = cm_is_in_tc ?
                 env->iotlb[mmu_idx][index] :
                 env->iotlb2[mmu_idx][index];
@@ -223,7 +223,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             res = (DATA_TYPE)res;
         } else {
             /* unaligned/aligned access in the same page */
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
             addend = te->addend;
 #else
             addend = env->tlb_table[mmu_idx][index].addend;
@@ -291,13 +291,13 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
     int index;
 
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
     CPUTLBEntry *te = cm_is_in_tc ?
         &(env->tlb_table[mmu_idx][index]) :
         &(env->tlb_table2[mmu_idx][index]);
 #endif
  redo:
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
     tlb_addr = te->addr_write;
 #else
     tlb_addr = env->tlb_table[mmu_idx][index].addr_write;
@@ -308,7 +308,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
             retaddr = GETPC();
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
             ioaddr = cm_is_in_tc ?
                 env->iotlb[mmu_idx][index] :
                 env->iotlb2[mmu_idx][index];
@@ -332,7 +332,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
                 do_unaligned_access(addr, 1, mmu_idx, retaddr);
             }
 #endif
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
             addend = te->addend;
 #else
             addend = env->tlb_table[mmu_idx][index].addend;
@@ -363,13 +363,13 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
     int index, i;
 
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
     CPUTLBEntry *te = cm_is_in_tc ?
         &(env->tlb_table[mmu_idx][index]) :
         &(env->tlb_table2[mmu_idx][index]);
 #endif
  redo:
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
     tlb_addr = te->addr_write;
 #else
     tlb_addr = env->tlb_table[mmu_idx][index].addr_write;
@@ -379,7 +379,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* IO access */
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
             ioaddr = cm_is_in_tc ?
                 env->iotlb[mmu_idx][index] :
                 env->iotlb2[mmu_idx][index];
@@ -403,7 +403,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
         } else {
             /* aligned/unaligned access in the same page */
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
             addend = te->addend;
 #else
             addend = env->tlb_table[mmu_idx][index].addend;

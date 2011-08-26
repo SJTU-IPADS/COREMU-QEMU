@@ -104,7 +104,7 @@ typedef struct CPUTLBEntry {
 
 extern int CPUTLBEntry_wrong_size[sizeof(CPUTLBEntry) == (1 << CPU_TLB_ENTRY_BITS) ? 1 : -1];
 
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
 #  define CPU_COMMON_TLB \
      /* The meaning of the MMU modes is defined in the target code. */   \
      CPUTLBEntry tlb_table[NB_MMU_MODES][CPU_TLB_SIZE];                  \
