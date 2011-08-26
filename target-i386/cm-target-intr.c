@@ -118,7 +118,7 @@ static void cm_ipi_intr_handler(void *opaque)
 /* Handler the tlb flush request */
 static void cm_tlb_flush_req_handler(void *opaque)
 {
-#ifdef CONFIG_REPLAY
+#ifdef TLBFLUSH_AS_INTERRUPT
     assert(!cm_is_in_tc);
     assert(cm_run_mode != CM_RUNMODE_REPLAY);
     if (cm_run_mode == CM_RUNMODE_RECORD) {
@@ -126,7 +126,6 @@ static void cm_tlb_flush_req_handler(void *opaque)
          * INIT and SIPI ipi. Refer to do_cpu_sipi() */
         cm_record_intr(CM_CPU_TLBFLUSH, cpu_single_env->eip);
     }
-    /*coremu_debug("called");*/
 #endif
     tlb_flush(cpu_single_env, 1);
 }

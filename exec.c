@@ -2884,7 +2884,7 @@ void cpu_register_physical_memory_offset(target_phys_addr_t start_addr,
        reset the modified entries */
     /* XXX: slow ! */
     for(env = first_cpu; env != NULL; env = env->next_cpu) {
-#if defined(CONFIG_COREMU) && defined(SEP_TLB)
+#if defined(CONFIG_COREMU) && defined(TLBFLUSH_AS_INTERRUPT)
         /* If there is no hot plug device this function won't be invoked
          * after pci bus initialized, so we don't enable broadcast flush
          * tlb in common case.
