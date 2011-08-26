@@ -319,7 +319,7 @@ static inline tb_page_addr_t get_page_addr_code(CPUState *env1, target_ulong add
 /* NOTE: this function can trigger an exception */
 /* NOTE2: the returned address is not exactly the physical address: it
    is the offset relative to phys_ram_base */
-#ifdef CONFIG_REPLAY
+#ifdef SEP_TLB
 static inline tb_page_addr_t get_page_addr_code(CPUState *env1, target_ulong addr)
 {
     int mmu_idx, page_index, pd;
