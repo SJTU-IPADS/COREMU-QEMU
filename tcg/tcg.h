@@ -325,11 +325,6 @@ struct TCGContext {
     int64_t restore_count;
     int64_t restore_time;
 #endif
-
-#if defined(CONFIG_REPLAY) && defined(DEBUG_REPLAY)
-    /* Records the size of code to check if pc differs during replay. */
-    int cm_assert_pc_size;
-#endif
 };
 
 extern COREMU_THREAD TCGContext tcg_ctx;

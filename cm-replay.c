@@ -330,7 +330,9 @@ void cm_replay_assert_pc(uint64_t eip)
 
     assert(cm_is_in_tc);
 
-    /* Update cpu eip so we get correct eip in debug code. */
+    /* Update cpu eip so we get correct eip in debug code. This is necessary to
+     * make the asserting code work correctly when there's page fault inside an
+     * execution of a TB chain. */
     cpu_single_env->eip = eip;
 
     /*
