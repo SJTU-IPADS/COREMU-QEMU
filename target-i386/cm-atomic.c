@@ -143,7 +143,9 @@ static inline void cm_end_atomic_insn(memobj_t *mo)
     if (cm_run_mode != CM_RUNMODE_NORMAL) {
         (*memop)++;
         pa_access = 0xdeadbeef;
+#ifdef DEBUG_MEM_ACCESS
         debug_write_access(pa_access);
+#endif
     }
     if (cm_run_mode == CM_RUNMODE_RECORD)
         cm_write_unlock(mo);

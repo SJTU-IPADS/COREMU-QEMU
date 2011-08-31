@@ -84,7 +84,9 @@ DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
         val = glue(replay_crew_read, SUFFIX)(addr);
     else
         val = *addr;
+#ifdef DEBUG_MEM_ACCESS
     debug_read_access(val);
+#endif
     return val;
 }
 
@@ -97,7 +99,9 @@ void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
         glue(replay_crew_write, SUFFIX)(addr, val);
     else
         *addr = val;
+#ifdef DEBUG_MEM_ACCESS
     debug_write_access(val);
+#endif
 }
 
 #undef DATA_BITS
