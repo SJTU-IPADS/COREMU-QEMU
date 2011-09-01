@@ -4881,17 +4881,17 @@ static float approx_rcp(float a)
 void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
 #ifdef CONFIG_REPLAY
-    int saved_in_tc = cm_is_in_tc;
-    /*
-     *if (cm_is_in_tc)
-     *    cm_replay_assert_tlbfill();
-     */
     if (cm_is_in_tc) {
-        cm_replay_assert_tlbfill(addr);
         tlb_fill_cnt++;
-    }
-    /*cm_is_in_tc = 0;*/
+#ifdef ASSERT_REPLAY_TLBFILL
+        cm_replay_assert_tlbfill(addr);
 #endif
+    }
+#ifdef IGNORE_MEMACC_IN_TLBFILL
+    int saved_in_tc = cm_is_in_tc;
+    cm_is_in_tc = 0;
+#endif
+#endif /* CONFIG_REPLAY */
     TranslationBlock *tb;
     int ret;
     unsigned long pc;
@@ -4905,8 +4905,8 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
     ret = cpu_x86_handle_mmu_fault(env, addr, is_write, mmu_idx, 1);
     if (ret) {
         if (retaddr) {
-#ifdef CONFIG_REPLAY
-            assert(cm_is_in_tc);
+#ifdef DEBUG_REPLAY
+            assert(saved_in_tc);
 #endif
             /* now we have a real cpu fault */
             pc = (unsigned long)retaddr;
@@ -4924,7 +4924,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
         raise_exception_err(env->exception_index, env->error_code);
     }
     env = saved_env;
-#ifdef CONFIG_REPLAY
+#ifdef IGNORE_MEMACC_IN_TLBFILL
     cm_is_in_tc = saved_in_tc;
 #endif
 }

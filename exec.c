@@ -746,7 +746,7 @@ static void page_flush_tb(void)
 /* XXX: tb_flush is currently not thread safe */
 void tb_flush(CPUState *env1)
 {
-#ifdef CONFIG_REPLAY
+#ifdef ASSERT_REPLAY_TBFLUSH
     cm_replay_assert_tbflush(cm_tb_exec_cnt[cm_coreid]);
 #endif
 #ifndef CONFIG_COREMU
