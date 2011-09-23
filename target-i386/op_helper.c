@@ -4905,9 +4905,6 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
     ret = cpu_x86_handle_mmu_fault(env, addr, is_write, mmu_idx, 1);
     if (ret) {
         if (retaddr) {
-#ifdef DEBUG_REPLAY
-            assert(saved_in_tc);
-#endif
             /* now we have a real cpu fault */
             pc = (unsigned long)retaddr;
             tb = tb_find_pc(pc);
@@ -4916,10 +4913,6 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
                    a virtual CPU fault */
                 cpu_restore_state(tb, env, pc, NULL);
             }
-        } else {
-#ifdef CONFIG_REPLAY
-            assert(!cm_is_in_tc);
-#endif
         }
         raise_exception_err(env->exception_index, env->error_code);
     }

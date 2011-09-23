@@ -1047,7 +1047,7 @@ TranslationBlock *tb_gen_code(CPUState *env,
 {
 #ifdef CONFIG_REPLAY
     assert(!cm_is_in_tc);
-    /*cm_replay_assert_gencode(pc);*/
+    cm_replay_assert_gencode(pc);
 #endif
     TranslationBlock *tb;
     uint8_t *tc_ptr;
@@ -2144,7 +2144,7 @@ void tlb_flush(CPUState *env, int flush_global)
     env->tlb_flush_addr = -1;
     env->tlb_flush_mask = 0;
     tlb_flush_count++;
-#ifdef CONFIG_REPLAY
+#ifdef ASSERT_REPLAY_TLBFLUSH
     cm_replay_assert_tlbflush(cm_tb_exec_cnt[i], env->eip, env->cpuid_apic_id);
 #endif
 }
@@ -3974,8 +3974,11 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
                 /* RAM case */
                 ptr = qemu_get_ram_ptr(addr1);
 #ifdef CONFIG_REPLAY
-                /* TODO Log memory order here. This may be invoked from DMA,
-                 * stq_phys and the like. */
+                if (cm_is_in_tc) {
+                    /* We will never get here, so don't need to record memory
+                     * access ordder. */
+                    coremu_debug("IF SEE THIS, NEED TO RECORD ORDER HERE");
+                }
                 memcpy(ptr, buf, l);
 #else
                 memcpy(ptr, buf, l);

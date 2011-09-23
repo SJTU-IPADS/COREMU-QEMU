@@ -737,15 +737,23 @@ int cpu_exec(CPUState *env1)
                     cm_receive_intr();
 #ifdef CONFIG_REPLAY
                     cm_is_in_tc = 1;
-                    if (memop_cnt[cm_coreid] != prev_memcnt) {
+#  ifdef CHECK_MEMOP_CNT
+                    if (*memop != prev_memcnt) {
                         coremu_debug("prev_memcnt: %u memop_cnt[%u] = %u",
-                                     prev_memcnt, cm_coreid, memop_cnt[cm_coreid]);
+                                     prev_memcnt, cm_coreid, *memop);
                         exit(1);
                     }
+#  endif
                     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
                     cm_is_in_tc = 0;
+#  ifdef CHECK_MEMOP_CNT
                     prev_memcnt = memop_cnt[cm_coreid];
-#else
+#  endif
+#  ifdef RANDOM_TLBFLUSH
+                    if ((rand() % 10 == 0))
+                        tlb_flush(env, 0);
+#  endif
+#else /* CONFIG_REPLAY */
                     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
 #endif
                     cm_receive_intr();

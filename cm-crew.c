@@ -268,7 +268,7 @@ void cm_crew_core_init(void)
 
 __thread uint32_t memacc_cnt;
 
-#define READ_LOG_FMT "%lx %lx %lx %u\n"
+#define READ_LOG_FMT "%lx %lx %lx %u %u\n"
 void debug_read_access(uint64_t val)
 {
     if (cm_run_mode == CM_RUNMODE_NORMAL)
@@ -282,15 +282,15 @@ void debug_read_access(uint64_t val)
     }
     if (cm_run_mode == CM_RUNMODE_RECORD)
         fprintf(cm_log[cm_coreid][READ], READ_LOG_FMT,
-                cpu_single_env->eip, pa_access, val, tlb_fill_cnt);
+                cpu_single_env->eip, pa_access, val, tlb_fill_cnt, *memop);
     /*else if (*memop > 1000000) {*/
     else {
         uint64_t rec_eip, rec_val;
         ram_addr_t rec_addr;
-        uint32_t cnt;
+        uint32_t tlb_cnt, rec_memop;
         int error = 0;
         fscanf(cm_log[cm_coreid][READ], READ_LOG_FMT,
-               &rec_eip, &rec_addr, &rec_val, &cnt);
+               &rec_eip, &rec_addr, &rec_val, &tlb_cnt, &rec_memop);
         if (rec_eip != cpu_single_env->eip) {
             coremu_debug("read ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
                          cm_coreid, cpu_single_env->eip, rec_eip);
@@ -306,11 +306,13 @@ void debug_read_access(uint64_t val)
                          cm_coreid, val, rec_val);
             error = 1;
         }
-        if (tlb_fill_cnt != cnt) {
-            coremu_debug("read ERROR in tlb fill cnt: coreid = %d, cnt = %u, recorded_cnt = %u",
-                         cm_coreid, tlb_fill_cnt, cnt);
-            error = 1;
-        }
+        /*
+         *if (tlb_fill_cnt != tlb_cnt) {
+         *    coremu_debug("read ERROR in tlb fill cnt: coreid = %d, tlb_cnt = %u, recorded_cnt = %u",
+         *                 cm_coreid, tlb_fill_cnt, tlb_cnt);
+         *    error = 1;
+         *}
+         */
         if (error) {
             cm_print_replay_info();
             pthread_exit(NULL);
@@ -356,11 +358,13 @@ void debug_write_access(uint64_t val)
                          cm_coreid, val, rec_val);
             error = 1;
         }
-        if (tlb_fill_cnt != cnt) {
-            coremu_debug("read ERROR in tlb fill cnt: coreid = %d, cnt = %u, recorded_cnt = %u",
-                         cm_coreid, tlb_fill_cnt, cnt);
-            error = 1;
-        }
+        /*
+         *if (tlb_fill_cnt != cnt) {
+         *    coremu_debug("read ERROR in tlb fill cnt: coreid = %d, cnt = %u, recorded_cnt = %u",
+         *                 cm_coreid, tlb_fill_cnt, cnt);
+         *    error = 1;
+         *}
+         */
         if (error) {
             cm_print_replay_info();
             pthread_exit(NULL);
