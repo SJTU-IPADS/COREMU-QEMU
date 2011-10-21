@@ -28,19 +28,29 @@ static __thread uint32_t *incop;
 
 __thread uint32_t tlb_fill_cnt;
 
-static const uint16_t SHARED_READ = 0xffff;
-static const uint16_t NONRIGHT = 0xfffe;
+typedef uint16_t owner_t;
+
+/* This is set to the number of CPUs. */
+static owner_t SHARED_READ;
 
 struct memobj_t {
     tbb_rwlock_t lock;
-    volatile uint16_t owner;
+    volatile owner_t owner;
+
+    volatile owner_t prev_read_owner; /* Records the owner value of previous read. */
+    /* Keeps track last writer's info. */
+    volatile owner_t last_writer;
+    volatile uint32_t last_writer_memop;
 };
 
 /* Now we track memory as 4K shared object, each object will have a memobj_t
  * tracking its ownership */
 #define MEMOBJ_SIZE 4096
-static memobj_t *memobj;
 static int n_memobj;
+static memobj_t *memobj;
+/* cache_info emulates the cache directory. last_read_owner keeps track of the cache's
+ * owner field for the last read memory access. */
+__thread owner_t *last_read_owner;
 
 /* Initialize to be cm_log[cm_coreid][CREW_INC] */
 static __thread FILE *crew_inc_log;
@@ -75,11 +85,10 @@ static inline int memobj_id(const void *addr)
 
 #define CREW_LOG_FMT "%u %u %u %lu\n"
 
-static inline void write_inc_log(uint16_t logcpu_no, uint32_t memop,
-                                 uint32_t waitcpuno, uint32_t waitmemop)
+static inline void write_inc_log(uint32_t waitcpuno, uint32_t waitmemop)
 {
-    fprintf(cm_log[logcpu_no][CREW_INC], CREW_LOG_FMT, memop, waitcpuno,
-            waitmemop, cm_tb_exec_cnt[logcpu_no]);
+    fprintf(cm_log[cm_coreid][CREW_INC], CREW_LOG_FMT, memop_cnt[cm_coreid] + 1,
+            waitcpuno, waitmemop, cm_tb_exec_cnt[cm_coreid]);
 }
 
 static __thread uint64_t recorded_tb_exec_cnt;
@@ -101,57 +110,50 @@ static inline int read_inc_log(void)
 }
 
 /* TODO We'd better use a buffer */
-static inline void record_read_crew_fault(uint16_t owner, int objid) {
+static inline void record_read_crew_fault(owner_t owner, uint32_t wait_memop) {
     /* The owner's privilege is decreased. */
 
     /* increase log: memop, objid, R/W, cpuno, memop
      * The above is the original log format. objid and R/W are removed. But
      * these information may be needed if we want to apply analysis on the log. */
     /*coremu_debug("record read fault");*/
-    int i;
-    uint32_t owner_memop = memop_cnt[owner];
-    for (i = 0; i < smp_cpus; i++) {
-        if (i != owner) {
-            /* XXX Other reader threads may be running, and we need to record
-             * the immediate instruction after the owner's write instruction. */
-            write_inc_log(i, memop_cnt[i] + 1, owner, owner_memop);
-        }
-    }
+    write_inc_log(owner, wait_memop);
 }
 
-static inline void record_write_crew_fault(uint16_t owner, int objid) {
+static inline void record_write_crew_fault(owner_t owner, int objid) {
     /*coremu_debug("record write fault");*/
-    if (owner == SHARED_READ) {
+    if (owner < SHARED_READ) {
+        write_inc_log(owner, memop_cnt[owner]);
+    } else {
         int i;
         for (i = 0; i < smp_cpus; i++) {
             if (i != cm_coreid) {
-                write_inc_log(cm_coreid, *memop + 1, i, memop_cnt[i]);
+                write_inc_log(i, memop_cnt[i]);
             }
         }
-    } else {
-        write_inc_log(cm_coreid, *memop + 1, owner, memop_cnt[owner]);
     }
 }
 
 memobj_t *cm_read_lock(const void *addr)
 {
-    uint16_t owner;
     int objid = memobj_id(addr);
     memobj_t *mo = &memobj[objid];
 
     tbb_start_read(&mo->lock);
-    owner = mo->owner;
-    if ((owner != SHARED_READ) && (owner != cm_coreid)) {
-        // We need to increase privilege for all cpu except the owner.
-        // We use cmpxchg to avoid other readers make duplicate record.
-        if (owner != NONRIGHT && atomic_compare_exchangew((uint16_t *)&mo->owner, owner,
-                    NONRIGHT) == owner) {
-            record_read_crew_fault(owner, objid);
-            mo->owner = SHARED_READ;
-        } else {
-            // XXX Pause if other threads are taking log.
-            while (mo->owner != SHARED_READ);
+    owner_t owner = mo->owner;
+    if ((owner != cm_coreid) && last_read_owner[objid] != owner) {
+        /* If the cache line is in shared read state, but since last_read_owner is
+         * different with cache_info's owner, it means there're write op before
+         * last read. So we need to wait last writer. */
+        if (owner < SHARED_READ) {
+            owner_t read_owner = mo->prev_read_owner + 1;
+            if (read_owner == 0)
+                read_owner = SHARED_READ;
+            mo->owner = read_owner;
         }
+
+        last_read_owner[objid] = mo->owner;
+        record_read_crew_fault(mo->last_writer, mo->last_writer_memop);
     }
     return mo;
 }
@@ -184,8 +186,11 @@ memobj_t *cm_write_lock(const void* addr)
     if (mo->owner != cm_coreid) {
         /* We increase own privilege here. */
         record_write_crew_fault(mo->owner, objid);
-        mo->owner = (uint16_t)cm_coreid;
+        if (mo->owner >= SHARED_READ)
+            mo->prev_read_owner = mo->owner;
+        mo->last_writer = mo->owner = cm_coreid;
     }
+    mo->last_writer_memop = *memop + 1;
     return mo;
 }
 
@@ -226,6 +231,8 @@ void cm_apply_replay_log(void)
 
 void cm_crew_init(void)
 {
+    SHARED_READ = smp_cpus;
+
     memop_cnt = calloc(smp_cpus, sizeof(*memop_cnt));
     if (!memop_cnt) {
         printf("Can't allocate memop count\n");
@@ -242,10 +249,15 @@ void cm_crew_init(void)
         printf("Can't allocate mem info\n");
         exit(1);
     }
+
     /* Initialize all memobj_t to shared read */
     int i;
-    for (i = 0; i < n_memobj; i++)
+    for (i = 0; i < n_memobj; i++) {
         memobj[i].owner = SHARED_READ;
+        memobj[i].prev_read_owner = SHARED_READ;
+        memobj[i].last_writer = SHARED_READ;
+        memobj[i].last_writer_memop = 0;
+    }
 }
 
 void cm_crew_core_init(void)
@@ -257,6 +269,12 @@ void cm_crew_core_init(void)
     if (!incop) {
         printf("Can't allocate incop count\n");
         exit(1);
+    }
+
+    int i;
+    last_read_owner = calloc(n_memobj, sizeof(*last_read_owner));
+    for (i = 0; i < n_memobj; i++) {
+        last_read_owner[i] = SHARED_READ;
     }
 
     if (cm_run_mode == CM_RUNMODE_REPLAY)
