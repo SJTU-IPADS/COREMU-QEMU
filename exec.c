@@ -1047,7 +1047,9 @@ TranslationBlock *tb_gen_code(CPUState *env,
 {
 #ifdef CONFIG_REPLAY
     assert(!cm_is_in_tc);
+#ifdef ASSERT_REPLAY_GENCODE
     cm_replay_assert_gencode(pc);
+#endif
 #endif
     TranslationBlock *tb;
     uint8_t *tc_ptr;
