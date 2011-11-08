@@ -8,8 +8,13 @@ enum {
 };
 
 #define NINTR 10 // For debug
-extern __thread long cm_inject_eip; // For debug
-extern __thread uint64_t cm_inject_exec_cnt;
+
+typedef struct {
+    int intno;
+    uint64_t exec_cnt;
+    uint64_t eip;
+} IntrLog;
+extern __thread IntrLog cm_inject_intr;
 
 /* Mark the interrupt being generated from the log. */
 #define CM_REPLAY_INT 0x80000000

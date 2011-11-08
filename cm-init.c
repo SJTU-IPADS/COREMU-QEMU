@@ -34,6 +34,7 @@
 #include "coremu-config.h"
 #include "coremu-sched.h"
 #include "coremu-init.h"
+#include "coremu-logbuffer.h"
 #include "cm-timer.h"
 #include "cm-init.h"
 #include "cm-replay.h"
@@ -106,6 +107,7 @@ void cm_cpu_exec_init(void)
 
 #ifdef CONFIG_REPLAY
     cm_replay_init();
+    coremu_logbuffer_init();
 #endif
 }
 

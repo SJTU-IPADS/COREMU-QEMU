@@ -253,7 +253,7 @@ int cpu_exec(CPUState *env1)
         /* It's possible the CPU ignores an interrupt and cpu_halted returns
          * true. But actually we need to inject the inject now.  */
         if (!(cm_run_mode == CM_RUNMODE_REPLAY &&
-            cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt))
+            cm_tb_exec_cnt[cm_coreid] == cm_inject_intr.exec_cnt))
             return EXCP_HALTED;
     }
 #else
@@ -588,11 +588,12 @@ int cpu_exec(CPUState *env1)
                 }
 #ifdef CONFIG_REPLAY
                 int inject_intno;
-                unsigned long inject_eip = cm_inject_eip;
+                unsigned long inject_eip = cm_inject_intr.eip;
                 if (cm_run_mode == CM_RUNMODE_REPLAY && (inject_intno = cm_replay_intr()) != -1) {
                     coremu_assert(env->eip == inject_eip,
                                   "abort: eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
-                                  (void *)(long)env->eip, (void *)cm_inject_eip, cm_tb_exec_cnt[cm_coreid]);
+                                  (void *)(long)env->eip, (void *)cm_inject_intr.eip,
+                                  cm_tb_exec_cnt[cm_coreid]);
                     do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
                     /* XXX ensure that no TB jump will be modified as
                        the program flow was changed */

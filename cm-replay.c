@@ -27,11 +27,16 @@
 #include <pthread.h>
 #include <memory.h>
 #include <unistd.h>
+
+#include "coremu-config.h"
 #include "coremu-core.h"
+
 #include "cm-replay.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
+
+#include "coremu-logbuffer.h"
 
 #define MAXLOGLEN 256
 #define MAXBUFFERLEN 256
@@ -46,11 +51,6 @@ __thread int cm_coreid;
 
 /* Array containing tb execution count for each cpu. */
 uint64_t *cm_tb_exec_cnt;
-
-/* Inject interrupt when cm_tb_exec_cnt reaches this value */
-__thread uint64_t cm_inject_exec_cnt = -1;
-static __thread int cm_inject_intno;
-__thread long cm_inject_eip;
 
 enum {
     INTR,
@@ -69,47 +69,79 @@ static const char *cm_log_name[] = {
     "intr", "pc", "in", "rdtsc", "mmio", "dma", "iretsp", "intrsp", "ireteip"
 };
 
+static CMLogBuf ***cm_log_buf;
+
 /* Array containing logs for each cpu. */
 typedef FILE *log_t;
 static log_t **cm_log;
 
 #define LOGDIR "replay-log/"
-static void open_log1(FILE **log, const char* logname, const char *mode)
+static FILE *open_log1(const char* logname, const char *mode)
 {
     char logpath[MAXLOGLEN];
     snprintf(logpath, MAXLOGLEN, LOGDIR"%s-%d", logname, coremu_get_core_id());
 
-    *log = fopen(logpath, mode);
-    if (!(*log)) {
+    FILE *log = fopen(logpath, mode);
+    if (!(log)) {
         printf("Can't open log file %s\n", logpath);
         exit(1);
     }
+    return log;
 }
+
+#define LOG_BUFSIZE 1024
 
 static void cm_open_log(const char *mode) {
     int i;
-    for (i = 0; i < N_CM_LOG; i++)
-        open_log1(&(cm_log[cm_coreid][i]), cm_log_name[i], mode);
+    for (i = 0; i < N_CM_LOG; i++) {
+        cm_log[cm_coreid][i] = open_log1(cm_log_name[i], mode);
+        cm_log_buf[cm_coreid][i] =
+            coremu_logbuf_new(LOG_BUFSIZE, cm_log[cm_coreid][i]);
+    }
 }
 
 void cm_replay_flush_log(int coreid) {
     int i;
-    for (i = 0; i < N_CM_LOG; i++)
+    for (i = 0; i < N_CM_LOG; i++) {
+#ifdef REPLAY_TXT_LOG
         fflush(cm_log[coreid][i]);
+#else
+        coremu_logbuf_flush(cm_log_buf[coreid][i]);
+#endif
+    }
 }
+
+/* Replaying interrupt. */
+
+/* Inject interrupt when cm_tb_exec_cnt reaches exec_cnt */
+__thread IntrLog cm_inject_intr;
 
 #define LOG_INTR_FMT "%x %lu %p\n"
 
 void cm_record_intr(int intno, long eip) {
-    fprintf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, intno, cm_tb_exec_cnt[cm_coreid], (void *)(long)eip);
+#ifdef REPLAY_TXT_LOG
+    fprintf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, intno,
+            cm_tb_exec_cnt[cm_coreid], (void *)(long)eip);
+#else
+    IntrLog *log = coremu_logbuf_next_entry(&(cm_log_buf[cm_coreid][INTR]), sizeof(*log));
+    log->intno = intno;
+    log->exec_cnt = cm_tb_exec_cnt[cm_coreid];
+    log->eip = eip;
+#endif
 }
 
 static inline void cm_read_intr_log(void)
 {
-    if (fscanf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, &cm_inject_intno,
-               &cm_inject_exec_cnt, (void **)&cm_inject_eip) == EOF) {
-        cm_inject_exec_cnt = -1;
+#ifdef REPLAY_TXT_LOG
+    if (fscanf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, &cm_inject_intr.intno,
+               &cm_inject_intr.exec_cnt, (void **)&cm_inject_intr.eip) == EOF) {
+        cm_inject_intr.exec_cnt = -1;
     }
+#else
+    fread(&cm_inject_intr, sizeof(cm_inject_intr), 1, cm_log[cm_coreid][INTR]);
+    if (feof(cm_log[cm_coreid][INTR]))
+        cm_inject_intr.exec_cnt = -1;
+#endif
 }
 
 static void cm_wait_disk_dma(void);
@@ -119,9 +151,9 @@ int cm_replay_intr(void) {
 
     cm_wait_disk_dma();
 
-    if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt) {
+    if (cm_tb_exec_cnt[cm_coreid] == cm_inject_intr.exec_cnt) {
         /*coremu_debug("injecting interrupt at %lu", cm_tb_exec_cnt);*/
-        intno = cm_inject_intno;
+        intno = cm_inject_intr.intno;
         cm_read_intr_log(); /* Read next log entry. */
         return intno;
     }
@@ -228,12 +260,16 @@ void cm_replay_init(void) {
     /* Setup CPU local variable */
     cm_tb_exec_cnt = calloc(smp_cpus, sizeof(uint64_t));
 
-    cm_log = calloc(smp_cpus, sizeof(FILE **));
+    cm_log = calloc(smp_cpus, sizeof(*cm_log));
+    cm_log_buf = calloc(smp_cpus, sizeof(*cm_log_buf));
     assert(cm_log);
+    assert(cm_log_buf);
     int i;
     for (i = 0; i < smp_cpus; i++) {
-        cm_log[i] = calloc(N_CM_LOG, sizeof(FILE *));
+        cm_log[i] = calloc(N_CM_LOG, sizeof(*cm_log[0]));
+        cm_log_buf[i] = calloc(N_CM_LOG, sizeof(*cm_log_buf[0]));
         assert(cm_log[i]);
+        assert(cm_log_buf[i]);
     }
 
     /* For hardware thread, set cm_coreid to -1. */
@@ -311,7 +347,7 @@ void cm_replay_assert_pc(uint64_t eip) {
                       (long)eip,
                       (long)next_eip,
                       cm_tb_exec_cnt[cm_coreid],
-                      cm_inject_exec_cnt,
+                      cm_inject_intr.exec_cnt,
                       cm_ioport_read_cnt,
                       cm_mmio_read_cnt);
             coremu_debug("Error in execution path!");
@@ -343,7 +379,7 @@ void cm_replay_assert_##name(type cur) { \
                       (long)cur, \
                       (long)recorded, \
                       cm_tb_exec_cnt[cm_coreid], \
-                      cm_inject_exec_cnt, \
+                      cm_inject_intr.exec_cnt, \
                       cm_ioport_read_cnt, \
                       cm_mmio_read_cnt); \
             coremu_debug("Error "#name" differs!"); \
