@@ -378,14 +378,6 @@ int cpu_exec(CPUState *env1)
 
             next_tb = 0; /* force lookup of first TB */
             for(;;) {
-#ifdef CONFIG_COREMU
-                /* Ugly hack to handle ctrl-x exit */
-                if (cm_exit_requested) {
-                    cm_replay_flush_log();
-                    atomic_incl((unsigned int *)&cm_exit_requested);
-                    while (1) pthread_yield();
-                }
-#endif
                 interrupt_request = env->interrupt_request;
                 if (unlikely(interrupt_request)) {
                     if (unlikely(env->singlestep_enabled & SSTEP_NOIRQ)) {

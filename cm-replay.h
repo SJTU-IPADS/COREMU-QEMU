@@ -38,12 +38,15 @@ void cm_record_disk_dma(void);
 
 void cm_debug_mmio(void *);
 
-void cm_replay_flush_log(void);
+void cm_replay_flush_log(int coreid);
 
 void cm_replay_assert_pc(uint64_t);
 
 void cm_record_buffer_init(void);
 void* cm_record_thread(void* arg);
+
+void cm_print_replay_info(void);
+
 #undef GEN_HEADER
 
 #endif /* _CM_REPLAY_H */

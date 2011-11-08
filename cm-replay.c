@@ -29,7 +29,6 @@
 #include <unistd.h>
 #include "coremu-core.h"
 #include "cm-replay.h"
-#include "cm-buf.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
@@ -47,14 +46,6 @@ __thread int cm_coreid;
 
 /* Array containing tb execution count for each cpu. */
 uint64_t *cm_tb_exec_cnt;
-
-
-/* Record buffer */
-typedef CMLogBuf *buf_type;
-buf_type **cm_record_buffer;
-
-/* Pipe fd */
-int cm_record_pipe_fd[2];
 
 /* Inject interrupt when cm_tb_exec_cnt reaches this value */
 __thread uint64_t cm_inject_exec_cnt = -1;
@@ -101,23 +92,12 @@ static void cm_open_log(const char *mode) {
         open_log1(&(cm_log[cm_coreid][i]), cm_log_name[i], mode);
 }
 
-void cm_replay_flush_log(void) {
+void cm_replay_flush_log(int coreid) {
     int i;
     for (i = 0; i < N_CM_LOG; i++)
-        fflush(cm_log[cm_coreid][i]);
+        fflush(cm_log[coreid][i]);
 }
 
-/* buffer init*/
-void cm_record_buffer_init(void){
-    cm_record_buffer = calloc(smp_cpus, sizeof(CMLogBuf **));
-    assert(cm_record_buffer);
-    int i;
-    for (i = 0; i < smp_cpus; i++) {
-        cm_record_buffer[i] = calloc(N_CM_LOG, sizeof(CMLogBuf*));
-        assert(cm_record_buffer[i]);
-    }
-   
-}
 #define LOG_INTR_FMT "%x %lu %p\n"
 
 void cm_record_intr(int intno, long eip) {
@@ -194,33 +174,8 @@ void cm_debug_mmio(void *f) {
 }
 /* rdtsc */
 #define RDTSC_LOG_FMT "%lu\n"
-//GEN_FUNC(rdtsc, uint64_t, cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT);
-void cm_record_rdtsc(uint64_t arg){ 
-   // fprintf(cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT, arg);
-    if (cm_record_buffer[cm_coreid][RDTSC]==NULL){
-        CMLogBuf *buf=malloc(sizeof(CMLogBuf));
-        malloc_new_buffer(buf, MAXBUFFERLEN*sizeof(uint64_t));
-        cm_record_buffer[cm_coreid][RDTSC]=buf;
-    }
-    if (!buffer_is_full(cm_record_buffer[cm_coreid][RDTSC])){
-        uint64_t *entry=(uint64_t *)get_buffer_entry(cm_record_buffer[cm_coreid][RDTSC],sizeof(uint64_t));                
-        *entry=arg;
-    }else{
-        CMPipeUnit *pipeunit=malloc(sizeof(struct PipeUnit));
-        pipeunit->cm_record_buffer=cm_record_buffer[cm_coreid][RDTSC]->buffer_head;
-        pipeunit->cm_coreid=cm_coreid;
-        pipeunit->cm_record_type=RDTSC;
-        write(cm_record_pipe_fd[1],&pipeunit,sizeof(pipeunit));
-        malloc_new_buffer(cm_record_buffer[cm_coreid][RDTSC], MAXBUFFERLEN*sizeof(uint64_t));
-        uint64_t *entry=(uint64_t *)get_buffer_entry(cm_record_buffer[cm_coreid][RDTSC],sizeof(uint64_t));                
-        *entry=arg;
-    }
-}
-int cm_replay_rdtsc(uint64_t* arg){
-    if (fscanf(cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT, arg) == EOF) 
-        return 0; 
-    return 1; 
-}
+GEN_FUNC(rdtsc, uint64_t, cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT);
+
 /* dma */
 
 /* Count how many disk DMA operations are done. */
@@ -266,20 +221,6 @@ static void cm_wait_disk_dma(void) {
     cm_next_dma_cnt = cm_dma_cnt + 1;
 }
 
-/* Pipe writing thread */
-void* cm_record_thread(void *arg){    
-    CMPipeUnit *pipe_unit;
-    int res;
-    while ((res=read(cm_record_pipe_fd[0],&pipe_unit,sizeof(pipe_unit)))>0){
-        int i;
-        for (i=0;i < MAXBUFFERLEN;i++){
-            fprintf(cm_log[pipe_unit->cm_coreid][pipe_unit->cm_record_type], RDTSC_LOG_FMT, ((uint64_t*)(pipe_unit->cm_record_buffer))[i]);
-        }
-       free(pipe_unit->cm_record_buffer);
-       free(pipe_unit);
-    }
-    return NULL;
-}
 /* init */
 static int cm_replay_inited = 0;
 
@@ -297,12 +238,6 @@ void cm_replay_init(void) {
 
     /* For hardware thread, set cm_coreid to -1. */
     cm_coreid = -1;
-    cm_record_buffer_init();
-    if (pipe(cm_record_pipe_fd)<0){
-        coremu_debug("Pipe creates error.");        
-    }
-    pthread_t tid;
-    pthread_create(&tid, NULL ,cm_record_thread ,NULL);
 }
 
 void cm_replay_core_init(void)
@@ -342,6 +277,9 @@ extern uint64_t cm_mmio_read_cnt;
  *int logset = 0;
  *extern int loglevel;
  */
+
+#include "cpu.h"
+
 void cm_replay_assert_pc(uint64_t eip) {
     uint64_t next_eip;
 
@@ -420,4 +358,12 @@ void cm_replay_assert_##name(type cur) { \
 GEN_ASSERT(iretsp, int, IRET_SP, "%x\n")
 GEN_ASSERT(intresp, int, INTR_SP, "%x\n")
 GEN_ASSERT(ireteip, uint64_t, IRET_EIP, "%lx\n")
+
+void cm_print_replay_info(void)
+{
+    coremu_debug("core_id = %u, eip = %lx, cm_tb_exec_cnt = %lu",
+                 cm_coreid,
+                 cpu_single_env->eip,
+                 cm_tb_exec_cnt[cm_coreid]);
+}
 

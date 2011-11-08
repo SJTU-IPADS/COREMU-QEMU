@@ -25,6 +25,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include "cpu.h"
 #include "exec-all.h"
 #include "../hw/apic.h"
@@ -34,6 +35,80 @@
 #include "coremu-atomic.h"
 #include "cm-intr.h"
 #include "cm-target-intr.h"
+#include "cm-replay.h"
+
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
+/* Handle the interrupt from the i8259 chip */
+void cm_pic_intr_handler(void *opaque)
+{
+    CMPICIntr *pic_intr = (CMPICIntr *) opaque;
+
+    CPUState *self = cpu_single_env;
+    int level = pic_intr->level;
+
+    if (self->apic_state) {
+        if (apic_accept_pic_intr(self->apic_state))
+            apic_deliver_pic_intr(self->apic_state, pic_intr->level);
+    } else {
+        if (level)
+            cpu_interrupt(self, CPU_INTERRUPT_HARD);
+        else
+            cpu_reset_interrupt(self, CPU_INTERRUPT_HARD);
+    }
+}
+
+/* Handle the interrupt from the apic bus.
+   Because hardware connect to ioapic and inter-processor interrupt
+   are all delivered through apic bus, so this kind of interrupt can
+   be hw interrupt or IPI */
+void cm_apicbus_intr_handler(void *opaque)
+{
+    CMAPICBusIntr *apicbus_intr = (CMAPICBusIntr *)opaque;
+
+    CPUState *self = cpu_single_env;
+
+    if (apicbus_intr->vector_num >= 0) {
+        cm_apic_set_irq(self->apic_state, apicbus_intr->vector_num,
+                apicbus_intr->trigger_mode);
+    } else {
+        /* For NMI, SMI and INIT the vector information is ignored */
+        cpu_interrupt(self, apicbus_intr->mask);
+    }
+}
+
+/* Handle the inter-processor interrupt (Only for INIT De-assert or SIPI) */
+void cm_ipi_intr_handler(void *opaque)
+{
+    CMIPIIntr *ipi_intr = (CMIPIIntr *)opaque;
+
+    CPUState *self = cpu_single_env;
+
+    if (ipi_intr->deliver_mode) {
+        /* SIPI */
+        cm_apic_startup(self->apic_state, ipi_intr->vector_num);
+    } else {
+        /* the INIT level de-assert */
+        cm_apic_setup_arbid(self->apic_state);
+    }
+}
+
+/* Handler the tlb flush request */
+void cm_tlb_flush_req_handler(void *opaque)
+{
+    tlb_flush(cpu_single_env, 1);
+}
+
+static void cm_exit_intr_handler(void *opaque)
+{
+    coremu_debug("exiting");
+    cm_replay_flush_log(cm_coreid);
+#ifdef CONFIG_REPLAY
+    cm_print_replay_info();
+#endif
+    pthread_exit(NULL);
+}
 
 /* The initial function for interrupts */
 
@@ -101,63 +176,11 @@ void cm_send_tlb_flush_req(int target)
     coremu_send_intr(cm_tlb_flush_req_init(), target);
 }
 
-/* Handle the interrupt from the i8259 chip */
-void cm_pic_intr_handler(void *opaque)
+void cm_send_exit_intr(int target)
 {
-    CMPICIntr *pic_intr = (CMPICIntr *) opaque;
+    CMExitIntr *intr = coremu_mallocz(sizeof(*intr));
+    ((CMIntr *)intr)->handler = cm_exit_intr_handler;
 
-    CPUState *self = cpu_single_env;
-    int level = pic_intr->level;
-
-    if (self->apic_state) {
-        if (apic_accept_pic_intr(self->apic_state))
-            apic_deliver_pic_intr(self->apic_state, pic_intr->level);
-    } else {
-        if (level)
-            cpu_interrupt(self, CPU_INTERRUPT_HARD);
-        else
-            cpu_reset_interrupt(self, CPU_INTERRUPT_HARD);
-    }
+    coremu_send_intr(intr, target);
 }
 
-/* Handle the interrupt from the apic bus.
-   Because hardware connect to ioapic and inter-processor interrupt
-   are all delivered through apic bus, so this kind of interrupt can
-   be hw interrupt or IPI */
-void cm_apicbus_intr_handler(void *opaque)
-{
-    CMAPICBusIntr *apicbus_intr = (CMAPICBusIntr *)opaque;
-
-    CPUState *self = cpu_single_env;
-
-    if (apicbus_intr->vector_num >= 0) {
-        cm_apic_set_irq(self->apic_state, apicbus_intr->vector_num,
-                apicbus_intr->trigger_mode);
-    } else {
-        /* For NMI, SMI and INIT the vector information is ignored */
-        cpu_interrupt(self, apicbus_intr->mask);
-    }
-}
-
-/* Handle the inter-processor interrupt (Only for INIT De-assert or SIPI) */
-void cm_ipi_intr_handler(void *opaque)
-{
-    CMIPIIntr *ipi_intr = (CMIPIIntr *)opaque;
-
-    CPUState *self = cpu_single_env;
-
-    if (ipi_intr->deliver_mode) {
-        /* SIPI */
-        cm_apic_startup(self->apic_state, ipi_intr->vector_num);
-    } else {
-        /* the INIT level de-assert */
-        cm_apic_setup_arbid(self->apic_state);
-    }
-}
-
-
-/* Handler the tlb flush request */
-void cm_tlb_flush_req_handler(void *opaque)
-{
-    tlb_flush(cpu_single_env, 1);
-}
