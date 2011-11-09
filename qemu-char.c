@@ -99,11 +99,9 @@
 #include "qemu_socket.h"
 
 #include <pthread.h>
+
 #include "coremu-config.h"
 #include "coremu-core.h"
-
-#define DEBUG_COREMU
-#include "coremu-debug.h"
 
 #define READ_BUF_LEN 4096
 

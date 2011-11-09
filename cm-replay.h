@@ -10,9 +10,13 @@ enum {
 };
 
 #define NINTR 10 // For debug
-extern __thread uint64_t cm_inject_exec_cnt;
-extern __thread int cm_inject_intno;
-extern __thread long cm_inject_eip; // For debug
+
+typedef struct {
+    int intno;
+    uint64_t exec_cnt;
+    uint64_t eip;
+} IntrLog;
+extern __thread IntrLog cm_inject_intr;
 extern __thread volatile uint64_t cm_intr_handler_cnt;
 
 /* Mark the interrupt being generated from the log. */

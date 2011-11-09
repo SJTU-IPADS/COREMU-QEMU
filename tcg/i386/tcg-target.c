@@ -1556,7 +1556,7 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
                 tcg_out_ld(s, TCG_TYPE_I64, TCG_REG_RAX, TCG_REG_RAX, 0);
 
                 tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RBX,
-                             (tcg_target_long)&cm_inject_exec_cnt);
+                             (tcg_target_long)&cm_inject_intr.exec_cnt);
                 tcg_out_ld(s, TCG_TYPE_I64, TCG_REG_RBX, TCG_REG_RBX, 0);
 
                 /* If the values are the same, we should not directly jump to

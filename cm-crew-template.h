@@ -75,6 +75,9 @@ static inline void glue(replay_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE va
 
 DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
+#ifdef MEMOP_AS_FUNC
+    return *addr;
+#endif
     //assert(cm_is_in_tc);
     if (!cm_is_in_tc) {
         return *addr;
@@ -95,6 +98,9 @@ DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
 
 void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
+#ifdef MEMOP_AS_FUNC
+    *addr = val;
+#endif
     //assert(cm_is_in_tc);
     if (!cm_is_in_tc) {
         *addr = val;

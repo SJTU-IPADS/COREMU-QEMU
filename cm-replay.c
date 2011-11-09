@@ -26,6 +26,11 @@
 #include <stdint.h>
 #include <pthread.h>
 #include "exec-all.h"
+
+#include "coremu-config.h"
+#include "coremu-core.h"
+#include "coremu-logbuffer.h"
+
 #include "cm-crew.h"
 #include "cm-intr.h"
 #include "cm-replay.h"
@@ -47,13 +52,11 @@ uint64_t *cm_tb_exec_cnt;
 /* How many times the interrupt handler is called. */
 __thread volatile uint64_t cm_intr_handler_cnt;
 
-/* Inject interrupt when cm_tb_exec_cnt reaches this value */
-__thread uint64_t cm_inject_exec_cnt = -1;
-__thread int cm_inject_intno;
-__thread long cm_inject_eip;
-__thread uint64_t cm_inject_intr_handler_cnt;
+/* Replaying interrupt. */
 
-/* interrupt */
+/* Inject interrupt when cm_tb_exec_cnt reaches exec_cnt */
+__thread IntrLog cm_inject_intr;
+__thread uint64_t cm_inject_intr_handler_cnt;
 
 #define LOG_INTR_FMT "%x %lu %lu %p\n"
 
@@ -69,17 +72,29 @@ void cm_record_intr(int intno, long eip)
     if (IS_DMA_INT(intno)) {
         cm_record_disk_dma();
     }
+#ifdef REPLAY_TXT_LOG
     fprintf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, intno,
             cm_tb_exec_cnt[cm_coreid], cm_intr_handler_cnt, (void *)(long)eip);
+#else
+    IntrLog *log = coremu_logbuf_next_entry(&(cm_log_buf[cm_coreid][INTR]), sizeof(*log));
+    log->intno = intno;
+    log->exec_cnt = cm_tb_exec_cnt[cm_coreid];
+    log->eip = eip;
+#endif
 }
 
 static inline void cm_read_intr_log(void)
 {
+#ifdef REPLAY_TXT_LOG
     if (fscanf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, &cm_inject_intno,
                &cm_inject_exec_cnt, &cm_inject_intr_handler_cnt,
                (void **)&cm_inject_eip) == EOF) {
         cm_inject_exec_cnt = -1;
-    }
+#else
+    fread(&cm_inject_intr, sizeof(cm_inject_intr), 1, cm_log[cm_coreid][INTR]);
+    if (feof(cm_log[cm_coreid][INTR]))
+        cm_inject_intr.exec_cnt = -1;
+#endif
 }
 
 static void cm_wait_disk_dma(void);
@@ -92,7 +107,7 @@ int cm_replay_intr(void)
 next_log:
 #endif
     /* We should only wait when it needs to inject an interrupt. */
-    if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt) {
+    if (cm_tb_exec_cnt[cm_coreid] == cm_inject_intr.exec_cnt) {
 #ifdef TLBFLUSH_AS_INTERRUPT
         if (cm_inject_intno == CM_CPU_TLBFLUSH) {
             /*coremu_debug("tlb_flushed called as interrupt");*/
@@ -105,7 +120,7 @@ next_log:
         while (cm_intr_handler_cnt < cm_inject_intr_handler_cnt)
             cm_receive_intr();
 
-        if (IS_DMA_INT(cm_inject_intno))
+        if (IS_DMA_INT(cm_inject_intr.intno))
             cm_wait_disk_dma();
 
         /*
@@ -113,7 +128,7 @@ next_log:
          *             "cm_inject_intr_handler_cnt = %lu",
          *             cm_coreid, cm_inject_intno, cm_tb_exec_cnt[cm_coreid], cm_inject_intr_handler_cnt);
          */
-        intno = cm_inject_intno;
+        intno = cm_inject_intr.intno;
         cm_read_intr_log(); /* Read next log entry. */
         return intno;
     }
@@ -171,7 +186,6 @@ void cm_debug_mmio(void *f)
 {
     fprintf(cm_log[cm_coreid][MMIO], "%p\n", f);
 }
-
 /* rdtsc */
 #define RDTSC_LOG_FMT "%lu\n"
 GEN_FUNC(rdtsc, uint64_t, cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT);
@@ -374,7 +388,7 @@ void cm_replay_assert_pc(uint64_t eip)
                       (long)next_eip,
                       *memop, recorded_memop,
                       cm_tb_exec_cnt[cm_coreid],
-                      cm_inject_exec_cnt,
+                      cm_inject_intr.exec_cnt,
                       cm_ioport_read_cnt,
                       cm_mmio_read_cnt);
             pthread_exit(NULL);
@@ -405,7 +419,7 @@ void cm_replay_assert_##name(type cur) \
                       (long)cur, \
                       (long)recorded, \
                       cm_tb_exec_cnt[cm_coreid], \
-                      cm_inject_exec_cnt, \
+                      cm_inject_intr.exec_cnt, \
                       cm_ioport_read_cnt, \
                       cm_mmio_read_cnt); \
             coremu_debug("ERROR "#name" differs!"); \
@@ -546,6 +560,7 @@ void cm_replay_assert_tlbfill(uint64_t addr)
         break;
     }
 }
+
 void cm_print_replay_info(void)
 {
     coremu_debug("core_id = %u, eip = %lx, cm_tb_exec_cnt = %lu, memop = %u",

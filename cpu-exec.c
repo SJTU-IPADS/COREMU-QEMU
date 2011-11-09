@@ -293,7 +293,7 @@ int cpu_exec(CPUState *env1)
          * true. But actually we need to inject the inject now.  */
         /*coremu_debug("cm_coreid = %u, cm_inject_exec_cnt = %lu", cm_coreid, cm_inject_exec_cnt);*/
         if (cm_run_mode == CM_RUNMODE_REPLAY &&
-            cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt) {
+            cm_tb_exec_cnt[cm_coreid] == cm_inject_intr.exec_cnt) {
             /* Continue to execute. */
         } else
             return EXCP_HALTED;
@@ -651,7 +651,7 @@ int cpu_exec(CPUState *env1)
                 }
 #ifdef CONFIG_REPLAY
                 int inject_intno;
-                unsigned long inject_eip = cm_inject_eip;
+                unsigned long inject_eip = cm_inject_intr.eip;
                 if (cm_run_mode == CM_RUNMODE_REPLAY &&
                         (inject_intno = cm_replay_intr()) != -1) {
                     switch (inject_intno) {
@@ -665,7 +665,7 @@ int cpu_exec(CPUState *env1)
                         coremu_assert(env->eip == inject_eip,
                                       "abort: cm_coreid = %u, eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
                                       cm_coreid, (void *)(long)env->eip,
-                                      (void *)cm_inject_eip, cm_tb_exec_cnt[cm_coreid]);
+                                      (void *)cm_inject_intr.eip, cm_tb_exec_cnt[cm_coreid]);
                         do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
                         break;
                     }
