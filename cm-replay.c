@@ -52,65 +52,6 @@ __thread int cm_coreid;
 /* Array containing tb execution count for each cpu. */
 uint64_t *cm_tb_exec_cnt;
 
-enum {
-    INTR,
-    PC,
-    IN,
-    RDTSC,
-    MMIO,
-    DISK_DMA,
-    IRET_SP,
-    INTR_SP,
-    IRET_EIP,
-    N_CM_LOG,
-};
-
-static const char *cm_log_name[] = {
-    "intr", "pc", "in", "rdtsc", "mmio", "dma", "iretsp", "intrsp", "ireteip"
-};
-
-static CMLogBuf ***cm_log_buf;
-
-/* Array containing logs for each cpu. */
-typedef FILE *log_t;
-static log_t **cm_log;
-
-#define LOGDIR "replay-log/"
-static FILE *open_log1(const char* logname, const char *mode)
-{
-    char logpath[MAXLOGLEN];
-    snprintf(logpath, MAXLOGLEN, LOGDIR"%s-%d", logname, coremu_get_core_id());
-
-    FILE *log = fopen(logpath, mode);
-    if (!(log)) {
-        printf("Can't open log file %s\n", logpath);
-        exit(1);
-    }
-    return log;
-}
-
-#define LOG_BUFSIZE 1024
-
-static void cm_open_log(const char *mode) {
-    int i;
-    for (i = 0; i < N_CM_LOG; i++) {
-        cm_log[cm_coreid][i] = open_log1(cm_log_name[i], mode);
-        cm_log_buf[cm_coreid][i] =
-            coremu_logbuf_new(LOG_BUFSIZE, cm_log[cm_coreid][i]);
-    }
-}
-
-void cm_replay_flush_log(int coreid) {
-    int i;
-    for (i = 0; i < N_CM_LOG; i++) {
-#ifdef REPLAY_TXT_LOG
-        fflush(cm_log[coreid][i]);
-#else
-        coremu_logbuf_flush(cm_log_buf[coreid][i]);
-#endif
-    }
-}
-
 /* Replaying interrupt. */
 
 /* Inject interrupt when cm_tb_exec_cnt reaches exec_cnt */
@@ -256,21 +197,10 @@ static void cm_wait_disk_dma(void) {
 /* init */
 static int cm_replay_inited = 0;
 
-void cm_replay_init(void) {
+void cm_replay_init(void)
+{
     /* Setup CPU local variable */
     cm_tb_exec_cnt = calloc(smp_cpus, sizeof(uint64_t));
-
-    cm_log = calloc(smp_cpus, sizeof(*cm_log));
-    cm_log_buf = calloc(smp_cpus, sizeof(*cm_log_buf));
-    assert(cm_log);
-    assert(cm_log_buf);
-    int i;
-    for (i = 0; i < smp_cpus; i++) {
-        cm_log[i] = calloc(N_CM_LOG, sizeof(*cm_log[0]));
-        cm_log_buf[i] = calloc(N_CM_LOG, sizeof(*cm_log_buf[0]));
-        assert(cm_log[i]);
-        assert(cm_log_buf[i]);
-    }
 
     /* For hardware thread, set cm_coreid to -1. */
     cm_coreid = -1;
@@ -284,8 +214,6 @@ void cm_replay_core_init(void)
     /* Must initialize this before calling other functions. */
     cm_coreid = coremu_get_core_id();
 
-    const char *mode = cm_run_mode == CM_RUNMODE_REPLAY ? "r" : "w";
-    cm_open_log(mode);
     if (cm_run_mode == CM_RUNMODE_REPLAY) {
         cm_read_intr_log();
         cm_read_dma_log();

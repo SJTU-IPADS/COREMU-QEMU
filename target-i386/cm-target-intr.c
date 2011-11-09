@@ -36,6 +36,7 @@
 #include "cm-intr.h"
 #include "cm-target-intr.h"
 #include "cm-replay.h"
+#include "cm-log.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"

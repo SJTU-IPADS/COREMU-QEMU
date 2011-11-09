@@ -1,6 +1,8 @@
 #ifndef _CM_REPLAY_H
 #define _CM_REPLAY_H
 
+#include "cm-log.h"
+
 enum {
     CM_RUNMODE_NORMAL, /* Not being recorded or replayed, this is default */
     CM_RUNMODE_RECORD,
@@ -42,8 +44,6 @@ extern volatile uint64_t cm_dma_cnt;
 void cm_record_disk_dma(void);
 
 void cm_debug_mmio(void *);
-
-void cm_replay_flush_log(int coreid);
 
 void cm_replay_assert_pc(uint64_t);
 
