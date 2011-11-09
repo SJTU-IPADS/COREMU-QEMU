@@ -42,7 +42,7 @@
 #include "coremu-debug.h"
 
 /* Handle the interrupt from the i8259 chip */
-void cm_pic_intr_handler(void *opaque)
+static void cm_pic_intr_handler(void *opaque)
 {
     CMPICIntr *pic_intr = (CMPICIntr *) opaque;
 
@@ -64,7 +64,7 @@ void cm_pic_intr_handler(void *opaque)
    Because hardware connect to ioapic and inter-processor interrupt
    are all delivered through apic bus, so this kind of interrupt can
    be hw interrupt or IPI */
-void cm_apicbus_intr_handler(void *opaque)
+static void cm_apicbus_intr_handler(void *opaque)
 {
     CMAPICBusIntr *apicbus_intr = (CMAPICBusIntr *)opaque;
 
@@ -80,7 +80,7 @@ void cm_apicbus_intr_handler(void *opaque)
 }
 
 /* Handle the inter-processor interrupt (Only for INIT De-assert or SIPI) */
-void cm_ipi_intr_handler(void *opaque)
+static void cm_ipi_intr_handler(void *opaque)
 {
     CMIPIIntr *ipi_intr = (CMIPIIntr *)opaque;
 
@@ -96,7 +96,7 @@ void cm_ipi_intr_handler(void *opaque)
 }
 
 /* Handler the tlb flush request */
-void cm_tlb_flush_req_handler(void *opaque)
+static void cm_tlb_flush_req_handler(void *opaque)
 {
     tlb_flush(cpu_single_env, 1);
 }
