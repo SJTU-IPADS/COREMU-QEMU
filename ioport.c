@@ -90,8 +90,8 @@ static uint32_t ioport_read(int index, uint32_t address)
     return func(ioport_opaque[address], address);
 }
 
-#ifdef CONFIG_REPLAY
 uint64_t cm_ioport_read_cnt = 0;
+#ifdef CONFIG_REPLAY
 static uint32_t ioport_read(int index, uint32_t address)
 {
     uint32_t value;

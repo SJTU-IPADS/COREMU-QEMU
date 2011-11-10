@@ -3741,11 +3741,11 @@ static void swapendian_del(int io_index)
     }
 }
 
+uint64_t cm_mmio_read_cnt = 0;
 #ifdef CONFIG_REPLAY
 
 #include "closure.h"
 
-uint64_t cm_mmio_read_cnt = 0;
 static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
 {
     /* Do we need to record cirrus_vga_mem_readl? Seems not affecting JOS. */

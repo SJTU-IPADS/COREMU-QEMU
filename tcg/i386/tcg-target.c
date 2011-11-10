@@ -1160,7 +1160,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
                      label_ptr, offsetof(CPUTLBEntry, addr_read));
 
     /* TLB Hit.  */
-#ifdef CONFIG_REPLAY
+#if defined(CONFIG_REPLAY) || defined(MEMOP_AS_FUNC)
     /* rdi contains the address */
     if (cm_run_mode == CM_RUNMODE_NORMAL) {
         tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
@@ -1386,7 +1386,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
                      label_ptr, offsetof(CPUTLBEntry, addr_write));
 
     /* TLB Hit.  */
-#ifdef CONFIG_REPLAY
+#if defined(CONFIG_REPLAY) || defined(MEMOP_AS_FUNC)
     if (cm_run_mode == CM_RUNMODE_NORMAL) {
         tcg_out_qemu_st_direct(s, data_reg, data_reg2,
                                tcg_target_call_iarg_regs[0], 0, opc);
