@@ -86,13 +86,12 @@ void cm_record_intr(int intno, long eip)
 static inline void cm_read_intr_log(void)
 {
 #ifdef REPLAY_TXT_LOG
-    if (fscanf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, &cm_inject_intno,
-               &cm_inject_exec_cnt, &cm_inject_intr_handler_cnt,
-               (void **)&cm_inject_eip) == EOF) {
-        cm_inject_exec_cnt = -1;
+    if (fscanf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, &cm_inject_intr.intno,
+               &cm_inject_intr.exec_cnt, &cm_inject_intr_handler_cnt,
+               (void **)&cm_inject_intr.eip) == EOF)
+        cm_inject_intr.exec_cnt = -1;
 #else
-    fread(&cm_inject_intr, sizeof(cm_inject_intr), 1, cm_log[cm_coreid][INTR]);
-    if (feof(cm_log[cm_coreid][INTR]))
+    if (fread(&cm_inject_intr, sizeof(cm_inject_intr), 1, cm_log[cm_coreid][INTR]) != 1)
         cm_inject_intr.exec_cnt = -1;
 #endif
 }
@@ -220,7 +219,8 @@ static inline void cm_read_dma_log(void)
      *    cm_dma_done_exec_cnt = (uint64_t)-1;
      *}
      */
-     fscanf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, &cm_next_dma_cnt);
+     if (fscanf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, &cm_next_dma_cnt) == EOF)
+        printf("no more dma log\n");
 }
 
 static void cm_wait_disk_dma(void)

@@ -6,6 +6,8 @@
 #include <pthread.h>
 #include "cpu-all.h"
 #include "rwlock.h"
+
+#include "coremu-config.h"
 #include "coremu-atomic.h"
 #include "cm-crew.h"
 #include "cm-replay.h"
@@ -83,30 +85,54 @@ static inline int memobj_id(const void *addr)
     return id;
 }
 
-#define CREW_LOG_FMT "%u %u %u %lu\n"
+#define CREW_LOG_FMT "%u %hu %u\n"
 
-static inline void write_inc_log(uint32_t waitcpuno, uint32_t waitmemop)
+typedef struct IncLog {
+    uint32_t self_memop;
+    owner_t owner;
+    uint32_t owner_memop;
+} IncLog;
+
+__thread IncLog cm_inc_log;
+
+static inline void write_inc_log(owner_t owner, uint32_t owner_memop)
 {
+#ifdef REPLAY_TXT_LOG
     fprintf(cm_log[cm_coreid][CREW_INC], CREW_LOG_FMT, memop_cnt[cm_coreid] + 1,
-            waitcpuno, waitmemop, cm_tb_exec_cnt[cm_coreid]);
+            owner, owner_memop);
+#else
+    IncLog *log = coremu_logbuf_next_entry(&(cm_log_buf[cm_coreid][CREW_INC]), sizeof(*log));
+    log->self_memop = memop_cnt[cm_coreid] + 1;
+    log->owner = owner;
+    log->owner_memop = owner_memop;
+#endif
 }
-
-static __thread uint64_t recorded_tb_exec_cnt;
 
 static inline int read_inc_log(void)
 {
     crew_inc_cnt++;
 
-    if (fscanf(crew_inc_log, CREW_LOG_FMT, &incop[LOGENT_MEMOP],
-           &incop[LOGENT_CPUNO], &incop[LOGENT_WAITMEMOP],
-           &recorded_tb_exec_cnt) == EOF) {
-        coremu_debug("no more inc log");
-        cm_print_replay_info();
-        /* XXX when the inc log are consumed up, we should not pause the current
-         * processor, so set incop[LOGENT_MEM] to a value that will not  */
-        incop[LOGENT_MEMOP]--;
+#ifdef REPLAY_TXT_LOG
+    if (fscanf(crew_inc_log, CREW_LOG_FMT, &cm_inc_log.self_memop,
+           &cm_inc_log.owner, &cm_inc_log.owner_memop) == EOF) {
+        goto no_more_log;
     }
+#else
+    if (fread(&cm_inc_log, sizeof(cm_inc_log), 1, cm_log[cm_coreid][CREW_INC]) != 1)
+        goto no_more_log;
+#endif
+
     return 0;
+
+no_more_log:
+    coremu_debug("no more inc log");
+    cm_print_replay_info();
+    /* XXX when the inc log are consumed up, we should not pause the current
+     * processor, so set self_memop to a value that will not become.
+     * Note, overflow will cause problem here. */
+    cm_inc_log.self_memop--;
+
+    return 1;
 }
 
 /* TODO We'd better use a buffer */
@@ -307,8 +333,9 @@ void debug_read_access(uint64_t val)
         ram_addr_t rec_addr;
         uint32_t tlb_cnt, rec_memop;
         int error = 0;
-        fscanf(cm_log[cm_coreid][READ], READ_LOG_FMT,
-               &rec_eip, &rec_addr, &rec_val, &tlb_cnt, &rec_memop);
+        if (fscanf(cm_log[cm_coreid][READ], READ_LOG_FMT,
+               &rec_eip, &rec_addr, &rec_val, &tlb_cnt, &rec_memop) == EOF)
+            return;
         if (rec_eip != cpu_single_env->eip) {
             coremu_debug("read ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
                          cm_coreid, cpu_single_env->eip, rec_eip);
@@ -359,8 +386,9 @@ void debug_write_access(uint64_t val)
         ram_addr_t rec_addr;
         uint32_t cnt;
         int error = 0;
-        fscanf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
-               &rec_eip, &rec_addr, &rec_val, &cnt);
+        if (fscanf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
+               &rec_eip, &rec_addr, &rec_val, &cnt) == EOF)
+            return;
         if (rec_eip != cpu_single_env->eip) {
             coremu_debug("write ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
                          cm_coreid, cpu_single_env->eip, rec_eip);
