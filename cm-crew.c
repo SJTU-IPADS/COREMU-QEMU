@@ -2,11 +2,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
-
 #include <pthread.h>
-#include "cpu-all.h"
-#include "rwlock.h"
 
+#include "cpu-all.h"
+
+#include "rwlock.h"
 #include "coremu-config.h"
 #include "coremu-atomic.h"
 #include "cm-crew.h"
@@ -142,7 +142,13 @@ static inline int read_inc_log(void)
 
     return 0;
 
+    static int once = 0;
 no_more_log:
+    if (once) {
+        coremu_debug("core %u exit", cm_coreid);
+        pthread_exit(NULL);
+    }
+    once = 1;
     coremu_debug("no more inc log");
     cm_print_replay_info();
     /* XXX when the inc log are consumed up, we should not pause the current
