@@ -3121,7 +3121,23 @@ ram_addr_t qemu_ram_alloc_from_ptr(DeviceState *dev, const char *name,
     new_block->offset = find_ram_offset(size);
     new_block->length = size;
 
+#ifdef CONFIG_REPLAY
+    /* The first allocated ramblock is the largest one and should be looked up
+     * in qemu_ram_addr_from_host more frequently. So reversing the order of the
+     * list should make the lookup faster.
+     * The LIST interface is hard to understand because of its opacity. I still
+     * don't like it and prefer sglib's approach much more. */
+    RAMBlock *tail = NULL;
+    QLIST_FOREACH(block, &ram_list.blocks, next) {
+        tail = block;
+    }
+    if (tail)
+        QLIST_INSERT_AFTER(tail, new_block, next);
+    else
+        QLIST_INSERT_HEAD(&ram_list.blocks, new_block, next);
+#else
     QLIST_INSERT_HEAD(&ram_list.blocks, new_block, next);
+#endif
 
     ram_list.phys_dirty = qemu_realloc(ram_list.phys_dirty,
                                        last_ram_offset() >> TARGET_PAGE_BITS);
