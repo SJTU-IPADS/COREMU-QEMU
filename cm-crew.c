@@ -65,23 +65,41 @@ enum {
 };
 #define READLOG_N 3
 
-/* Ugly. For debugging, store the target physical address trying to access. */
-__thread ram_addr_t pa_access;
+static inline void *get_page_addr(const void *addr)
+{
+    return (void *)((unsigned long)addr & ~0xFFF);
+}
 
 static inline int memobj_id(const void *addr)
 {
     ram_addr_t r;
+    int id;
     /* XXX This is slow, but should be correct. It's possible to use hash to
      * improve speed here.
      * Note this is getting the RAM address, not guest physical address. But as
      * guest memory has RAM offset starting as 0, this should be the same assert
      * physcal memory. */
-    assert(qemu_ram_addr_from_host((void *)addr, &r) != -1);
-    pa_access = r;
-    int id = r >> TARGET_PAGE_BITS;
-    coremu_assert(id >= 0 && id <= n_memobj,
-                  "addr: %p, id: %d, memop: %d, n_memobj: %d", addr, id,
-                  memop_cnt[cm_coreid], n_memobj);
+    static __thread void *last_addr = 0;
+    static __thread int last_id = 0;
+
+    void *page_addr = get_page_addr(addr);
+
+    /* See if this is the same page, if yes, then return last id. */
+    if (page_addr == last_addr) {
+        id = last_id;
+    } else {
+        /*assert(qemu_ram_addr_from_host((void *)addr, &r) != -1);*/
+        qemu_ram_addr_from_host((void *)addr, &r);
+        id = r >> TARGET_PAGE_BITS;
+
+        last_addr = page_addr;
+        last_id = id;
+
+        coremu_assert(id >= 0 && id <= n_memobj,
+                      "addr: %p, id: %d, memop: %d, n_memobj: %d", addr, id,
+                      memop_cnt[cm_coreid], n_memobj);
+    }
+
     return id;
 }
 
@@ -312,7 +330,7 @@ void cm_crew_core_init(void)
 
 __thread uint32_t memacc_cnt;
 
-#define READ_LOG_FMT "%lx %lx %lx %u %u\n"
+#define READ_LOG_FMT "%lx %lx %u %u\n"
 void debug_read_access(uint64_t val)
 {
     if (cm_run_mode == CM_RUNMODE_NORMAL)
@@ -324,26 +342,21 @@ void debug_read_access(uint64_t val)
         cm_print_replay_info();
         exit(1);
     }
-    if (cm_run_mode == CM_RUNMODE_RECORD)
+    if (cm_run_mode == CM_RUNMODE_RECORD) {
         fprintf(cm_log[cm_coreid][READ], READ_LOG_FMT,
-                cpu_single_env->eip, pa_access, val, tlb_fill_cnt, *memop);
+                cpu_single_env->eip, val, tlb_fill_cnt, *memop);
+    }
     /*else if (*memop > 1000000) {*/
     else {
         uint64_t rec_eip, rec_val;
-        ram_addr_t rec_addr;
         uint32_t tlb_cnt, rec_memop;
         int error = 0;
         if (fscanf(cm_log[cm_coreid][READ], READ_LOG_FMT,
-               &rec_eip, &rec_addr, &rec_val, &tlb_cnt, &rec_memop) == EOF)
+               &rec_eip, &rec_val, &tlb_cnt, &rec_memop) == EOF)
             return;
         if (rec_eip != cpu_single_env->eip) {
             coremu_debug("read ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
                          cm_coreid, cpu_single_env->eip, rec_eip);
-            error = 1;
-        }
-        if (pa_access != rec_addr) {
-            coremu_debug("read ERROR in adr: coreid = %d, addr = %lx, recorded_addr = %lx",
-                         cm_coreid, pa_access, rec_addr);
             error = 1;
         }
         if (val != rec_val) {
@@ -365,7 +378,7 @@ void debug_read_access(uint64_t val)
     }
 }
 
-#define WRITE_LOG_FMT "%lx %lx %lx %u\n"
+#define WRITE_LOG_FMT "%lx %lx %u\n"
 void debug_write_access(uint64_t val)
 {
     if (cm_run_mode == CM_RUNMODE_NORMAL)
@@ -379,24 +392,18 @@ void debug_write_access(uint64_t val)
     }
     if (cm_run_mode == CM_RUNMODE_RECORD)
         fprintf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
-                cpu_single_env->eip, pa_access, val, tlb_fill_cnt);
+                cpu_single_env->eip, val, tlb_fill_cnt);
     /*else if (*memop > 1000000) {*/
     else {
         uint64_t rec_eip, rec_val;
-        ram_addr_t rec_addr;
         uint32_t cnt;
         int error = 0;
         if (fscanf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
-               &rec_eip, &rec_addr, &rec_val, &cnt) == EOF)
+               &rec_eip, &rec_val, &cnt) == EOF)
             return;
         if (rec_eip != cpu_single_env->eip) {
             coremu_debug("write ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
                          cm_coreid, cpu_single_env->eip, rec_eip);
-            error = 1;
-        }
-        if (pa_access != rec_addr) {
-            coremu_debug("write ERROR in adr: coreid = %d, addr = %lx, recorded_addr = %lx",
-                         cm_coreid, pa_access, rec_addr);
             error = 1;
         }
         if (val != rec_val) {

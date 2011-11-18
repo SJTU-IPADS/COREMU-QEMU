@@ -53,7 +53,6 @@ static inline DATA_TYPE glue(replay_crew_read, SUFFIX)(const DATA_TYPE *addr)
 {
     cm_apply_replay_log();
 
-    memobj_id(addr); // To update pa_access
     DATA_TYPE val = *addr;
     if (cm_is_in_tc)
         (*memop)++;
@@ -65,7 +64,6 @@ static inline void glue(replay_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE va
 {
     cm_apply_replay_log();
 
-    memobj_id(addr); // To update pa_access
     *addr = val;
     if (cm_is_in_tc)
         (*memop)++;
