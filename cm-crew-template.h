@@ -81,6 +81,7 @@ DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
         return *addr;
     }
 
+    /* TODO OPTIMIZE HERE. */
     DATA_TYPE val;
     if (cm_run_mode == CM_RUNMODE_RECORD)
         val = glue(record_crew_read, SUFFIX)(addr);

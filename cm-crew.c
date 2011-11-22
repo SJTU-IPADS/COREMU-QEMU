@@ -12,7 +12,8 @@
 #include "cm-crew.h"
 #include "cm-replay.h"
 
-#define DEBUG_COREMU
+/*#define VERBOSE_COREMU*/
+/*#define DEBUG_COREMU*/
 #include "coremu-debug.h"
 
 extern int smp_cpus;
@@ -118,11 +119,19 @@ static inline void write_inc_log(owner_t owner, uint32_t owner_memop)
 #ifdef REPLAY_TXT_LOG
     fprintf(cm_log[cm_coreid][CREW_INC], CREW_LOG_FMT, memop_cnt[cm_coreid] + 1,
             owner, owner_memop);
-#else
+#elif defined(REPLAY_LOGBUF)
     IncLog *log = coremu_logbuf_next_entry(&(cm_log_buf[cm_coreid][CREW_INC]), sizeof(*log));
     log->self_memop = memop_cnt[cm_coreid] + 1;
     log->owner = owner;
     log->owner_memop = owner_memop;
+#else
+    IncLog log;
+    log.self_memop = memop_cnt[cm_coreid] + 1;
+    log.owner = owner;
+    log.owner_memop = owner_memop;
+    if (fwrite(&log, sizeof(log), 1, cm_log[cm_coreid][CREW_INC]) != 1) {
+        coremu_print("inc log write failed");
+    }
 #endif
 }
 

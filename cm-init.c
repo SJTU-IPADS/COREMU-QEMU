@@ -108,7 +108,9 @@ void cm_cpu_exec_init(void)
 
 #ifdef CONFIG_REPLAY
     cm_replay_init();
+#  ifdef REPLAY_LOGBUF
     coremu_logbuffer_init();
+#  endif
 #endif
 }
 

@@ -75,11 +75,19 @@ void cm_record_intr(int intno, long eip)
 #ifdef REPLAY_TXT_LOG
     fprintf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, intno,
             cm_tb_exec_cnt[cm_coreid], cm_intr_handler_cnt, (void *)(long)eip);
-#else
+#elif defined(REPLAY_LOGBUF)
     IntrLog *log = coremu_logbuf_next_entry(&(cm_log_buf[cm_coreid][INTR]), sizeof(*log));
     log->intno = intno;
     log->exec_cnt = cm_tb_exec_cnt[cm_coreid];
     log->eip = eip;
+#else
+    IntrLog log;
+    log.intno = intno;
+    log.exec_cnt = cm_tb_exec_cnt[cm_coreid];
+    log.eip = eip;
+    if (fwrite(&log, sizeof(log), 1, cm_log[cm_coreid][INTR]) != 1) {
+        coremu_print("intr log record error");
+    }
 #endif
 }
 
