@@ -75,11 +75,19 @@ static inline int memobj_id(const void *addr)
 {
     ram_addr_t r;
     int id;
-    /* XXX This is slow, but should be correct. It's possible to use hash to
-     * improve speed here.
+#ifdef SLOW_HOST2RAMADDR
+    /* XXX This is slow but correct. It's possible to use hash to improve speed here.
      * Note this is getting the RAM address, not guest physical address. But as
      * guest memory has RAM offset starting as 0, this should be the same assert
      * physcal memory. */
+    assert(qemu_ram_addr_from_host((void *)addr, &r) != -1);
+    id = r >> TARGET_PAGE_BITS;
+    coremu_assert(id >= 0 && id <= n_memobj,
+                  "addr: %p, id: %d, memop: %d, n_memobj: %d", addr, id,
+                  memop_cnt[cm_coreid], n_memobj);
+#else
+    /* Using hash table or even just using a 2 entry cache here will actually
+     * make performance worse. */
     static __thread void *last_addr = 0;
     static __thread int last_id = 0;
 
@@ -100,6 +108,7 @@ static inline int memobj_id(const void *addr)
                       "addr: %p, id: %d, memop: %d, n_memobj: %d", addr, id,
                       memop_cnt[cm_coreid], n_memobj);
     }
+#endif
 
     return id;
 }
