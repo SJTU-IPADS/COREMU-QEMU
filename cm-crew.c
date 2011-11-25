@@ -13,7 +13,7 @@
 #include "cm-replay.h"
 
 /*#define VERBOSE_COREMU*/
-/*#define DEBUG_COREMU*/
+#define DEBUG_COREMU
 #include "coremu-debug.h"
 
 extern int smp_cpus;
@@ -26,8 +26,6 @@ __thread volatile uint32_t *memop;
 __thread uint32_t crew_inc_cnt;
 
 __thread int cm_is_in_tc;
-
-static __thread uint32_t *incop;
 
 __thread uint32_t tlb_fill_cnt;
 
@@ -160,13 +158,7 @@ static inline int read_inc_log(void)
 
     return 0;
 
-    static int once = 0;
 no_more_log:
-    if (once) {
-        coremu_debug("core %u exit", cm_coreid);
-        pthread_exit(NULL);
-    }
-    once = 1;
     coremu_debug("no more inc log");
     cm_print_replay_info();
     /* XXX when the inc log are consumed up, we should not pause the current
@@ -287,13 +279,13 @@ static inline int apply_replay_inclog(void)
      *}
      */
     /* Wait for the target CPU's memop to reach the recorded value. */
-    while (memop_cnt[incop[LOGENT_CPUNO]] < incop[LOGENT_WAITMEMOP]);
+    while (memop_cnt[cm_inc_log.owner] < cm_inc_log.owner_memop);
     return read_inc_log();
 }
 
 void cm_apply_replay_log(void)
 {
-    while (incop[LOGENT_MEMOP] == *memop + 1)
+    while (cm_inc_log.self_memop == *memop + 1)
         apply_replay_inclog();
 }
 
@@ -332,12 +324,6 @@ void cm_crew_core_init(void)
 {
     crew_inc_log = cm_log[cm_coreid][CREW_INC];
     memop = &memop_cnt[cm_coreid];
-
-    incop = calloc(LOGENT_N, sizeof(*incop));
-    if (!incop) {
-        printf("Can't allocate incop count\n");
-        exit(1);
-    }
 
     int i;
     last_read_owner = calloc(n_memobj, sizeof(*last_read_owner));
