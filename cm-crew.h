@@ -21,8 +21,7 @@ void      cm_write_unlock(memobj_t *mo);
 
 void cm_apply_replay_log(void);
 
-extern void *cm_crew_read_func[4];
-extern void *cm_crew_write_func[4];
+/* General function for both read and write. */
 
 uint8_t cm_crew_readb(const uint8_t *addr);
 uint16_t cm_crew_readw(const uint16_t *addr);
@@ -33,6 +32,11 @@ void cm_crew_writeb(uint8_t *addr, uint8_t val);
 void cm_crew_writew(uint16_t *addr, uint16_t val);
 void cm_crew_writel(uint32_t *addr, uint32_t val);
 void cm_crew_writeq(uint64_t *addr, uint64_t val);
+
+extern void *cm_crew_read_func[4];
+extern void *cm_crew_write_func[4];
+
+/* For debug. */
 
 void debug_read_access(uint64_t val);
 void debug_write_access(uint64_t val);
