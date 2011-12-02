@@ -13,7 +13,7 @@
 #include "cm-replay.h"
 
 /*#define VERBOSE_COREMU*/
-#define DEBUG_COREMU
+/*#define DEBUG_COREMU*/
 #include "coremu-debug.h"
 
 extern int smp_cpus;
@@ -22,7 +22,7 @@ extern int smp_cpus;
 #define memop_t uint32_t
 /* Record memory operation count for each vCPU
  * Overflow should not cause problem if we do not sort the output log. */
-volatile memop_t *memop_cnt; /* XXX what's the problem with original version? */
+volatile memop_t *memop_cnt;
 __thread volatile memop_t *memop;
 
 __thread int cm_is_in_tc;
@@ -35,12 +35,13 @@ __thread uint32_t tlb_fill_cnt;
 static owner_t SHARED_READ;
 
 struct memobj_t {
-    tbb_rwlock_t lock;
     volatile owner_t owner;
-    volatile owner_t last_writer;
     volatile uint16_t version;
     /* Keeps track last writer's info. */
+    volatile owner_t last_writer;
     volatile memop_t last_writer_memop;
+
+    tbb_rwlock_t lock;
 };
 
 /* Now we track memory as 4K shared object, each object will have a memobj_t
@@ -199,10 +200,10 @@ memobj_t *cm_read_lock(const void *addr)
     tbb_start_read(&mo->lock);
     if ((last_read_version[objid] != mo->version)) {
         /* If version mismatch, it means there's write before this read. */
-        last_read_version[objid] = mo->version;
-        record_read_crew_fault(mo->last_writer, mo->last_writer_memop);
         if (mo->owner != SHARED_READ)
             mo->owner = SHARED_READ;
+        last_read_version[objid] = mo->version;
+        record_read_crew_fault(mo->last_writer, mo->last_writer_memop);
     }
     return mo;
 }
@@ -210,13 +211,6 @@ memobj_t *cm_read_lock(const void *addr)
 void cm_read_unlock(memobj_t *mo)
 {
     tbb_end_read(&mo->lock);
-    /*
-     *if ((mo->lock.counter >> 2) >= 2) {
-     *    coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %ld\n",
-     *           (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, mo - memobj);
-     *    while (1);
-     *}
-     */
 }
 
 memobj_t *cm_write_lock(const void* addr)
@@ -224,28 +218,24 @@ memobj_t *cm_write_lock(const void* addr)
     int objid = memobj_id(addr);
     memobj_t *mo = &memobj[objid];
 
-    /*
-     *if ((mo->lock.counter >> 2) >= 2) {
-     *    coremu_debug("Error in rwlock, pc %p, lock->counter 0x%x, lock->owner 0x%x, objid %d\n",
-     *           (void *)cpu_single_env->eip, mo->lock.counter, mo->owner, objid);
-     *    while (1);
-     *}
-     */
     tbb_start_write(&mo->lock);
-    if (mo->owner != cm_coreid) {
-        /* We increase own privilege here. */
-        record_write_crew_fault(mo->owner);
-        mo->version++;
-        mo->last_writer = mo->owner = cm_coreid;
-    }
     mo->last_writer_memop = *memop + 1;
+    if (mo->owner != cm_coreid) {
+        owner_t owner = mo->owner;
+        mo->version++;
+        /* XXX Avoid version checking in following read. */
+        last_read_version[objid] = mo->version;
+        mo->owner = cm_coreid; /* Increase own privilege here. */
+        mo->last_writer = cm_coreid;
+
+        record_write_crew_fault(owner);
+    }
     return mo;
 }
 
 void cm_write_unlock(memobj_t *mo)
 {
     tbb_end_write(&mo->lock);
-    /*assert((mo->lock.counter >> 2) < 3);*/
 }
 
 static inline int apply_replay_inclog(void)
