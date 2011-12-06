@@ -1165,50 +1165,47 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     if (cm_run_mode == CM_RUNMODE_NORMAL) {
         tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
                                tcg_target_call_iarg_regs[0], 0, opc);
-        goto origin;
-    } else
+    } else {
         tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[s_bits]);
 
-    /* Duplicate with the code below. */
-    switch(opc) {
-    case 0 | 4:
-        tcg_out_ext8s(s, data_reg, TCG_REG_EAX, P_REXW);
-        break;
-    case 1 | 4:
-        tcg_out_ext16s(s, data_reg, TCG_REG_EAX, P_REXW);
-        break;
-    case 0:
-        tcg_out_ext8u(s, data_reg, TCG_REG_EAX);
-        break;
-    case 1:
-        tcg_out_ext16u(s, data_reg, TCG_REG_EAX);
-        break;
-    case 2:
-        tcg_out_mov(s, TCG_TYPE_I32, data_reg, TCG_REG_EAX);
-        break;
-#if TCG_TARGET_REG_BITS == 64
-    case 2 | 4:
-        tcg_out_ext32s(s, data_reg, TCG_REG_EAX);
-        break;
-#endif
-    case 3:
-        if (TCG_TARGET_REG_BITS == 64) {
-            tcg_out_mov(s, TCG_TYPE_I64, data_reg, TCG_REG_RAX);
-        } else if (data_reg == TCG_REG_EDX) {
-            /* xchg %edx, %eax */
-            tcg_out_opc(s, OPC_XCHG_ax_r32 + TCG_REG_EDX, 0, 0, 0);
-            tcg_out_mov(s, TCG_TYPE_I32, data_reg2, TCG_REG_EAX);
-        } else {
+        /* Duplicate with the code below. */
+        switch(opc) {
+        case 0 | 4:
+            tcg_out_ext8s(s, data_reg, TCG_REG_EAX, P_REXW);
+            break;
+        case 1 | 4:
+            tcg_out_ext16s(s, data_reg, TCG_REG_EAX, P_REXW);
+            break;
+        case 0:
+            tcg_out_ext8u(s, data_reg, TCG_REG_EAX);
+            break;
+        case 1:
+            tcg_out_ext16u(s, data_reg, TCG_REG_EAX);
+            break;
+        case 2:
             tcg_out_mov(s, TCG_TYPE_I32, data_reg, TCG_REG_EAX);
-            tcg_out_mov(s, TCG_TYPE_I32, data_reg2, TCG_REG_EDX);
+            break;
+#if TCG_TARGET_REG_BITS == 64
+        case 2 | 4:
+            tcg_out_ext32s(s, data_reg, TCG_REG_EAX);
+            break;
+#endif
+        case 3:
+            if (TCG_TARGET_REG_BITS == 64) {
+                tcg_out_mov(s, TCG_TYPE_I64, data_reg, TCG_REG_RAX);
+            } else if (data_reg == TCG_REG_EDX) {
+                /* xchg %edx, %eax */
+                tcg_out_opc(s, OPC_XCHG_ax_r32 + TCG_REG_EDX, 0, 0, 0);
+                tcg_out_mov(s, TCG_TYPE_I32, data_reg2, TCG_REG_EAX);
+            } else {
+                tcg_out_mov(s, TCG_TYPE_I32, data_reg, TCG_REG_EAX);
+                tcg_out_mov(s, TCG_TYPE_I32, data_reg2, TCG_REG_EDX);
+            }
+            break;
+        default:
+            tcg_abort();
         }
-        break;
-    default:
-        tcg_abort();
     }
-
-origin:
-
 #else
     tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
                            tcg_target_call_iarg_regs[0], 0, opc);
@@ -1390,25 +1387,13 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     if (cm_run_mode == CM_RUNMODE_NORMAL) {
         tcg_out_qemu_st_direct(s, data_reg, data_reg2,
                                tcg_target_call_iarg_regs[0], 0, opc);
-        goto origin;
+    } else {
+        /* Host address is in rdi after calling tcg_out_tlb_load, we need also
+         * pass the write value, put it in the second arg register. */
+        tcg_out_mov(s, (opc == 3 ? TCG_TYPE_I64 : TCG_TYPE_I32),
+                    tcg_target_call_iarg_regs[1], data_reg);
+        tcg_out_calli(s, (tcg_target_long)cm_crew_write_func[s_bits & 3]);
     }
-    switch (opc & 0x3) {
-    case 0:
-        tcg_out_ext8u(s, tcg_target_call_iarg_regs[1], data_reg);
-        break;
-    case 1:
-        tcg_out_ext16u(s, tcg_target_call_iarg_regs[1], data_reg);
-        break;
-    case 2:
-        tcg_out_mov(s, TCG_TYPE_I32, tcg_target_call_iarg_regs[1], data_reg);
-        break;
-    case 3:
-        tcg_out_mov(s, TCG_TYPE_I64, tcg_target_call_iarg_regs[1], data_reg);
-        break;
-    }
-    tcg_out_calli(s, (tcg_target_long)cm_crew_write_func[s_bits & 3]);
-
-origin:
 #else
     tcg_out_qemu_st_direct(s, data_reg, data_reg2,
                            tcg_target_call_iarg_regs[0], 0, opc);
