@@ -14,9 +14,12 @@ typedef struct memobj_t memobj_t;
 
 /* Acquire lock before read/write operation, record log if necessary.
  * Unlock after operation done. */
-memobj_t *cm_read_lock(const void *addr);
+
+long memobj_id(const void *addr);
+
+memobj_t *cm_read_lock(long objid);
 void      cm_read_unlock(memobj_t *mo);
-memobj_t *cm_write_lock(const void *addr);
+memobj_t *cm_write_lock(long objid);
 void      cm_write_unlock(memobj_t *mo);
 
 void cm_apply_replay_log(void);

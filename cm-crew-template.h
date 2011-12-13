@@ -27,9 +27,9 @@
 
 /* Record read/write functino. */
 
-static inline DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr)
+static inline DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, long objid)
 {
-    memobj_t *mo = cm_read_lock(addr);
+    memobj_t *mo = cm_read_lock(objid);
     DATA_TYPE val = *addr;
     (*memop)++;
     cm_read_unlock(mo);
@@ -39,9 +39,9 @@ static inline DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr)
     return val;
 }
 
-static inline void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
+static inline void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, long objid, DATA_TYPE val)
 {
-    memobj_t *mo = cm_write_lock(addr);
+    memobj_t *mo = cm_write_lock(objid);
     *addr = val;
     (*memop)++;
     cm_write_unlock(mo);
@@ -85,7 +85,7 @@ DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
     DATA_TYPE val;
     switch (cm_run_mode) {
     case CM_RUNMODE_RECORD:
-        val = glue(cm_crew_record_read, SUFFIX)(addr);
+        val = glue(cm_crew_record_read, SUFFIX)(addr, memobj_id(addr));
         break;
     case CM_RUNMODE_REPLAY:
         val = glue(cm_crew_replay_read, SUFFIX)(addr);
@@ -105,7 +105,7 @@ void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 
     switch (cm_run_mode) {
     case CM_RUNMODE_RECORD:
-        glue(cm_crew_record_write, SUFFIX)(addr, val);
+        glue(cm_crew_record_write, SUFFIX)(addr, memobj_id(addr), val);
         break;
     case CM_RUNMODE_REPLAY:
         glue(cm_crew_replay_write, SUFFIX)(addr, val);

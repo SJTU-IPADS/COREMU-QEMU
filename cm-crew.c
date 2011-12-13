@@ -69,10 +69,10 @@ static inline void *get_page_addr(const void *addr)
     return (void *)((unsigned long)addr & ~0xFFF);
 }
 
-static inline int memobj_id(const void *addr)
+inline long memobj_id(const void *addr)
 {
     ram_addr_t r;
-    int id;
+    long id;
 #ifdef SLOW_HOST2RAMADDR
     /* XXX This is slow but correct. It's possible to use hash to improve speed here.
      * Note this is getting the RAM address, not guest physical address. But as
@@ -81,7 +81,7 @@ static inline int memobj_id(const void *addr)
     assert(qemu_ram_addr_from_host((void *)addr, &r) != -1);
     id = r >> TARGET_PAGE_BITS;
     coremu_assert(id >= 0 && id <= n_memobj,
-                  "addr: %p, id: %d, memop: %d, n_memobj: %d", addr, id,
+                  "addr: %p, id: %ld, memop: %d, n_memobj: %d", addr, id,
                   memop_cnt[cm_coreid], n_memobj);
 #else
     /* Using hash table or even just using a 2 entry cache here will actually
@@ -103,7 +103,7 @@ static inline int memobj_id(const void *addr)
         last_id = id;
 
         coremu_assert(id >= 0 && id <= n_memobj,
-                      "addr: %p, id: %d, memop: %d, n_memobj: %d", addr, id,
+                      "addr: %p, id: %ld, memop: %d, n_memobj: %d", addr, id,
                       memop_cnt[cm_coreid], n_memobj);
     }
 #endif
@@ -192,9 +192,8 @@ static inline void record_write_crew_fault(owner_t owner) {
     }
 }
 
-memobj_t *cm_read_lock(const void *addr)
+memobj_t *cm_read_lock(long objid)
 {
-    int objid = memobj_id(addr);
     memobj_t *mo = &memobj[objid];
 
     tbb_start_read(&mo->lock);
@@ -213,9 +212,8 @@ void cm_read_unlock(memobj_t *mo)
     tbb_end_read(&mo->lock);
 }
 
-memobj_t *cm_write_lock(const void* addr)
+memobj_t *cm_write_lock(long objid)
 {
-    int objid = memobj_id(addr);
     memobj_t *mo = &memobj[objid];
 
     tbb_start_write(&mo->lock);

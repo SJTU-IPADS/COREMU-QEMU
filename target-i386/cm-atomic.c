@@ -127,7 +127,7 @@ static inline memobj_t *cm_start_atomic_insn(const void *q_addr)
     memobj_t *mo = NULL;
     switch (cm_run_mode) {
     case CM_RUNMODE_RECORD:
-        mo = cm_write_lock(q_addr);
+        mo = cm_write_lock(memobj_id(q_addr));
         break;
     case CM_RUNMODE_REPLAY:
         cm_apply_replay_log();
