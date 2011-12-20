@@ -64,49 +64,23 @@ enum {
 };
 #define READLOG_N 3
 
-static inline void *get_page_addr(const void *addr)
-{
-    return (void *)((unsigned long)addr & ~0xFFF);
-}
+/* Using hash table or even just using a 2 entry cache here will actually
+ * make performance worse. */
+__thread unsigned long last_addr = 0;
+__thread long last_id = 0;
 
-inline long memobj_id(const void *addr)
+long __memobj_id(unsigned long addr)
 {
     ram_addr_t r;
     long id;
-#ifdef SLOW_HOST2RAMADDR
-    /* XXX This is slow but correct. It's possible to use hash to improve speed here.
-     * Note this is getting the RAM address, not guest physical address. But as
-     * guest memory has RAM offset starting as 0, this should be the same assert
-     * physcal memory. */
-    assert(qemu_ram_addr_from_host((void *)addr, &r) != -1);
+
+    /*assert(qemu_ram_addr_from_host((void *)addr, &r) != -1);*/
+    qemu_ram_addr_from_host((void *)addr, &r);
     id = r >> TARGET_PAGE_BITS;
+
     coremu_assert(id >= 0 && id <= n_memobj,
-                  "addr: %p, id: %ld, memop: %d, n_memobj: %d", addr, id,
+                  "addr: %p, id: %ld, memop: %d, n_memobj: %d", (void *)addr, id,
                   memop_cnt[cm_coreid], n_memobj);
-#else
-    /* Using hash table or even just using a 2 entry cache here will actually
-     * make performance worse. */
-    static __thread void *last_addr = 0;
-    static __thread int last_id = 0;
-
-    void *page_addr = get_page_addr(addr);
-
-    /* See if this is the same page, if yes, then return last id. */
-    if (page_addr == last_addr) {
-        id = last_id;
-    } else {
-        /*assert(qemu_ram_addr_from_host((void *)addr, &r) != -1);*/
-        qemu_ram_addr_from_host((void *)addr, &r);
-        id = r >> TARGET_PAGE_BITS;
-
-        last_addr = page_addr;
-        last_id = id;
-
-        coremu_assert(id >= 0 && id <= n_memobj,
-                      "addr: %p, id: %ld, memop: %d, n_memobj: %d", addr, id,
-                      memop_cnt[cm_coreid], n_memobj);
-    }
-#endif
 
     return id;
 }

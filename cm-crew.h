@@ -12,10 +12,22 @@ void cm_crew_core_init(void);
 
 typedef struct memobj_t memobj_t;
 
+extern __thread unsigned long last_addr;
+extern __thread long last_id;
+
+long __memobj_id(unsigned long addr);
+static inline long memobj_id(const void *addr)
+{
+    unsigned long page_addr = (unsigned long)addr & ~0xFFF;
+    if (last_addr != page_addr) {
+        last_id = __memobj_id(page_addr);
+        last_addr = page_addr;
+    }
+    return last_id;
+}
+
 /* Acquire lock before read/write operation, record log if necessary.
  * Unlock after operation done. */
-
-long memobj_id(const void *addr);
 
 memobj_t *cm_read_lock(long objid);
 void      cm_read_unlock(memobj_t *mo);
