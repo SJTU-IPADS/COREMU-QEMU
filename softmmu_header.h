@@ -69,6 +69,8 @@
 #define ADDR_READ addr_read
 #endif
 
+#include "cm-crew-helper.h"
+
 /* generic load/store macros */
 
 static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
@@ -99,13 +101,8 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 #endif
 #ifdef FAST_MEMOBJ
-        if (!cm_is_in_tc)
-            res = *(DATA_TYPE *)(physaddr);
-        else if (cm_run_mode == CM_RUNMODE_RECORD)
-            res = glue(cm_crew_record_read, SUFFIX)((DATA_TYPE *)(physaddr),
-                env->tlb_table[mmu_idx][page_index].objid);
-        else
-            res = glue(cm_crew_replay_read, SUFFIX)((DATA_TYPE *)(physaddr));
+        READ_WITH_ID(res, physaddr, env->tlb_table[mmu_idx][page_index].objid,
+                     RES_TYPE);
 #else
         res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)physaddr);
 #endif
@@ -141,13 +138,8 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 #endif
 #ifdef FAST_MEMOBJ
-        if (!cm_is_in_tc)
-            res = *(DATA_STYPE *)(physaddr);
-        else if (cm_run_mode == CM_RUNMODE_RECORD)
-            res = (DATA_STYPE)glue(cm_crew_record_read, SUFFIX)((DATA_TYPE *)(physaddr),
-                env->tlb_table[mmu_idx][page_index].objid);
-        else
-            res = (DATA_STYPE)glue(cm_crew_replay_read, SUFFIX)((DATA_TYPE *)(physaddr));
+        READ_WITH_ID(res, physaddr, env->tlb_table[mmu_idx][page_index].objid,
+                     DATA_STYPE);
 #else
         res = glue(glue(lds, SUFFIX), _raw)((uint8_t *)physaddr);
 #endif
@@ -187,13 +179,7 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 #endif
 #ifdef FAST_MEMOBJ
-        if (!cm_is_in_tc)
-            *(DATA_TYPE *)(physaddr) = v;
-        else if (cm_run_mode == CM_RUNMODE_RECORD)
-            glue(cm_crew_record_write, SUFFIX)((DATA_TYPE *)(physaddr),
-                env->tlb_table[mmu_idx][page_index].objid, v);
-        else
-            glue(cm_crew_replay_write, SUFFIX)((DATA_TYPE *)(physaddr), v);
+        WRITE_WITH_ID(physaddr, env->tlb_table[mmu_idx][page_index].objid, v);
 #else
         glue(glue(st, SUFFIX), _raw)((uint8_t *)physaddr, v);
 #endif

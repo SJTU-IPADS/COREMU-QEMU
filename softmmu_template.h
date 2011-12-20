@@ -54,6 +54,8 @@
 #define ADDR_READ addr_read
 #endif
 
+#include "cm-crew-helper.h"
+
 static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                         int mmu_idx,
                                                         void *retaddr);
@@ -155,13 +157,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->tlb_table[mmu_idx][index].addend;
 #endif
 #ifdef FAST_MEMOBJ
-            if (!cm_is_in_tc)
-                res = *(DATA_TYPE *)(addr+addend);
-            else if (cm_run_mode == CM_RUNMODE_RECORD)
-                res = glue(cm_crew_record_read, SUFFIX)((DATA_TYPE *)(addr+addend),
-                                                                env->tlb_table[mmu_idx][index].objid);
-            else
-                res = glue(cm_crew_replay_read, SUFFIX)((DATA_TYPE *)(addr+addend));
+            READ_WITH_ID(res, addr+addend, env->tlb_table[mmu_idx][index].objid, DATA_TYPE);
 #else
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
 #endif
@@ -239,13 +235,8 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->tlb_table[mmu_idx][index].addend;
 #endif
 #ifdef FAST_MEMOBJ
-            if (!cm_is_in_tc)
-                res = *(DATA_TYPE *)(addr+addend);
-            else if (cm_run_mode == CM_RUNMODE_RECORD)
-                res = glue(cm_crew_record_read, SUFFIX)((DATA_TYPE *)(addr+addend),
-                                                                env->tlb_table[mmu_idx][index].objid);
-            else
-                res = glue(cm_crew_replay_read, SUFFIX)((DATA_TYPE *)(addr+addend));
+            READ_WITH_ID(res, addr+addend, env->tlb_table[mmu_idx][index].objid,
+                         DATA_TYPE);
 #else
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
 #endif
@@ -358,13 +349,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->tlb_table[mmu_idx][index].addend;
 #endif
 #ifdef FAST_MEMOBJ
-            if (!cm_is_in_tc)
-                *(DATA_TYPE *)(addr+addend) = val;
-            else if (cm_run_mode == CM_RUNMODE_RECORD)
-                glue(cm_crew_record_write, SUFFIX)((DATA_TYPE *)(addr+addend),
-                                                                env->tlb_table[mmu_idx][index].objid, val);
-            else
-                glue(cm_crew_replay_write, SUFFIX)((DATA_TYPE *)(addr+addend), val);
+            WRITE_WITH_ID(addr+addend, env->tlb_table[mmu_idx][index].objid, val);
 #else
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
 #endif
@@ -439,13 +424,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->tlb_table[mmu_idx][index].addend;
 #endif
 #ifdef FAST_MEMOBJ
-            if (!cm_is_in_tc)
-                *(DATA_TYPE *)(addr+addend) = val;
-            else if (cm_run_mode == CM_RUNMODE_RECORD)
-                glue(cm_crew_record_write, SUFFIX)((DATA_TYPE *)(addr+addend),
-                                                                env->tlb_table[mmu_idx][index].objid, val);
-            else
-                glue(cm_crew_replay_write, SUFFIX)((DATA_TYPE *)(addr+addend), val);
+            WRITE_WITH_ID(addr+addend, env->tlb_table[mmu_idx][index].objid, val);
 #else
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
 #endif
