@@ -56,18 +56,6 @@ void cm_crew_replay_writew(uint16_t *addr, uint16_t val);
 void cm_crew_replay_writel(uint32_t *addr, uint32_t val);
 void cm_crew_replay_writeq(uint64_t *addr, uint64_t val);
 
-/* General function for both read and write. */
-
-uint8_t cm_crew_readb(const uint8_t *addr);
-uint16_t cm_crew_readw(const uint16_t *addr);
-uint32_t cm_crew_readl(const uint32_t *addr);
-uint64_t cm_crew_readq(const uint64_t *addr);
-
-void cm_crew_writeb(uint8_t *addr, uint8_t val);
-void cm_crew_writew(uint16_t *addr, uint16_t val);
-void cm_crew_writel(uint32_t *addr, uint32_t val);
-void cm_crew_writeq(uint64_t *addr, uint64_t val);
-
 extern void *cm_crew_record_read_func[4];
 extern void *cm_crew_record_write_func[4];
 extern void *cm_crew_replay_read_func[4];

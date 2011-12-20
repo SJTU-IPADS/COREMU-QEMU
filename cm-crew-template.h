@@ -77,46 +77,6 @@ void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 #endif
 }
 
-/* General read/write which will choose the right one according to cm_run_mode */
-
-DATA_TYPE glue(cm_crew_read, SUFFIX)(const DATA_TYPE *addr)
-{
-    if (!cm_is_in_tc)
-        return *addr;
-
-    DATA_TYPE val;
-    switch (cm_run_mode) {
-    case CM_RUNMODE_RECORD:
-        val = glue(cm_crew_record_read, SUFFIX)(addr, memobj_id(addr));
-        break;
-    case CM_RUNMODE_REPLAY:
-        val = glue(cm_crew_replay_read, SUFFIX)(addr);
-        break;
-    default:
-        val = *addr;
-    }
-    return val;
-}
-
-void glue(cm_crew_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
-{
-    if (!cm_is_in_tc) {
-        *addr = val;
-        return;
-    }
-
-    switch (cm_run_mode) {
-    case CM_RUNMODE_RECORD:
-        glue(cm_crew_record_write, SUFFIX)(addr, memobj_id(addr), val);
-        break;
-    case CM_RUNMODE_REPLAY:
-        glue(cm_crew_replay_write, SUFFIX)(addr, val);
-        break;
-    default:
-        *addr = val;
-    }
-}
-
 #undef DATA_BITS
 #undef DATA_TYPE
 #undef SUFFIX
