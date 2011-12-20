@@ -1052,7 +1052,7 @@ static inline void tcg_out_tlb_load(TCGContext *s, int addrlo_idx,
     /* add addend(r1), r0 */
     tcg_out_modrm_offset(s, OPC_ADD_GvEv + P_REXW, r0, r1,
                          offsetof(CPUTLBEntry, addend) - which);
-#ifdef FAST_MEMOBJ
+#ifdef CONFIG_REPLAY
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         /* Put the objid into the 2nd argument.
          * Note r1 and tcg_target_call_iarg_regs[1] are the same, so this must

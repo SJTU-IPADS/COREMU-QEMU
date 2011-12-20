@@ -156,7 +156,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #else
             addend = env->tlb_table[mmu_idx][index].addend;
 #endif
-#ifdef FAST_MEMOBJ
+#ifdef CONFIG_REPLAY
             READ_WITH_ID(res, addr+addend, env->tlb_table[mmu_idx][index].objid, DATA_TYPE);
 #else
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
@@ -234,7 +234,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #else
             addend = env->tlb_table[mmu_idx][index].addend;
 #endif
-#ifdef FAST_MEMOBJ
+#ifdef CONFIG_REPLAY
             READ_WITH_ID(res, addr+addend, env->tlb_table[mmu_idx][index].objid,
                          DATA_TYPE);
 #else
@@ -348,7 +348,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #else
             addend = env->tlb_table[mmu_idx][index].addend;
 #endif
-#ifdef FAST_MEMOBJ
+#ifdef CONFIG_REPLAY
             WRITE_WITH_ID(addr+addend, env->tlb_table[mmu_idx][index].objid, val);
 #else
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
@@ -423,7 +423,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #else
             addend = env->tlb_table[mmu_idx][index].addend;
 #endif
-#ifdef FAST_MEMOBJ
+#ifdef CONFIG_REPLAY
             WRITE_WITH_ID(addr+addend, env->tlb_table[mmu_idx][index].objid, val);
 #else
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);

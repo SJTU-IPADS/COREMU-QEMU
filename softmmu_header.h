@@ -100,7 +100,7 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
 #else
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 #endif
-#ifdef FAST_MEMOBJ
+#ifdef CONFIG_REPLAY
         READ_WITH_ID(res, physaddr, env->tlb_table[mmu_idx][page_index].objid,
                      RES_TYPE);
 #else
@@ -137,7 +137,7 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
 #else
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 #endif
-#ifdef FAST_MEMOBJ
+#ifdef CONFIG_REPLAY
         READ_WITH_ID(res, physaddr, env->tlb_table[mmu_idx][page_index].objid,
                      DATA_STYPE);
 #else
@@ -178,7 +178,7 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
 #else
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 #endif
-#ifdef FAST_MEMOBJ
+#ifdef CONFIG_REPLAY
         WRITE_WITH_ID(physaddr, env->tlb_table[mmu_idx][page_index].objid, v);
 #else
         glue(glue(st, SUFFIX), _raw)((uint8_t *)physaddr, v);

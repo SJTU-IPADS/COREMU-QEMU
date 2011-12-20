@@ -79,7 +79,7 @@ typedef uint64_t target_ulong;
 #if HOST_LONG_BITS == 32 && TARGET_LONG_BITS == 32
 #define CPU_TLB_ENTRY_BITS 4
 #else
-# ifdef FAST_MEMOBJ
+# ifdef CONFIG_REPLAY
 #define CPU_TLB_ENTRY_BITS 6
 #  else
 #define CPU_TLB_ENTRY_BITS 5
@@ -99,14 +99,14 @@ typedef struct CPUTLBEntry {
     /* Addend to virtual address to get host address.  IO accesses
        use the corresponding iotlb value.  */
     unsigned long addend;
-#ifdef FAST_MEMOBJ
+#ifdef CONFIG_REPLAY
     long objid;
 #endif
     /* padding to get a power of two size */
     uint8_t dummy[(1 << CPU_TLB_ENTRY_BITS) - 
                   (sizeof(target_ulong) * 3 + 
                    ((-sizeof(target_ulong) * 3) & (sizeof(unsigned long) - 1)) + 
-#ifdef FAST_MEMOBJ
+#ifdef CONFIG_REPLAY
                    sizeof(long) +
 #endif
                    sizeof(unsigned long))];
