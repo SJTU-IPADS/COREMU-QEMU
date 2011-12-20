@@ -172,6 +172,29 @@ typedef union {
 } CPU_QuadU;
 #endif
 
+#ifdef CONFIG_REPLAY
+/* Macro again ... Is there any way to avoid template code? */
+#define READ(rettype, hostaddr, size_func) \
+    do { \
+        if (!cm_is_in_tc) \
+            return *(rettype *)ptr; \
+        else if (cm_run_mode == CM_RUNMODE_RECORD) \
+            return (rettype)cm_crew_record_##size_func(ptr, memobj_id(ptr)); \
+        else \
+            return (rettype)cm_crew_replay_##size_func(ptr); \
+    } while (0)
+
+#define WRITE(valtype, hostaddr, v, size_func) \
+    do { \
+        if (!cm_is_in_tc) \
+            *(valtype *)ptr = v; \
+        else if (cm_run_mode == CM_RUNMODE_RECORD) \
+            cm_crew_record_##size_func(ptr, memobj_id(ptr), v); \
+        else \
+            cm_crew_replay_##size_func(ptr, v); \
+    } while (0)
+#endif
+
 /* CPU memory access without any memory or io remapping */
 
 /*
@@ -210,7 +233,7 @@ typedef union {
 static inline int ldub_p(const void *ptr)
 {
 #ifdef CONFIG_REPLAY
-    return (uint8_t)cm_crew_readb(ptr);
+    READ(uint8_t, ptr, readb);
 #else
     return *(uint8_t *)ptr;
 #endif
@@ -219,7 +242,7 @@ static inline int ldub_p(const void *ptr)
 static inline int ldsb_p(const void *ptr)
 {
 #ifdef CONFIG_REPLAY
-    return (int8_t)cm_crew_readb(ptr);
+    READ(int8_t, ptr, readb);
 #else
     return *(int8_t *)ptr;
 #endif
@@ -228,7 +251,7 @@ static inline int ldsb_p(const void *ptr)
 static inline void stb_p(void *ptr, int v)
 {
 #ifdef CONFIG_REPLAY
-    cm_crew_writeb(ptr, v);
+    WRITE(uint8_t, ptr, v, writeb);
 #else
     *(uint8_t *)ptr = v;
 #endif
@@ -359,7 +382,7 @@ static inline void stfq_le_p(void *ptr, float64 v)
 static inline int lduw_le_p(const void *ptr)
 {
 #ifdef CONFIG_REPLAY
-    return (uint16_t)cm_crew_readw(ptr);
+    READ(uint16_t, ptr, readw);
 #else
     return *(uint16_t *)ptr;
 #endif
@@ -368,7 +391,7 @@ static inline int lduw_le_p(const void *ptr)
 static inline int ldsw_le_p(const void *ptr)
 {
 #ifdef CONFIG_REPLAY
-    return (int16_t)cm_crew_readw(ptr);
+    READ(int16_t, ptr, readw);
 #else
     return *(int16_t *)ptr;
 #endif
@@ -377,7 +400,7 @@ static inline int ldsw_le_p(const void *ptr)
 static inline int ldl_le_p(const void *ptr)
 {
 #ifdef CONFIG_REPLAY
-    return (uint32_t)cm_crew_readl(ptr);
+    READ(uint32_t, ptr, readl);
 #else
     return *(uint32_t *)ptr;
 #endif
@@ -386,7 +409,7 @@ static inline int ldl_le_p(const void *ptr)
 static inline uint64_t ldq_le_p(const void *ptr)
 {
 #ifdef CONFIG_REPLAY
-    return (uint64_t)cm_crew_readq(ptr);
+    READ(uint64_t, ptr, readq);
 #else
     return *(uint64_t *)ptr;
 #endif
@@ -395,7 +418,7 @@ static inline uint64_t ldq_le_p(const void *ptr)
 static inline void stw_le_p(void *ptr, int v)
 {
 #ifdef CONFIG_REPLAY
-    cm_crew_writew(ptr, v);
+    WRITE(uint16_t, ptr, v, writew);
 #else
     *(uint16_t *)ptr = v;
 #endif
@@ -404,7 +427,7 @@ static inline void stw_le_p(void *ptr, int v)
 static inline void stl_le_p(void *ptr, int v)
 {
 #ifdef CONFIG_REPLAY
-    cm_crew_writel(ptr, v);
+    WRITE(uint32_t, ptr, v, writel);
 #else
     *(uint32_t *)ptr = v;
 #endif
@@ -413,7 +436,7 @@ static inline void stl_le_p(void *ptr, int v)
 static inline void stq_le_p(void *ptr, uint64_t v)
 {
 #ifdef CONFIG_REPLAY
-    cm_crew_writeq(ptr, v);
+    WRITE(uint64_t, ptr, v, writeq);
 #else
     *(uint64_t *)ptr = v;
 #endif
@@ -424,7 +447,7 @@ static inline void stq_le_p(void *ptr, uint64_t v)
 static inline float32 ldfl_le_p(const void *ptr)
 {
 #ifdef CONFIG_REPLAY
-    return (uint32_t)cm_crew_readl(ptr);
+    READ(uint32_t, ptr, readl);
 #else
     return *(float32 *)ptr;
 #endif
@@ -433,7 +456,7 @@ static inline float32 ldfl_le_p(const void *ptr)
 static inline float64 ldfq_le_p(const void *ptr)
 {
 #ifdef CONFIG_REPLAY
-    return (uint64_t)cm_crew_readq(ptr);
+    READ(uint64_t, ptr, readq);
 #else
     return *(float64 *)ptr;
 #endif
@@ -442,7 +465,7 @@ static inline float64 ldfq_le_p(const void *ptr)
 static inline void stfl_le_p(void *ptr, float32 v)
 {
 #ifdef CONFIG_REPLAY
-    cm_crew_writel(ptr, v);
+    WRITE(uint32_t, ptr, v, writel);
 #else
     *(float32 *)ptr = v;
 #endif
@@ -451,7 +474,7 @@ static inline void stfl_le_p(void *ptr, float32 v)
 static inline void stfq_le_p(void *ptr, float64 v)
 {
 #ifdef CONFIG_REPLAY
-    cm_crew_writeq(ptr, v);
+    WRITE(uint64_t, ptr, v, writeq);
 #else
     *(float64 *)ptr = v;
 #endif
