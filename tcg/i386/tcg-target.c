@@ -2112,12 +2112,18 @@ void cm_tcg_gen_tb_exec_cnt(TCGContext *s)
      * want to directly operate on memory location.
      * So I hard code the machine code which is platform dependent. The
      * following binary code is extracted from object code compiled by gcc. */
-    tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_RAX, (long)&cm_tb_exec_cnt[cm_coreid]);
+/*
+ *    tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_RAX, (long)&cm_tb_exec_cnt[cm_coreid]);
+ *
+ *    [> incq (%rax) <]
+ *    tcg_out8(s, 0x48); [> insn. prefix REX.W <]
+ *    tcg_out8(s, 0xff); [> inc <]
+ *    tcg_out8(s, 0x00); [> modrm byte <]
+ */
 
-    /* incq (%rax) */
-    tcg_out8(s, 0x48); /* insn. prefix REX.W */
-    tcg_out8(s, 0xff); /* inc */
-    tcg_out8(s, 0x00); /* modrm byte */
+    /* This version uses a single instruction. */
+    tcg_out32(s, 0x2504ff48); /* Actually 0x 48 ff 04 25 */
+    tcg_out32(s, (uint32_t)(long)&cm_tb_exec_cnt[cm_coreid]);
 
     cm_tb_cnt_code_size = s->code_ptr - ptr;
 }
