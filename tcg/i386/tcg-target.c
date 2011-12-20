@@ -1052,6 +1052,15 @@ static inline void tcg_out_tlb_load(TCGContext *s, int addrlo_idx,
     /* add addend(r1), r0 */
     tcg_out_modrm_offset(s, OPC_ADD_GvEv + P_REXW, r0, r1,
                          offsetof(CPUTLBEntry, addend) - which);
+#ifdef FAST_MEMOBJ
+    if (cm_run_mode == CM_RUNMODE_RECORD) {
+        /* Put the objid into the 2nd argument.
+         * Note r1 and tcg_target_call_iarg_regs[1] are the same, so this must
+         * come after the previous tcg_out. */
+        tcg_out_modrm_offset(s, OPC_MOVL_GvEv + P_REXW, tcg_target_call_iarg_regs[1], r1,
+                             offsetof(CPUTLBEntry, objid) - which);
+    }
+#endif
 }
 #endif
 
@@ -1166,7 +1175,10 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
                                tcg_target_call_iarg_regs[0], 0, opc);
     } else {
-        tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[s_bits]);
+        if (cm_run_mode == CM_RUNMODE_RECORD)
+            tcg_out_calli(s, (tcg_target_long)cm_crew_record_read_func[s_bits]);
+        else
+            tcg_out_calli(s, (tcg_target_long)cm_crew_replay_read_func[s_bits]);
 
         /* Duplicate with the code below. */
         switch(opc) {
@@ -1391,8 +1403,12 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
         /* Host address is in rdi after calling tcg_out_tlb_load, we need also
          * pass the write value, put it in the second arg register. */
         tcg_out_mov(s, (opc == 3 ? TCG_TYPE_I64 : TCG_TYPE_I32),
-                    tcg_target_call_iarg_regs[1], data_reg);
-        tcg_out_calli(s, (tcg_target_long)cm_crew_write_func[s_bits & 3]);
+                    tcg_target_call_iarg_regs[cm_run_mode == CM_RUNMODE_RECORD ?  2 : 1],
+                    data_reg);
+        if (cm_run_mode == CM_RUNMODE_RECORD)
+            tcg_out_calli(s, (tcg_target_long)cm_crew_record_write_func[s_bits & 3]);
+        else
+            tcg_out_calli(s, (tcg_target_long)cm_crew_replay_write_func[s_bits & 3]);
     }
 #else
     tcg_out_qemu_st_direct(s, data_reg, data_reg2,

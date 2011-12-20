@@ -27,8 +27,9 @@
 
 /* Record read/write functino. */
 
-static inline DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, long objid)
+DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, long objid)
 {
+    coremu_assert(cm_is_in_tc, "Must in TC execution");
     memobj_t *mo = cm_read_lock(objid);
     DATA_TYPE val = *addr;
     (*memop)++;
@@ -39,8 +40,9 @@ static inline DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr,
     return val;
 }
 
-static inline void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, long objid, DATA_TYPE val)
+void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, long objid, DATA_TYPE val)
 {
+    coremu_assert(cm_is_in_tc, "Must in TC execution");
     memobj_t *mo = cm_write_lock(objid);
     *addr = val;
     (*memop)++;
@@ -52,7 +54,7 @@ static inline void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, long obji
 
 /* Replay read/write functino. */
 
-static inline DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr)
+DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr)
 {
     cm_apply_replay_log();
 
@@ -64,7 +66,7 @@ static inline DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr)
     return val;
 }
 
-static inline void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
+void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
     cm_apply_replay_log();
 

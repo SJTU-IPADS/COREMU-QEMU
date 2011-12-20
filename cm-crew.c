@@ -393,17 +393,31 @@ void cm_assert_not_in_tc(void)
 #define DATA_BITS 64
 #include "cm-crew-template.h"
 
-void *cm_crew_read_func[4] = {
-    cm_crew_readb,
-    cm_crew_readw,
-    cm_crew_readl,
-    cm_crew_readq,
+void *cm_crew_record_read_func[4] = {
+    cm_crew_record_readb,
+    cm_crew_record_readw,
+    cm_crew_record_readl,
+    cm_crew_record_readq,
 };
 
-void *cm_crew_write_func[4] = {
-    cm_crew_writeb,
-    cm_crew_writew,
-    cm_crew_writel,
-    cm_crew_writeq,
+void *cm_crew_record_write_func[4] = {
+    cm_crew_record_writeb,
+    cm_crew_record_writew,
+    cm_crew_record_writel,
+    cm_crew_record_writeq,
+};
+
+void *cm_crew_replay_read_func[4] = {
+    cm_crew_replay_readb,
+    cm_crew_replay_readw,
+    cm_crew_replay_readl,
+    cm_crew_replay_readq,
+};
+
+void *cm_crew_replay_write_func[4] = {
+    cm_crew_replay_writeb,
+    cm_crew_replay_writew,
+    cm_crew_replay_writel,
+    cm_crew_replay_writeq,
 };
 
