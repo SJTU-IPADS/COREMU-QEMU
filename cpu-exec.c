@@ -651,7 +651,9 @@ int cpu_exec(CPUState *env1)
                 }
 #ifdef CONFIG_REPLAY
                 int inject_intno;
+#ifdef ASSERT_REPLAY_PC
                 unsigned long inject_eip = cm_inject_intr.eip;
+#endif
                 if (cm_run_mode == CM_RUNMODE_REPLAY &&
                         (inject_intno = cm_replay_intr()) != -1) {
                     switch (inject_intno) {
@@ -662,10 +664,14 @@ int cpu_exec(CPUState *env1)
                         cm_do_cpu_sipi();
                         break;
                     default:
+#ifdef ASSERT_REPLAY_PC
+                        /* The assertion only works when the eip is correct. It
+                         * need to be updated in cm_replay_assert_pc. */
                         coremu_assert(env->eip == inject_eip,
                                       "abort: cm_coreid = %u, eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
                                       cm_coreid, (void *)(long)env->eip,
                                       (void *)cm_inject_intr.eip, cm_tb_exec_cnt[cm_coreid]);
+#endif
                         do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
                         break;
                     }
