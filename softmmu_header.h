@@ -43,10 +43,18 @@
 #define CPU_MMU_INDEX ACCESS_TYPE
 #define MMUSUFFIX _mmu
 
+#ifdef CONFIG_REPLAY
+#define CREW_MMU
+#endif
+
 #elif ACCESS_TYPE == (NB_MMU_MODES)
 
 #define CPU_MMU_INDEX (cpu_mmu_index(env))
 #define MMUSUFFIX _mmu
+
+#ifdef CONFIG_REPLAY
+#define CREW_MMU
+#endif
 
 #elif ACCESS_TYPE == (NB_MMU_MODES + 1)
 
@@ -100,7 +108,7 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
 #else
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 #endif
-#ifdef CONFIG_REPLAY
+#ifdef CREW_MMU
         READ_WITH_ID(res, physaddr, env->tlb_table[mmu_idx][page_index].objid,
                      RES_TYPE);
 #else
@@ -137,7 +145,7 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
 #else
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 #endif
-#ifdef CONFIG_REPLAY
+#ifdef CREW_MMU
         READ_WITH_ID(res, physaddr, env->tlb_table[mmu_idx][page_index].objid,
                      DATA_STYPE);
 #else
@@ -178,7 +186,7 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
 #else
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 #endif
-#ifdef CONFIG_REPLAY
+#ifdef CREW_MMU
         WRITE_WITH_ID(physaddr, env->tlb_table[mmu_idx][page_index].objid, v);
 #else
         glue(glue(st, SUFFIX), _raw)((uint8_t *)physaddr, v);
