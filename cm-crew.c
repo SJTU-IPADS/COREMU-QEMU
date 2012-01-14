@@ -98,6 +98,7 @@ __thread IncLog cm_inc_log;
 static inline void write_inc_log(owner_t owner, memop_t owner_memop)
 {
 #ifdef REPLAY_TXT_LOG
+    coremu_assert(cm_coreid != owner, "no need to wait self");
     fprintf(cm_log[cm_coreid][CREW_INC], CREW_LOG_FMT, memop_cnt[cm_coreid] + 1,
             owner, owner_memop);
 #elif defined(REPLAY_LOGBUF)
@@ -176,7 +177,9 @@ memobj_t *cm_read_lock(long objid)
         if (mo->owner != SHARED_READ)
             mo->owner = SHARED_READ;
         last_read_version[objid] = mo->version;
-        record_read_crew_fault(mo->last_writer, mo->last_writer_memop);
+        if (cm_coreid != mo->last_writer) {
+            record_read_crew_fault(mo->last_writer, mo->last_writer_memop);
+        }
     }
     return mo;
 }
