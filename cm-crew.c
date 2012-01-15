@@ -216,7 +216,9 @@ void cm_write_unlock(memobj_t *mo)
 static inline int apply_replay_inclog(void)
 {
     /* Wait for the target CPU's memop to reach the recorded value. */
-    while (memop_cnt[cm_inc_log.owner] < cm_inc_log.owner_memop);
+    while (memop_cnt[cm_inc_log.owner] < cm_inc_log.owner_memop) {
+        asm volatile ("pause" : : : "memory");
+    }
     return read_inc_log();
 }
 

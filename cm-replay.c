@@ -36,6 +36,7 @@
 #include "cm-replay.h"
 #include "cm-loop.h"
 
+#define VERBOSE_COERMU
 #define DEBUG_COREMU
 #include "coremu-debug.h"
 
@@ -49,16 +50,15 @@ __thread uint16_t cm_coreid;
 
 /* Array containing tb execution count for each cpu. */
 uint64_t *cm_tb_exec_cnt;
-/* How many times the interrupt handler is called. */
-__thread volatile uint64_t cm_intr_handler_cnt;
+/* How many times the ipi interrupt handler is called. */
+__thread volatile int cm_ipi_intr_handler_cnt;
 
 /* Replaying interrupt. */
 
 /* Inject interrupt when cm_tb_exec_cnt reaches exec_cnt */
 __thread IntrLog cm_inject_intr;
-__thread uint64_t cm_inject_intr_handler_cnt;
 
-#define LOG_INTR_FMT "%x %lu %lu %p\n"
+#define LOG_INTR_FMT "%x %lu %p\n"
 
 /* XXX hope disk DMA intterrupt number could be somewhat fixed. */
 #define IS_DMA_INT(intno) \
@@ -72,19 +72,17 @@ void cm_record_intr(int intno, long eip)
     if (IS_DMA_INT(intno)) {
         cm_record_disk_dma();
     }
-#ifdef REPLAY_TXT_LOG
+#ifdef DEBUG_REPLAY
     fprintf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, intno,
-            cm_tb_exec_cnt[cm_coreid], cm_intr_handler_cnt, (void *)(long)eip);
+            cm_tb_exec_cnt[cm_coreid], (void *)(long)eip);
 #elif defined(REPLAY_LOGBUF)
     IntrLog *log = coremu_logbuf_next_entry(&(cm_log_buf[cm_coreid][INTR]), sizeof(*log));
     log->intno = intno;
     log->exec_cnt = cm_tb_exec_cnt[cm_coreid];
-    log->eip = eip;
 #else
     IntrLog log;
     log.intno = intno;
     log.exec_cnt = cm_tb_exec_cnt[cm_coreid];
-    log.eip = eip;
     if (fwrite(&log, sizeof(log), 1, cm_log[cm_coreid][INTR]) != 1) {
         coremu_print("intr log record error");
     }
@@ -93,9 +91,9 @@ void cm_record_intr(int intno, long eip)
 
 static inline void cm_read_intr_log(void)
 {
-#ifdef REPLAY_TXT_LOG
+#ifdef DEBUG_REPLAY
     if (fscanf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, &cm_inject_intr.intno,
-               &cm_inject_intr.exec_cnt, &cm_inject_intr_handler_cnt,
+               &cm_inject_intr.exec_cnt,
                (void **)&cm_inject_intr.eip) == EOF)
         cm_inject_intr.exec_cnt = -1;
 #else
@@ -123,9 +121,13 @@ next_log:
             goto next_log; /* Well, goto is really handy here. */
         }
 #endif
-        /* Wait the interrupt handler to be called. */
-        while (cm_intr_handler_cnt < cm_inject_intr_handler_cnt)
-            cm_receive_intr();
+        /* Wait the init and sipi interrupt handler to be called. */
+        if (cm_inject_intr.intno == CM_CPU_INIT || cm_inject_intr.intno == CM_CPU_SIPI) {
+            int recorded_ipi_cnt = 0;
+            cm_replay_ipi_handler_cnt(&recorded_ipi_cnt);
+            while (cm_ipi_intr_handler_cnt < recorded_ipi_cnt)
+                cm_receive_intr();
+        }
 
         if (IS_DMA_INT(cm_inject_intr.intno))
             cm_wait_disk_dma();
@@ -142,6 +144,8 @@ next_log:
     return -1;
 }
 
+#ifdef DEBUG_REPLAY
+
 #define GEN_RECORD_FUNC(name, type, log, fmt) \
 void cm_record_##name(type arg) \
 { \
@@ -155,13 +159,37 @@ int cm_replay_##name(type *arg) \
         coremu_debug("no more log"); \
         cm_print_replay_info(); \
         exit(0); \
+    } \
+    return 1; \
+}
+
+#else /* !REPLAY_TXT_LOG */
+
+#define GEN_RECORD_FUNC(name, type, log, fmt) \
+void cm_record_##name(type arg) \
+{ \
+    fwrite(&arg, sizeof(type), 1, log); \
+}
+
+#define GEN_REPLAY_FUNC(name, type, log, fmt) \
+int cm_replay_##name(type *arg) \
+{ \
+    if (fread(arg, sizeof(type), 1, log) != 1) { \
+        coremu_debug("no more log"); \
+        cm_print_replay_info(); \
+        exit(0); \
     }\
     return 1; \
 }
+#endif
 
 #define GEN_FUNC(name, type, log, fmt) \
     GEN_RECORD_FUNC(name, type, log, fmt) \
     GEN_REPLAY_FUNC(name, type, log, fmt)
+
+/* IPI hander cnt */
+#define IPI_LOG_FMT "%x\n"
+GEN_FUNC(ipi_handler_cnt, int, cm_log[cm_coreid][IPI], IPI_LOG_FMT);
 
 /* input data */
 
@@ -216,7 +244,12 @@ void cm_record_disk_dma(void)
      *for (i = 0; i < smp_cpus; i++)
      *    fprintf(cm_log[i][DISK_DMA], DMA_LOG_FMT, cm_tb_exec_cnt[i]);
      */
-     fprintf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, cm_dma_cnt);
+#ifdef DEBUG_REPLAY
+    fprintf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, cm_dma_cnt);
+#else
+    uint64_t cnt = cm_dma_cnt;
+    fwrite(&cnt, sizeof(cnt), 1, cm_log[cm_coreid][DISK_DMA]);
+#endif
 }
 
 static inline void cm_read_dma_log(void)
@@ -227,8 +260,13 @@ static inline void cm_read_dma_log(void)
      *    cm_dma_done_exec_cnt = (uint64_t)-1;
      *}
      */
+#ifdef DEBUG_REPLAY
      if (fscanf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, &cm_next_dma_cnt) == EOF)
         printf("no more dma log\n");
+#else
+     if (fread(&cm_next_dma_cnt, sizeof(cm_dma_cnt), 1, cm_log[cm_coreid][DISK_DMA]) != 1)
+        printf("no more dma log\n");
+#endif
 }
 
 static void cm_wait_disk_dma(void)
@@ -309,7 +347,7 @@ void cm_replay_all_exec_cnt(void)
             continue;
         if (fscanf(cm_log[cm_coreid][ALLPC], LOG_ALL_EXEC_CNT_FMT, &coreid,
                    &wait_exec_cnt) == EOF) {
-            coremu_debug("No more all pc log.");
+            coremu_print("No more all pc log.");
             return;
         } else {
             while (cm_tb_exec_cnt[coreid] < wait_exec_cnt)

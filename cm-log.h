@@ -7,6 +7,7 @@
 
 enum {
     INTR,
+    IPI,
     PC,
     IN,
     RDTSC,

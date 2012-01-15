@@ -9,7 +9,7 @@
 #include "cm-log.h"
 
 static const char *cm_log_name[] = {
-    "intr", "pc", "in", "rdtsc", "mmio", "dma", "crewinc", "allpc", "tlbflush",
+    "intr", "ipi", "pc", "in", "rdtsc", "mmio", "dma", "crewinc", "allpc", "tlbflush",
     "gencode", "read", "write", "tlbfill", "tbflush"
 };
 

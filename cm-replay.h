@@ -14,10 +14,12 @@ enum {
 typedef struct {
     int intno;
     uint64_t exec_cnt;
+#ifdef DEBUG_REPLAY
     uint64_t eip;
+#endif
 } IntrLog;
 extern __thread IntrLog cm_inject_intr;
-extern __thread volatile uint64_t cm_intr_handler_cnt;
+extern __thread volatile int cm_ipi_intr_handler_cnt;
 
 /* Mark the interrupt being generated from the log. */
 #define CM_REPLAY_INT 0x80000000
@@ -34,7 +36,9 @@ void cm_replay_init(void);
 void cm_replay_core_init(void);
 
 void cm_record_intr(int intno, long eip);
-int cm_replay_intr(void);
+int  cm_replay_intr(void);
+void cm_record_ipi_handler_cnt(int);
+int  cm_replay_ipi_handler_cnt(int *);
 
 enum {
     DO_CPU_INIT,

@@ -1165,6 +1165,7 @@ void do_cpu_init(CPUState *env)
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         cm_record_all_exec_cnt();
         cm_record_intr(CM_CPU_INIT, env->eip);
+        cm_record_ipi_handler_cnt(cm_ipi_intr_handler_cnt);
     }
 #endif
     int sipi = env->interrupt_request & CPU_INTERRUPT_SIPI;
@@ -1180,6 +1181,7 @@ void do_cpu_sipi(CPUState *env)
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         cm_record_all_exec_cnt();
         cm_record_intr(CM_CPU_SIPI, env->eip);
+        cm_record_ipi_handler_cnt(cm_ipi_intr_handler_cnt);
     }
 #endif
     apic_sipi(env->apic_state);

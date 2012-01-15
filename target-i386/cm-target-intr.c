@@ -111,7 +111,7 @@ static void cm_ipi_intr_handler(void *opaque)
         cm_apic_setup_arbid(self->apic_state);
     }
 #ifdef CONFIG_REPLAY
-    cm_intr_handler_cnt++;
+    cm_ipi_intr_handler_cnt++;
 #endif
 }
 
