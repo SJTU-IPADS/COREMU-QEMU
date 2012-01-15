@@ -12,12 +12,12 @@ enum {
 #define NINTR 10 // For debug
 
 typedef struct {
-    int intno;
     uint64_t exec_cnt;
 #ifdef DEBUG_REPLAY
     uint64_t eip;
 #endif
-} IntrLog;
+    int intno;
+} __attribute__ ((packed)) IntrLog;
 extern __thread IntrLog cm_inject_intr;
 extern __thread volatile int cm_ipi_intr_handler_cnt;
 

@@ -85,10 +85,10 @@ long __memobj_id(unsigned long addr)
 #define CREW_LOG_FMT "%u %hu %u\n"
 
 typedef struct IncLog {
-    cpuid_t owner;
     memop_t self_memop;
     memop_t owner_memop;
-} IncLog;
+    cpuid_t owner;
+} __attribute__ ((packed)) IncLog;
 
 __thread IncLog cm_inc_log;
 
