@@ -29,16 +29,14 @@ __thread int cm_is_in_tc;
 
 __thread uint32_t tlb_fill_cnt;
 
-#define owner_t uint8_t
-
 /* This is set to the number of CPUs. */
-static owner_t SHARED_READ;
+static cpuid_t SHARED_READ;
 
 struct memobj_t {
-    volatile owner_t owner;
+    volatile cpuid_t owner;
     volatile uint16_t version;
     /* Keeps track last writer's info. */
-    volatile owner_t last_writer;
+    volatile cpuid_t last_writer;
     volatile memop_t last_writer_memop;
 
     tbb_rwlock_t lock;
@@ -51,7 +49,7 @@ static int n_memobj;
 static memobj_t *memobj;
 /* cache_info emulates the cache directory. last_read_version keeps track of the
  * version of the last read. Updated on CREW fault. */
-__thread owner_t *last_read_version;
+__thread cpuid_t *last_read_version;
 
 /* Initialize to be cm_log[cm_coreid][CREW_INC] */
 static __thread FILE *crew_inc_log;
@@ -88,14 +86,14 @@ long __memobj_id(unsigned long addr)
 #define CREW_LOG_FMT "%u %hu %u\n"
 
 typedef struct IncLog {
-    owner_t owner;
+    cpuid_t owner;
     memop_t self_memop;
     memop_t owner_memop;
 } IncLog;
 
 __thread IncLog cm_inc_log;
 
-static inline void write_inc_log(owner_t owner, memop_t owner_memop)
+static inline void write_inc_log(cpuid_t owner, memop_t owner_memop)
 {
 #ifdef REPLAY_TXT_LOG
     coremu_assert(cm_coreid != owner, "no need to wait self");
@@ -143,7 +141,7 @@ no_more_log:
 }
 
 /* TODO We'd better use a buffer */
-static inline void record_read_crew_fault(owner_t owner, memop_t wait_memop) {
+static inline void record_read_crew_fault(cpuid_t owner, memop_t wait_memop) {
     /* The owner's privilege is decreased. */
 
     /* increase log: memop, objid, R/W, cpuno, memop
@@ -153,7 +151,7 @@ static inline void record_read_crew_fault(owner_t owner, memop_t wait_memop) {
     write_inc_log(owner, wait_memop);
 }
 
-static inline void record_write_crew_fault(owner_t owner) {
+static inline void record_write_crew_fault(cpuid_t owner) {
     /*coremu_debug("record write fault");*/
     if (owner != SHARED_READ) {
         write_inc_log(owner, memop_cnt[owner]);
@@ -196,7 +194,7 @@ memobj_t *cm_write_lock(long objid)
     tbb_start_write(&mo->lock);
     mo->last_writer_memop = *memop + 1;
     if (mo->owner != cm_coreid) {
-        owner_t owner = mo->owner;
+        cpuid_t owner = mo->owner;
         mo->version++;
         /* XXX Avoid version checking in following read. */
         last_read_version[objid] = mo->version;

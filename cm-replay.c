@@ -46,7 +46,7 @@ extern int smp_cpus;
 int cm_run_mode;
 
 /* Use this to get cpu specific info. */
-__thread uint16_t cm_coreid;
+__thread int16_t cm_coreid;
 
 /* Array containing tb execution count for each cpu. */
 uint64_t *cm_tb_exec_cnt;
