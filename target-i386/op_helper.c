@@ -4887,10 +4887,9 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
         cm_replay_assert_tlbfill(addr);
 #endif
     }
-#ifdef IGNORE_MEMACC_IN_TLBFILL
+    /* Ignore memory access not directly caused by translated code. */
     int saved_in_tc = cm_is_in_tc;
     cm_is_in_tc = 0;
-#endif
 #endif /* CONFIG_REPLAY */
     TranslationBlock *tb;
     int ret;
@@ -4917,9 +4916,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
         raise_exception_err(env->exception_index, env->error_code);
     }
     env = saved_env;
-#ifdef IGNORE_MEMACC_IN_TLBFILL
     cm_is_in_tc = saved_in_tc;
-#endif
 }
 #endif
 
