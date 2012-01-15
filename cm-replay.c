@@ -163,7 +163,7 @@ int cm_replay_##name(type *arg) \
     return 1; \
 }
 
-#else /* !REPLAY_TXT_LOG */
+#else /* !DEBUG_REPLAY */
 
 #define GEN_RECORD_FUNC(name, type, log, fmt) \
 void cm_record_##name(type arg) \

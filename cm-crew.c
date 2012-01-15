@@ -94,7 +94,7 @@ __thread IncLog cm_inc_log;
 
 static inline void write_inc_log(cpuid_t owner, memop_t owner_memop)
 {
-#ifdef REPLAY_TXT_LOG
+#ifdef DEBUG_REPLAY
     coremu_assert(cm_coreid != owner, "no need to wait self");
     fprintf(cm_log[cm_coreid][CREW_INC], CREW_LOG_FMT, memop_cnt[cm_coreid] + 1,
             owner, owner_memop);
@@ -116,7 +116,7 @@ static inline void write_inc_log(cpuid_t owner, memop_t owner_memop)
 
 static inline int read_inc_log(void)
 {
-#ifdef REPLAY_TXT_LOG
+#ifdef DEBUG_REPLAY
     if (fscanf(crew_inc_log, CREW_LOG_FMT, &cm_inc_log.self_memop,
            (uint16_t *)&cm_inc_log.owner, &cm_inc_log.owner_memop) == EOF) {
         goto no_more_log;
