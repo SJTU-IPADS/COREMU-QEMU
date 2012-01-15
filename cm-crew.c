@@ -29,8 +29,7 @@ __thread int cm_is_in_tc;
 
 __thread uint32_t tlb_fill_cnt;
 
-/* This is set to the number of CPUs. */
-static cpuid_t SHARED_READ;
+#define SHARED_READ -1
 
 struct memobj_t {
     volatile cpuid_t owner;
@@ -228,8 +227,6 @@ void cm_apply_replay_log(void)
 
 void cm_crew_init(void)
 {
-    SHARED_READ = smp_cpus;
-
     memop_cnt = calloc(smp_cpus, sizeof(*memop_cnt));
     if (!memop_cnt) {
         printf("Can't allocate memop count\n");
