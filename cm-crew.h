@@ -1,6 +1,11 @@
 #ifndef _CM_CREW_H
 #define _CM_CREW_H
 
+/* Now we track memory as MEMOBJ_SIZE shared object, each object will have a
+ * memobj_t tracking its ownership */
+#define MEMOBJ_SIZE 4096
+#define MEMOBJ_SHIFT 12
+
 extern __thread volatile uint32_t *memop;
 extern volatile uint32_t *memop_cnt;
 extern __thread int cm_is_in_tc;

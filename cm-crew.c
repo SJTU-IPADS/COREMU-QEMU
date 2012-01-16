@@ -41,9 +41,6 @@ struct memobj_t {
     tbb_rwlock_t lock;
 };
 
-/* Now we track memory as 4K shared object, each object will have a memobj_t
- * tracking its ownership */
-#define MEMOBJ_SIZE 4096
 static int n_memobj;
 static memobj_t *memobj;
 /* cache_info emulates the cache directory. last_read_version keeps track of the
@@ -73,7 +70,7 @@ long __memobj_id(unsigned long addr)
 
     /*assert(qemu_ram_addr_from_host((void *)addr, &r) != -1);*/
     qemu_ram_addr_from_host((void *)addr, &r);
-    id = r >> TARGET_PAGE_BITS;
+    id = r >> MEMOBJ_SHIFT;
 
     coremu_assert(id >= 0 && id <= n_memobj,
                   "addr: %p, id: %ld, memop: %d, n_memobj: %d", (void *)addr, id,
@@ -237,7 +234,7 @@ void cm_crew_init(void)
     /*n_memobj = (ram_size+PC_ROM_SIZE+VGA_RAM_SIZE+65536+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;*/
     n_memobj = (ram_size+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;
     /* XXX I don't know exactly how many is needed, providing more is safe */
-    n_memobj *= 3;
+    n_memobj += (n_memobj / 100);
     memobj = calloc(n_memobj, sizeof(memobj_t));
     if (!memobj) {
         printf("Can't allocate mem info\n");

@@ -74,6 +74,7 @@
 #include "cm-tbinval.h"
 #include "cm-replay.h"
 #include "cm-target-intr.h"
+#include "cm-crew.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
@@ -2471,7 +2472,7 @@ void tlb_set_page(CPUState *env, target_ulong vaddr,
     /* There are some memory access which don't go through TLB. And we have to
      * lookup from host address to guest physical addr. So use ram addr here as
      * this can give use same result as qemu_ram_addr_from_host. */
-    te->objid = pd >> TARGET_PAGE_BITS;
+    te->objid = pd >> MEMOBJ_SHIFT;
 #endif
     if (prot & PAGE_READ) {
         te->addr_read = address;
