@@ -2131,11 +2131,6 @@ void tlb_flush(CPUState *env, int flush_global)
             env->tlb_table[mmu_idx][i].addr_read = -1;
             env->tlb_table[mmu_idx][i].addr_write = -1;
             env->tlb_table[mmu_idx][i].addr_code = -1;
-#ifdef SEP_TLB
-            env->tlb_table2[mmu_idx][i].addr_read = -1;
-            env->tlb_table2[mmu_idx][i].addr_write = -1;
-            env->tlb_table2[mmu_idx][i].addr_code = -1;
-#endif /* SEP_TLB */
 #else
             env->tlb_table[mmu_idx][i] = s_cputlb_empty_entry;
 #endif
@@ -2188,15 +2183,8 @@ void tlb_flush_page(CPUState *env, target_ulong addr)
 
     addr &= TARGET_PAGE_MASK;
     i = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-#ifdef SEP_TLB
-    for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
-        tlb_flush_entry(&env->tlb_table[mmu_idx][i], addr);
-        tlb_flush_entry(&env->tlb_table2[mmu_idx][i], addr);
-    }
-#else
     for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++)
         tlb_flush_entry(&env->tlb_table[mmu_idx][i], addr);
-#endif
 
     tlb_flush_jmp_cache(env, addr);
 }
@@ -2263,10 +2251,6 @@ void cpu_physical_memory_reset_dirty(ram_addr_t start, ram_addr_t end,
 #ifdef CONFIG_COREMU
                 cm_tlb_reset_dirty_range(&env->tlb_table[mmu_idx][i],
                                         start1, length);
-#ifdef SEP_TLB
-                cm_tlb_reset_dirty_range(&env->tlb_table2[mmu_idx][i],
-                                        start1, length);
-#endif
 #else
                 tlb_reset_dirty_range(&env->tlb_table[mmu_idx][i],
                                       start1, length);
@@ -2318,15 +2302,8 @@ void cpu_tlb_update_dirty(CPUState *env)
     int i;
     int mmu_idx;
     for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
-#ifdef SEP_TLB
-        for(i = 0; i < CPU_TLB_SIZE; i++) {
-            tlb_update_dirty(&env->tlb_table[mmu_idx][i]);
-            tlb_update_dirty(&env->tlb_table2[mmu_idx][i]);
-        }
-#else
         for(i = 0; i < CPU_TLB_SIZE; i++)
             tlb_update_dirty(&env->tlb_table[mmu_idx][i]);
-#endif
     }
 }
 
@@ -2345,15 +2322,8 @@ static inline void tlb_set_dirty(CPUState *env, target_ulong vaddr)
 
     vaddr &= TARGET_PAGE_MASK;
     i = (vaddr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-#ifdef SEP_TLB
-    for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
-        tlb_set_dirty1(&env->tlb_table[mmu_idx][i], vaddr);
-        tlb_set_dirty1(&env->tlb_table2[mmu_idx][i], vaddr);
-    }
-#else
     for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++)
         tlb_set_dirty1(&env->tlb_table[mmu_idx][i], vaddr);
-#endif
 }
 
 /* Our TLB does not support large pages, so remember the area covered by
@@ -2455,18 +2425,8 @@ void tlb_set_page(CPUState *env, target_ulong vaddr,
     }
 
     index = (vaddr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-#ifdef SEP_TLB
-    if (cm_is_in_tc)
-        env->iotlb[mmu_idx][index] = iotlb - vaddr;
-    else
-        env->iotlb2[mmu_idx][index] = iotlb - vaddr;
-    te = cm_is_in_tc ?
-        &(env->tlb_table[mmu_idx][index]) :
-        &(env->tlb_table2[mmu_idx][index]);
-#else
     env->iotlb[mmu_idx][index] = iotlb - vaddr;
     te = &env->tlb_table[mmu_idx][index];
-#endif
     te->addend = addend - vaddr;
 #ifdef CONFIG_REPLAY
     /* There are some memory access which don't go through TLB. And we have to
