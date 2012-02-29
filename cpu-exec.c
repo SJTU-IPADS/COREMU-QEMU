@@ -25,6 +25,7 @@
 
 #include <pthread.h>
 #include "coremu-config.h"
+#include "cm-defs.h"
 #include "cm-intr.h"
 #include "cm-replay.h"
 #include "cm-crew.h"
@@ -256,7 +257,7 @@ static void cpu_handle_debug_exception(CPUState *env)
 
 /* main execution loop */
 
-#ifdef CONFIG_REPLAY
+#if defined(CONFIG_REPLAY) && defined(TARGET_I386)
 static void cm_do_cpu_init(void)
 {
     /* XXX Here we need to wait until the BSP sets the jump insn.
@@ -657,22 +658,28 @@ int cpu_exec(CPUState *env1)
                 if (cm_run_mode == CM_RUNMODE_REPLAY &&
                         (inject_intno = cm_replay_intr()) != -1) {
                     switch (inject_intno) {
+#ifdef TARGET_I386
                     case CM_CPU_INIT:
                         cm_do_cpu_init();
                         break;
                     case CM_CPU_SIPI:
                         cm_do_cpu_sipi();
                         break;
+#endif
                     default:
 #ifdef ASSERT_REPLAY_PC
                         /* The assertion only works when the eip is correct. It
                          * need to be updated in cm_replay_assert_pc. */
-                        coremu_assert(env->eip == inject_eip,
+                        coremu_assert(env->ENVPC == inject_eip,
                                       "abort: cm_coreid = %u, eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
-                                      cm_coreid, (void *)(long)env->eip,
+                                      cm_coreid, (void *)(long)env->ENVPC,
                                       (void *)cm_inject_intr.eip, cm_tb_exec_cnt[cm_coreid]);
 #endif
+#ifdef TARGET_I386
                         do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
+#elif defined(TARGET_ARM)
+                        // TODO ARM replay interrupt
+#endif
                         break;
                     }
                     /* XXX ensure that no TB jump will be modified as

@@ -130,16 +130,6 @@ static void cm_tlb_flush_req_handler(void *opaque)
     tlb_flush(cpu_single_env, 1);
 }
 
-static void cm_exit_intr_handler(void *opaque)
-{
-    coremu_debug("exiting");
-    cm_replay_flush_log(cm_coreid);
-#ifdef CONFIG_REPLAY
-    cm_print_replay_info();
-#endif
-    pthread_exit(NULL);
-}
-
 /* The initial function for interrupts */
 
 static CMIntr *cm_pic_intr_init(int level)
@@ -208,13 +198,5 @@ void cm_send_tlb_flush_req(int target)
         return;
 #endif
     coremu_send_intr(cm_tlb_flush_req_init(), target);
-}
-
-void cm_send_exit_intr(int target)
-{
-    CMExitIntr *intr = coremu_mallocz(sizeof(*intr));
-    ((CMIntr *)intr)->handler = cm_exit_intr_handler;
-
-    coremu_send_intr(intr, target);
 }
 

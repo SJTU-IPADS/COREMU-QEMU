@@ -9,11 +9,12 @@
 #include "rwlock.h"
 #include "coremu-config.h"
 #include "coremu-atomic.h"
+#include "cm-defs.h"
 #include "cm-crew.h"
 #include "cm-replay.h"
 
 /*#define VERBOSE_COREMU*/
-/*#define DEBUG_COREMU*/
+#define DEBUG_COREMU
 #include "coremu-debug.h"
 
 extern int smp_cpus;
@@ -281,7 +282,7 @@ void debug_read_access(uint64_t val)
     }
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         fprintf(cm_log[cm_coreid][READ], READ_LOG_FMT,
-                cpu_single_env->eip, val, tlb_fill_cnt, *memop);
+                cpu_single_env->ENVPC, val, tlb_fill_cnt, *memop);
     }
     /*else if (*memop > 1000000) {*/
     else {
@@ -292,9 +293,9 @@ void debug_read_access(uint64_t val)
         if (fscanf(cm_log[cm_coreid][READ], READ_LOG_FMT,
                &rec_eip, &rec_val, &tlb_cnt, &rec_memop) == EOF)
             return;
-        if (rec_eip != cpu_single_env->eip) {
+        if (rec_eip != cpu_single_env->ENVPC) {
             coremu_debug("read ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
-                         cm_coreid, cpu_single_env->eip, rec_eip);
+                         cm_coreid, cpu_single_env->ENVPC, rec_eip);
             error = 1;
         }
         if (val != rec_val) {
@@ -330,7 +331,7 @@ void debug_write_access(uint64_t val)
     }
     if (cm_run_mode == CM_RUNMODE_RECORD)
         fprintf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
-                cpu_single_env->eip, val, tlb_fill_cnt);
+                cpu_single_env->ENVPC, val, tlb_fill_cnt);
     /*else if (*memop > 1000000) {*/
     else {
         uint64_t rec_eip, rec_val;
@@ -339,9 +340,9 @@ void debug_write_access(uint64_t val)
         if (fscanf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
                &rec_eip, &rec_val, &cnt) == EOF)
             return;
-        if (rec_eip != cpu_single_env->eip) {
+        if (rec_eip != cpu_single_env->ENVPC) {
             coremu_debug("write ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
-                         cm_coreid, cpu_single_env->eip, rec_eip);
+                         cm_coreid, cpu_single_env->ENVPC, rec_eip);
             error = 1;
         }
         if (val != rec_val) {
@@ -371,7 +372,7 @@ void cm_assert_not_in_tc(void)
              "cm_tb_exec_cnt = %lu, "
              "memop_cnt = %u",
              cm_coreid,
-             (long)cpu_single_env->eip,
+             (long)cpu_single_env->ENVPC,
              cm_tb_exec_cnt[cm_coreid],
              *memop_cnt);
         pthread_exit(NULL);

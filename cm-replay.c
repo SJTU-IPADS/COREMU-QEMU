@@ -34,6 +34,7 @@
 #include "cm-intr.h"
 #include "cm-replay.h"
 #include "cm-loop.h"
+#include "cm-defs.h"
 
 #define VERBOSE_COERMU
 #define DEBUG_COREMU
@@ -396,7 +397,7 @@ void cm_replay_assert_pc(uint64_t eip)
     /* Update cpu eip so we get correct eip in debug code. This is necessary to
      * make the asserting code work correctly when there's page fault inside an
      * execution of a TB chain. */
-    cpu_single_env->eip = eip;
+    cpu_single_env->ENVPC = eip;
 
     /*
      *if (cm_tb_exec_cnt[cm_coreid] % 10240 != 0)
@@ -614,7 +615,7 @@ void cm_print_replay_info(void)
 {
     coremu_debug("core_id = %u, eip = %lx, cm_tb_exec_cnt = %lu, memop = %u",
                  cm_coreid,
-                 cpu_single_env->eip,
+                 cpu_single_env->ENVPC,
                  cm_tb_exec_cnt[cm_coreid],
                  *memop);
 }

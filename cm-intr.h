@@ -39,4 +39,11 @@ void cm_common_intr_handler(CMIntr *opaque);
 void cm_notify_event(void);
 
 void cm_receive_intr(void);
+
+typedef struct CMExitIntr {
+    CMIntr *base;
+} CMExitIntr;
+
+void cm_send_exit_intr(int target);
+
 #endif
