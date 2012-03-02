@@ -121,6 +121,8 @@ next_log:
             goto next_log; /* Well, goto is really handy here. */
         }
 #endif
+
+#ifdef TARGET_I386
         /* Wait the init and sipi interrupt handler to be called. */
         if (cm_inject_intr.intno == CM_CPU_INIT || cm_inject_intr.intno == CM_CPU_SIPI) {
             int recorded_ipi_cnt = 0;
@@ -128,6 +130,7 @@ next_log:
             while (cm_ipi_intr_handler_cnt < recorded_ipi_cnt)
                 cm_receive_intr();
         }
+#endif
 
         if (IS_DMA_INT(cm_inject_intr.intno))
             cm_wait_disk_dma();
@@ -414,8 +417,7 @@ void cm_replay_assert_pc(uint64_t eip)
 
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
-        if (fscanf(cm_log[cm_coreid][PC], PC_LOG_FMT, &next_eip,
-                   &recorded_memop) == EOF) {
+        if (fscanf(cm_log[cm_coreid][PC], PC_LOG_FMT, &next_eip, &recorded_memop) == EOF) {
             coremu_debug("no more pc log, cm_coreid = %u, cm_tb_exec_cnt = %lu", cm_coreid,
                    cm_tb_exec_cnt[cm_coreid]);
             cm_print_replay_info();
@@ -425,8 +427,10 @@ void cm_replay_assert_pc(uint64_t eip)
                 || (recorded_memop != *memop)) {
             if (eip != next_eip)
                 coremu_debug("ERROR in execution path!");
-            else if (*memop != recorded_memop)
+            else if (*memop != recorded_memop) {
+                return;
                 coremu_debug("ERROR in memop cnt");
+            }
             coremu_debug(
                       "cm_coreid = %u, eip = %016lx, recorded eip = %016lx, "
                       "memop_cnt = %u, recorded_memop = %u, "

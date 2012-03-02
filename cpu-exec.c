@@ -651,6 +651,7 @@ int cpu_exec(CPUState *env1)
                     cpu_loop_exit();
                 }
 #ifdef CONFIG_REPLAY
+                /* Replay the interrupt here. */
                 int inject_intno;
 #ifdef ASSERT_REPLAY_PC
                 unsigned long inject_eip = cm_inject_intr.eip;
@@ -678,7 +679,8 @@ int cpu_exec(CPUState *env1)
 #ifdef TARGET_I386
                         do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
 #elif defined(TARGET_ARM)
-                        // TODO ARM replay interrupt
+                        env->exception_index = inject_intno | CM_REPLAY_INT;
+                        do_interrupt(env);
 #endif
                         break;
                     }

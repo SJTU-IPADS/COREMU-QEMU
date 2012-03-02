@@ -12,7 +12,12 @@
 #include "hw/loader.h"
 #endif
 
+#include "cm-defs.h"
+#include "cm-replay.h"
 #include "coremu-core.h"
+
+#define DEBUG_COREMU
+#include "coremu-debug.h"
 
 static uint32_t cortexa9_cp15_c0_c1[8] =
 { 0x1031, 0x11, 0x000, 0, 0x00100103, 0x20000000, 0x01230000, 0x00002111 };
@@ -757,9 +762,30 @@ static void do_interrupt_v7m(CPUARMState *env)
     env->thumb = addr & 1;
 }
 
+#ifdef CONFIG_REPLAY
+#define IS_INTERRUPT(intno) \
+    (intno == EXCP_IRQ)
+    /*(intno == EXCP_IRQ || intno == EXCP_FIQ)*/
+#endif
+
 /* Handle a CPU exception.  */
 void do_interrupt(CPUARMState *env)
 {
+#ifdef CONFIG_REPLAY
+    static int cnt = 0;
+    if (cm_run_mode == CM_RUNMODE_REPLAY) {
+        int exception_index = env->exception_index & ~CM_REPLAY_INT;
+        if ((env->exception_index & CM_REPLAY_INT) == 0 &&
+                !IS_INTERRUPT(exception_index)) {
+            coremu_debug("ignore interrupt");
+            return;
+        }
+        env->exception_index = exception_index;
+        cnt++;
+        if (cnt % 1000 == 0)
+            coremu_debug("inject interrupt 0x%x cnt: %d", env->exception_index, cnt);
+    }
+#endif
     uint32_t addr;
     uint32_t mask;
     int new_mode;
@@ -845,6 +871,14 @@ void do_interrupt(CPUARMState *env)
         cpu_abort(env, "Unhandled exception 0x%x\n", env->exception_index);
         return; /* Never happens.  Keep compiler happy.  */
     }
+#ifdef CONFIG_REPLAY
+    if (IS_INTERRUPT(env->exception_index) && cm_run_mode == CM_RUNMODE_RECORD) {
+        cnt++;
+        if (cnt % 1000 == 0)
+            coremu_debug("recording interrupt %d", cnt);
+        cm_record_intr(env->exception_index, env->ENVPC);
+    }
+#endif
     /* High vectors.  */
     if (env->cp15.c1_sys & (1 << 13)) {
         addr += 0xffff0000;
