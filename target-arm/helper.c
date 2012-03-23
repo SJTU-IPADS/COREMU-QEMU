@@ -777,12 +777,12 @@ void do_interrupt(CPUARMState *env)
     static int print_cnt = 0;
     if (cm_run_mode == CM_RUNMODE_REPLAY) {
         int exception_index = env->exception_index & ~CM_REPLAY_INT;
-        if ((env->exception_index & CM_REPLAY_INT) == 0 &&
-                !IS_INTERRUPT(exception_index)) {
-            coremu_debug("ignore interrupt");
+        if ((env->exception_index & CM_REPLAY_INT) == 0 && IS_INTERRUPT(exception_index)) {
+            /*coremu_debug("ignore irq");*/
             return;
         }
         env->exception_index = exception_index;
+        irq_cnt++;
     }
 #endif
     uint32_t addr;
@@ -917,8 +917,6 @@ void do_interrupt(CPUARMState *env)
     env->regs[14] = env->regs[15] + offset;
     env->regs[15] = addr;
     env->interrupt_request |= CPU_INTERRUPT_EXITTB;
-#ifdef DEBUG_REPLAY
-#endif
 }
 
 /* Check section/page access permissions.

@@ -107,26 +107,41 @@ static inline void cm_read_intr_log(void)
 #endif
 }
 
-static void cm_wait_disk_dma(void);
+#ifdef TARGET_I386
+static void cm_wait_disk_dma(void)
+{
+    /* We only need to wait for DMA operation to complete if current executed tb
+     * is more then when DMA is done during recording. */
+    /*
+     *if (cm_tb_exec_cnt[cm_coreid] < cm_dma_done_exec_cnt)
+     *    return;
+     */
+
+    /*
+     *coremu_debug("CPU %d waiting DMA cnt to be %lu, cm_tb_exec_cnt = %lu "
+     *             "cm_dma_done_exec_cnt = %lu", cm_coreid,
+     *             cm_next_dma_cnt, cm_tb_exec_cnt[cm_coreid], cm_dma_done_exec_cnt);
+     */
+    cm_read_dma_log();
+    /*
+     *coremu_debug("core %u get next_dma_cnt %lu at eip %p",
+     *             cm_coreid, cm_dma_cnt, (void *)cpu_single_env->eip);
+     */
+    while (cm_dma_cnt < cm_next_dma_cnt) {
+        /* Waiting for DMA operation to complete. */
+        pthread_yield();
+    }
+    /*coremu_debug("DMA done, cm_tb_exec_cnt = %lu", cm_tb_exec_cnt[cm_coreid]);*/
+    /*cm_next_dma_cnt = cm_dma_cnt + 1;*/
+}
+#endif
 
 int cm_replay_intr(void)
 {
     int intno;
 
-#ifdef TLBFLUSH_AS_INTERRUPT
-next_log:
-#endif
     /* We should only wait when it needs to inject an interrupt. */
     if (cm_tb_exec_cnt[cm_coreid] == cm_inject_intr.exec_cnt) {
-#ifdef TLBFLUSH_AS_INTERRUPT
-        if (cm_inject_intno == CM_CPU_TLBFLUSH) {
-            /*coremu_debug("tlb_flushed called as interrupt");*/
-            tlb_flush(cpu_single_env, 1);
-            cm_read_intr_log();
-            goto next_log; /* Well, goto is really handy here. */
-        }
-#endif
-
 #ifdef TARGET_I386
         /* Wait the init and sipi interrupt handler to be called. */
         if (cm_inject_intr.intno == CM_CPU_INIT || cm_inject_intr.intno == CM_CPU_SIPI) {
@@ -135,10 +150,10 @@ next_log:
             while (cm_ipi_intr_handler_cnt < recorded_ipi_cnt)
                 cm_receive_intr();
         }
-#endif
 
         if (IS_DMA_INT(cm_inject_intr.intno))
             cm_wait_disk_dma();
+#endif
 
         /*
          *coremu_debug("coreid %hu injecting interrupt %d at cm_tb_exec_cnt = %lu with "
@@ -279,33 +294,6 @@ static inline void cm_read_dma_log(void)
      if (fread(&cm_next_dma_cnt, sizeof(cm_dma_cnt), 1, cm_log[cm_coreid][DISK_DMA]) != 1)
         printf("no more dma log\n");
 #endif
-}
-
-static void cm_wait_disk_dma(void)
-{
-    /* We only need to wait for DMA operation to complete if current executed tb
-     * is more then when DMA is done during recording. */
-    /*
-     *if (cm_tb_exec_cnt[cm_coreid] < cm_dma_done_exec_cnt)
-     *    return;
-     */
-
-    /*
-     *coremu_debug("CPU %d waiting DMA cnt to be %lu, cm_tb_exec_cnt = %lu "
-     *             "cm_dma_done_exec_cnt = %lu", cm_coreid,
-     *             cm_next_dma_cnt, cm_tb_exec_cnt[cm_coreid], cm_dma_done_exec_cnt);
-     */
-    cm_read_dma_log();
-    /*
-     *coremu_debug("core %u get next_dma_cnt %lu at eip %p",
-     *             cm_coreid, cm_dma_cnt, (void *)cpu_single_env->eip);
-     */
-    while (cm_dma_cnt < cm_next_dma_cnt) {
-        /* Waiting for DMA operation to complete. */
-        pthread_yield();
-    }
-    /*coremu_debug("DMA done, cm_tb_exec_cnt = %lu", cm_tb_exec_cnt[cm_coreid]);*/
-    /*cm_next_dma_cnt = cm_dma_cnt + 1;*/
 }
 
 /* init */
