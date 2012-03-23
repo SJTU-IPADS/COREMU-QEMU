@@ -282,7 +282,7 @@ void debug_read_access(uint64_t val)
     }
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         fprintf(cm_log[cm_coreid][READ], READ_LOG_FMT,
-                cpu_single_env->ENVPC, val, tlb_fill_cnt, *memop);
+                (uint64_t)cpu_single_env->ENVPC, val, tlb_fill_cnt, *memop);
     }
     /*else if (*memop > 1000000) {*/
     else {
@@ -295,7 +295,7 @@ void debug_read_access(uint64_t val)
             return;
         if (rec_eip != cpu_single_env->ENVPC) {
             coremu_debug("read ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
-                         cm_coreid, cpu_single_env->ENVPC, rec_eip);
+                         cm_coreid, (uint64_t)cpu_single_env->ENVPC, rec_eip);
             error = 1;
         }
         if (val != rec_val) {
@@ -331,7 +331,7 @@ void debug_write_access(uint64_t val)
     }
     if (cm_run_mode == CM_RUNMODE_RECORD)
         fprintf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
-                cpu_single_env->ENVPC, val, tlb_fill_cnt);
+                (uint64_t)cpu_single_env->ENVPC, val, tlb_fill_cnt);
     /*else if (*memop > 1000000) {*/
     else {
         uint64_t rec_eip, rec_val;
@@ -342,7 +342,7 @@ void debug_write_access(uint64_t val)
             return;
         if (rec_eip != cpu_single_env->ENVPC) {
             coremu_debug("write ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
-                         cm_coreid, cpu_single_env->ENVPC, rec_eip);
+                         cm_coreid, (uint64_t)cpu_single_env->ENVPC, rec_eip);
             error = 1;
         }
         if (val != rec_val) {
