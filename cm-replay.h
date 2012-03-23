@@ -1,6 +1,7 @@
 #ifndef _CM_REPLAY_H
 #define _CM_REPLAY_H
 
+#include "coremu-config.h"
 #include "cm-log.h"
 
 enum {
@@ -69,6 +70,12 @@ void cm_replay_assert_tbflush(uint64_t);
 void cm_replay_assert_tlbfill(uint64_t addr);
 
 void cm_print_replay_info(void);
+
+#ifdef DEBUG_REPLAY
+extern int going_to_fail;
+extern int pl050_read_cnt;
+GEN_HEADER(spsr, uint32_t);
+#endif
 
 #undef GEN_HEADER
 

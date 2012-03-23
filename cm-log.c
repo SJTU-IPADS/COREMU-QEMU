@@ -10,7 +10,7 @@
 
 static const char *cm_log_name[] = {
     "intr", "ipi", "pc", "in", "rdtsc", "mmio", "dma", "crewinc", "allpc", "tlbflush",
-    "gencode", "read", "write", "tlbfill", "tbflush"
+    "gencode", "read", "write", "tlbfill", "tbflush", "spsr"
 };
 
 log_t **cm_log;

@@ -40,6 +40,11 @@
 #define DEBUG_COREMU
 #include "coremu-debug.h"
 
+#ifdef DEBUG_REPLAY
+int going_to_fail;
+int pl050_read_cnt = 0;
+#endif
+
 extern int smp_cpus;
 
 /* Whether the vm is being recorded or replayed. */
@@ -619,8 +624,12 @@ void cm_print_replay_info(void)
 {
     coremu_debug("core_id = %u, eip = %lx, cm_tb_exec_cnt = %lu, memop = %u",
                  cm_coreid,
-                 cpu_single_env->ENVPC,
+                 (uint64_t)cpu_single_env->ENVPC,
                  cm_tb_exec_cnt[cm_coreid],
                  *memop);
 }
+
+#ifdef DEBUG_REPLAY
+GEN_FUNC(spsr, uint32_t, cm_log[cm_coreid][SPSR], "%x\n");
+#endif
 
