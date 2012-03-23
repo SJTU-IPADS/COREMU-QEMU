@@ -672,9 +672,11 @@ int cpu_exec(CPUState *env1)
                         /* The assertion only works when the eip is correct. It
                          * need to be updated in cm_replay_assert_pc. */
                         coremu_assert(env->ENVPC == inject_eip,
-                                      "abort: cm_coreid = %u, eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
+                                      "abort: cm_coreid = %u, eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu, "
+                                      "pl050_read_cnt = %d",
                                       cm_coreid, (void *)(long)env->ENVPC,
-                                      (void *)cm_inject_intr.eip, cm_tb_exec_cnt[cm_coreid]);
+                                      (void *)cm_inject_intr.eip, cm_tb_exec_cnt[cm_coreid],
+                                      pl050_read_cnt);
 #endif
 #ifdef TARGET_I386
                         do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
@@ -759,6 +761,13 @@ int cpu_exec(CPUState *env1)
                         exit(1);
                     }
 #  endif
+#ifdef DEBUG_REPLAY
+                    static int print_cnt = 0;
+                    if (going_to_fail && print_cnt++ < 30) {
+                        coremu_debug("tb_exec_cnt = %lu, pc = %x",
+                                cm_tb_exec_cnt[cm_coreid], env->ENVPC);
+                    }
+#endif
                     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
                     cm_is_in_tc = 0;
 #  ifdef CHECK_MEMOP_CNT

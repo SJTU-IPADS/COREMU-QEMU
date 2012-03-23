@@ -772,7 +772,9 @@ static void do_interrupt_v7m(CPUARMState *env)
 void do_interrupt(CPUARMState *env)
 {
 #ifdef CONFIG_REPLAY
-    static int cnt = 0;
+    static int fail_print_cnt = 0;
+    static int irq_cnt = 0;
+    static int print_cnt = 0;
     if (cm_run_mode == CM_RUNMODE_REPLAY) {
         int exception_index = env->exception_index & ~CM_REPLAY_INT;
         if ((env->exception_index & CM_REPLAY_INT) == 0 &&
@@ -781,9 +783,6 @@ void do_interrupt(CPUARMState *env)
             return;
         }
         env->exception_index = exception_index;
-        cnt++;
-        if (cnt % 1000 == 0)
-            coremu_debug("inject interrupt 0x%x cnt: %d", env->exception_index, cnt);
     }
 #endif
     uint32_t addr;
@@ -859,6 +858,12 @@ void do_interrupt(CPUARMState *env)
         /* Disable IRQ and imprecise data aborts.  */
         mask = CPSR_A | CPSR_I;
         offset = 4;
+#ifdef DEBUG_REPLAY
+        if ((print_cnt++ % 1000) == 0 || (going_to_fail && fail_print_cnt++ < 30)) {
+            coremu_debug("inject interrupt 0x%x irq_cnt = %d, pc = %x",
+                    env->exception_index, irq_cnt, env->ENVPC);
+        }
+#endif
         break;
     case EXCP_FIQ:
         new_mode = ARM_CPU_MODE_FIQ;
@@ -873,10 +878,8 @@ void do_interrupt(CPUARMState *env)
     }
 #ifdef CONFIG_REPLAY
     if (IS_INTERRUPT(env->exception_index) && cm_run_mode == CM_RUNMODE_RECORD) {
-        cnt++;
-        if (cnt % 1000 == 0)
-            coremu_debug("recording interrupt %d", cnt);
         cm_record_intr(env->exception_index, env->ENVPC);
+        irq_cnt++;
     }
 #endif
     /* High vectors.  */
@@ -885,6 +888,26 @@ void do_interrupt(CPUARMState *env)
     }
     switch_mode (env, new_mode);
     env->spsr = cpsr_read(env);
+#ifdef DEBUG_REPLAY
+    uint32_t spsr = 0;
+    switch (cm_run_mode) {
+    case CM_RUNMODE_RECORD:
+        cm_record_spsr(env->spsr);
+        break;
+    case CM_RUNMODE_REPLAY:
+        cm_replay_spsr(&spsr);
+        if (spsr != env->spsr) {
+            printf("do_interrupt: spsr differs. Recorded %x, now %x, tb_exec_cnt %lu, pc %x", spsr,
+                    env->spsr, cm_tb_exec_cnt[cm_coreid], env->ENVPC);
+        }
+        break;
+    }
+    static int spsr_print_cnt = 0;
+    if (going_to_fail && spsr_print_cnt++ < 30) {
+        coremu_debug("spsr = %x, tb_exec_cnt = %lu, pc = %x", env->spsr,
+                cm_tb_exec_cnt[cm_coreid], env->ENVPC);
+    }
+#endif
     /* Clear IT bits.  */
     env->condexec_bits = 0;
     /* Switch to the new mode, and to the correct instruction set.  */
@@ -894,6 +917,8 @@ void do_interrupt(CPUARMState *env)
     env->regs[14] = env->regs[15] + offset;
     env->regs[15] = addr;
     env->interrupt_request |= CPU_INTERRUPT_EXITTB;
+#ifdef DEBUG_REPLAY
+#endif
 }
 
 /* Check section/page access permissions.

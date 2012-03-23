@@ -10,6 +10,11 @@
 #include "sysbus.h"
 #include "ps2.h"
 
+#include "coremu-config.h"
+#include "cm-replay.h"
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 typedef struct {
     SysBusDevice busdev;
     void *dev;
@@ -48,6 +53,13 @@ static uint32_t pl050_read(void *opaque, target_phys_addr_t offset)
     pl050_state *s = (pl050_state *)opaque;
     if (offset >= 0xfe0 && offset < 0x1000)
         return pl050_id[(offset - 0xfe0) >> 2];
+
+#ifdef DEBUG_REPLAY
+    if (++pl050_read_cnt == 1) {
+        coremu_debug("Going to fail after pl050 reading %d times", pl050_read_cnt);
+        going_to_fail = 1;
+    }
+#endif
 
     switch (offset >> 2) {
     case 0: /* KMICR */
