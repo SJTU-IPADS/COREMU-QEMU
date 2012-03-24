@@ -617,7 +617,3 @@ void cm_print_replay_info(void)
                  *memop);
 }
 
-#ifdef DEBUG_REPLAY
-GEN_FUNC(spsr, uint32_t, cm_log[cm_coreid][SPSR], "%x\n");
-#endif
-

@@ -74,7 +74,6 @@ void cm_print_replay_info(void);
 #ifdef DEBUG_REPLAY
 extern int going_to_fail;
 extern int pl050_read_cnt;
-GEN_HEADER(spsr, uint32_t);
 #endif
 
 #undef GEN_HEADER

@@ -19,7 +19,6 @@ enum {
     WRITE,
     TLBFILL,
     TBFLUSH,
-    SPSR,
     N_CM_LOG,
 };
 

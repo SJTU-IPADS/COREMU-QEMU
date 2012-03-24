@@ -764,8 +764,7 @@ static void do_interrupt_v7m(CPUARMState *env)
 
 #ifdef CONFIG_REPLAY
 #define IS_INTERRUPT(intno) \
-    (intno == EXCP_IRQ)
-    /*(intno == EXCP_IRQ || intno == EXCP_FIQ)*/
+    (intno == EXCP_IRQ || intno == EXCP_FIQ)
 #endif
 
 /* Handle a CPU exception.  */
@@ -888,26 +887,6 @@ void do_interrupt(CPUARMState *env)
     }
     switch_mode (env, new_mode);
     env->spsr = cpsr_read(env);
-#ifdef DEBUG_REPLAY
-    uint32_t spsr = 0;
-    switch (cm_run_mode) {
-    case CM_RUNMODE_RECORD:
-        cm_record_spsr(env->spsr);
-        break;
-    case CM_RUNMODE_REPLAY:
-        cm_replay_spsr(&spsr);
-        if (spsr != env->spsr) {
-            printf("do_interrupt: spsr differs. Recorded %x, now %x, tb_exec_cnt %lu, pc %x", spsr,
-                    env->spsr, cm_tb_exec_cnt[cm_coreid], env->ENVPC);
-        }
-        break;
-    }
-    static int spsr_print_cnt = 0;
-    if (going_to_fail && spsr_print_cnt++ < 30) {
-        coremu_debug("spsr = %x, tb_exec_cnt = %lu, pc = %x", env->spsr,
-                cm_tb_exec_cnt[cm_coreid], env->ENVPC);
-    }
-#endif
     /* Clear IT bits.  */
     env->condexec_bits = 0;
     /* Switch to the new mode, and to the correct instruction set.  */
