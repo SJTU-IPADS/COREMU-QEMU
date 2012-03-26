@@ -672,11 +672,9 @@ int cpu_exec(CPUState *env1)
                         /* The assertion only works when the eip is correct. It
                          * need to be updated in cm_replay_assert_pc. */
                         coremu_assert(env->ENVPC == inject_eip,
-                                      "abort: cm_coreid = %u, eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu, "
-                                      "pl050_read_cnt = %d",
+                                      "abort: cm_coreid = %u, eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
                                       cm_coreid, (void *)(long)env->ENVPC,
-                                      (void *)cm_inject_intr.eip, cm_tb_exec_cnt[cm_coreid],
-                                      pl050_read_cnt);
+                                      (void *)cm_inject_intr.eip, cm_tb_exec_cnt[cm_coreid]);
 #endif
 #ifdef TARGET_I386
                         do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);

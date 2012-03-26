@@ -42,7 +42,6 @@
 
 #ifdef DEBUG_REPLAY
 int going_to_fail;
-int pl050_read_cnt = 0;
 #endif
 
 extern int smp_cpus;
