@@ -418,10 +418,10 @@ void cm_replay_assert_pc(uint64_t eip)
         if ((eip != next_eip)
                 || (recorded_memop != *memop)) {
             if (eip != next_eip)
-                coremu_debug("ERROR in execution path!");
+                coremu_debug("core %d ERROR in execution path!", cm_coreid);
             else if (*memop != recorded_memop) {
                 return;
-                coremu_debug("ERROR in memop cnt");
+                coremu_debug("core %d ERROR in memop cnt", cm_coreid);
             }
             coremu_debug(
                       "cm_coreid = %u, eip = %016lx, recorded eip = %016lx, "

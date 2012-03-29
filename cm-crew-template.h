@@ -30,10 +30,10 @@
 DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, long objid)
 {
     coremu_assert(cm_is_in_tc, "Must in TC execution");
-    //memobj_t *mo = cm_read_lock(objid);
+    memobj_t *mo = cm_read_lock(objid);
     DATA_TYPE val = *addr;
     (*memop)++;
-    //cm_read_unlock(mo);
+    cm_read_unlock(mo);
 #ifdef DEBUG_MEM_ACCESS
     debug_read_access(val);
 #endif
@@ -43,10 +43,10 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, long objid)
 void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, long objid, DATA_TYPE val)
 {
     coremu_assert(cm_is_in_tc, "Must in TC execution");
-    //memobj_t *mo = cm_write_lock(objid);
+    memobj_t *mo = cm_write_lock(objid);
     *addr = val;
     (*memop)++;
-    //cm_write_unlock(mo);
+    cm_write_unlock(mo);
 #ifdef DEBUG_MEM_ACCESS
     debug_write_access(val);
 #endif

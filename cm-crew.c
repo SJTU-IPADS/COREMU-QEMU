@@ -276,7 +276,7 @@ void debug_read_access(uint64_t val)
     if (cm_is_in_tc)
         memacc_cnt++;
     if (memacc_cnt != *memop) {
-        coremu_debug("read error memacc_cnt = %u", memacc_cnt);
+        coremu_debug("core %d read error memacc_cnt = %u", cm_coreid, memacc_cnt);
         cm_print_replay_info();
         exit(1);
     }
@@ -294,12 +294,12 @@ void debug_read_access(uint64_t val)
                &rec_eip, &rec_val, &tlb_cnt, &rec_memop) == EOF)
             return;
         if (rec_eip != cpu_single_env->ENVPC) {
-            coremu_debug("read ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
+            coremu_debug("read ERROR in eip: core = %d, eip = %lx, recorded_eip = %lx",
                          cm_coreid, (uint64_t)cpu_single_env->ENVPC, rec_eip);
             error = 1;
         }
         if (val != rec_val) {
-            coremu_debug("read ERROR in val: coreid = %d, val = %lx, recorded_val = %lx",
+            coremu_debug("read ERROR in val: core = %d, val = %lx, recorded_val = %lx",
                          cm_coreid, val, rec_val);
             error = 1;
         }
@@ -325,7 +325,7 @@ void debug_write_access(uint64_t val)
     if (cm_is_in_tc)
         memacc_cnt++;
     if (memacc_cnt != *memop) {
-        coremu_debug("write error memacc_cnt = %u", memacc_cnt);
+        coremu_debug("core %d write error memacc_cnt = %u", cm_coreid, memacc_cnt);
         cm_print_replay_info();
         exit(1);
     }
@@ -341,18 +341,18 @@ void debug_write_access(uint64_t val)
                &rec_eip, &rec_val, &cnt) == EOF)
             return;
         if (rec_eip != cpu_single_env->ENVPC) {
-            coremu_debug("write ERROR in eip: coreid = %d, eip = %lx, recorded_eip = %lx",
+            coremu_debug("write ERROR in eip: core = %d, eip = %lx, recorded_eip = %lx",
                          cm_coreid, (uint64_t)cpu_single_env->ENVPC, rec_eip);
             error = 1;
         }
         if (val != rec_val) {
-            coremu_debug("write ERROR in val: coreid = %d, val = %lx, recorded_val = %lx",
+            coremu_debug("write ERROR in val: core = %d, val = %lx, recorded_val = %lx",
                          cm_coreid, val, rec_val);
             error = 1;
         }
         /*
          *if (tlb_fill_cnt != cnt) {
-         *    coremu_debug("read ERROR in tlb fill cnt: coreid = %d, cnt = %u, recorded_cnt = %u",
+         *    coremu_debug("read ERROR in tlb fill cnt: core = %d, cnt = %u, recorded_cnt = %u",
          *                 cm_coreid, tlb_fill_cnt, cnt);
          *    error = 1;
          *}
