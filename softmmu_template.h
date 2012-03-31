@@ -21,7 +21,6 @@
 #if defined(TARGET_ARM)
 #include "coremu-spinlock.h"
 #include "cm-target-intr.h"
-#include "cm-crew-header.h"
 #endif
 
 #define DATA_SIZE (1 << SHIFT)

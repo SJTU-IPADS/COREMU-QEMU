@@ -4882,8 +4882,8 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
 #ifdef CONFIG_REPLAY
     if (cm_is_in_tc) {
-        tlb_fill_cnt++;
 #ifdef ASSERT_REPLAY_TLBFILL
+        tlb_fill_cnt++;
         cm_replay_assert_tlbfill(addr);
 #endif
     }
@@ -4916,7 +4916,9 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
         raise_exception_err(env->exception_index, env->error_code);
     }
     env = saved_env;
+#ifdef CONFIG_REPLAY
     cm_is_in_tc = saved_in_tc;
+#endif
 }
 #endif
 

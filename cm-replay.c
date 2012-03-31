@@ -29,7 +29,6 @@
 
 #include "coremu-config.h"
 #include "coremu-core.h"
-#include "coremu-logbuffer.h"
 
 #include "cm-crew.h"
 #include "cm-intr.h"
@@ -168,7 +167,9 @@ int cm_replay_##name(type *arg) \
 #define GEN_RECORD_FUNC(name, type, log, fmt) \
 void cm_record_##name(type arg) \
 { \
-    fwrite(&arg, sizeof(type), 1, log); \
+    if (fwrite(&arg, sizeof(type), 1, log) != 1) { \
+        fprintf(stderr, "write log error"); \
+    } \
 }
 
 #define GEN_REPLAY_FUNC(name, type, log, fmt) \
@@ -248,7 +249,9 @@ void cm_record_disk_dma(void)
     fprintf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, cm_dma_cnt);
 #else
     uint64_t cnt = cm_dma_cnt;
-    fwrite(&cnt, sizeof(cnt), 1, cm_log[cm_coreid][DISK_DMA]);
+    if (fwrite(&cnt, sizeof(cnt), 1, cm_log[cm_coreid][DISK_DMA]) == -1) {
+        fprintf(stderr, "writing disk dma log error\n");
+    }
 #endif
 }
 

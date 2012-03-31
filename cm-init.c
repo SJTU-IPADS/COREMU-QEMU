@@ -35,7 +35,6 @@
 #include "coremu-config.h"
 #include "coremu-sched.h"
 #include "coremu-init.h"
-#include "coremu-logbuffer.h"
 #include "cm-timer.h"
 #include "cm-init.h"
 #include "cm-replay.h"
