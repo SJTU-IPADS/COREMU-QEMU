@@ -107,32 +107,7 @@ static inline void cm_read_intr_log(void)
 }
 
 #ifdef TARGET_I386
-static void cm_wait_disk_dma(void)
-{
-    /* We only need to wait for DMA operation to complete if current executed tb
-     * is more then when DMA is done during recording. */
-    /*
-     *if (cm_tb_exec_cnt[cm_coreid] < cm_dma_done_exec_cnt)
-     *    return;
-     */
-
-    /*
-     *coremu_debug("CPU %d waiting DMA cnt to be %lu, cm_tb_exec_cnt = %lu "
-     *             "cm_dma_done_exec_cnt = %lu", cm_coreid,
-     *             cm_next_dma_cnt, cm_tb_exec_cnt[cm_coreid], cm_dma_done_exec_cnt);
-     */
-    cm_read_dma_log();
-    /*
-     *coremu_debug("core %u get next_dma_cnt %lu at eip %p",
-     *             cm_coreid, cm_dma_cnt, (void *)cpu_single_env->eip);
-     */
-    while (cm_dma_cnt < cm_next_dma_cnt) {
-        /* Waiting for DMA operation to complete. */
-        pthread_yield();
-    }
-    /*coremu_debug("DMA done, cm_tb_exec_cnt = %lu", cm_tb_exec_cnt[cm_coreid]);*/
-    /*cm_next_dma_cnt = cm_dma_cnt + 1;*/
-}
+static void cm_wait_disk_dma(void);
 #endif
 
 int cm_replay_intr(void)
@@ -294,6 +269,35 @@ static inline void cm_read_dma_log(void)
         printf("no more dma log\n");
 #endif
 }
+
+#ifdef TARGET_I386
+static void cm_wait_disk_dma(void)
+{
+    /* We only need to wait for DMA operation to complete if current executed tb
+     * is more then when DMA is done during recording. */
+    /*
+     *if (cm_tb_exec_cnt[cm_coreid] < cm_dma_done_exec_cnt)
+     *    return;
+     */
+
+    /*
+     *coremu_debug("CPU %d waiting DMA cnt to be %lu, cm_tb_exec_cnt = %lu "
+     *             "cm_dma_done_exec_cnt = %lu", cm_coreid,
+     *             cm_next_dma_cnt, cm_tb_exec_cnt[cm_coreid], cm_dma_done_exec_cnt);
+     */
+    cm_read_dma_log();
+    /*
+     *coremu_debug("core %u get next_dma_cnt %lu at eip %p",
+     *             cm_coreid, cm_dma_cnt, (void *)cpu_single_env->eip);
+     */
+    while (cm_dma_cnt < cm_next_dma_cnt) {
+        /* Waiting for DMA operation to complete. */
+        pthread_yield();
+    }
+    /*coremu_debug("DMA done, cm_tb_exec_cnt = %lu", cm_tb_exec_cnt[cm_coreid]);*/
+    /*cm_next_dma_cnt = cm_dma_cnt + 1;*/
+}
+#endif
 
 /* init */
 
