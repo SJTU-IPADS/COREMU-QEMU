@@ -32,59 +32,14 @@
 COREMU_THREAD uint64_t cm_exclusive_val;
 COREMU_THREAD uint32_t cm_exclusive_addr = -1;
 
-#define GEN_LOAD_EXCLUSIVE(type, TYPE) \
-void HELPER(load_exclusive##type)(uint32_t reg, uint32_t addr)        \
-{                                                                     \
-    ram_addr_t q_addr = 0;                                            \
-    DATA_##type val = 0;                                              \
-                                                                      \
-    cm_exclusive_addr = addr;                                         \
-    CM_GET_QEMU_ADDR(q_addr,addr);                                    \
-    val = *(DATA_##type *)q_addr;                                     \
-    cm_exclusive_val = val;                                           \
-    cpu_single_env->regs[reg] = val;                                  \
-}
+#define DATA_BITS 8
+#include "cm-atomic-template.h"
 
-GEN_LOAD_EXCLUSIVE(b, B);
-GEN_LOAD_EXCLUSIVE(w, W);
-GEN_LOAD_EXCLUSIVE(l, L);
-//GEN_LOAD_EXCLUSIVE(q, Q);
+#define DATA_BITS 16
+#include "cm-atomic-template.h"
 
-#define GEN_STORE_EXCLUSIVE(type, TYPE) \
-void HELPER(store_exclusive##type)(uint32_t res, uint32_t reg, uint32_t addr) \
-{                                                                             \
-    ram_addr_t q_addr = 0;                                                    \
-    DATA_##type val = 0;                                                      \
-    DATA_##type r = 0;                                                        \
-                                                                              \
-    if(addr != cm_exclusive_addr)                                             \
-        goto fail;                                                            \
-                                                                              \
-    CM_GET_QEMU_ADDR(q_addr,addr);                                            \
-    val = (DATA_##type)cpu_single_env->regs[reg];                             \
-                                                                              \
-    r = atomic_compare_exchange##type((DATA_##type *)q_addr,                  \
-                                    (DATA_##type)cm_exclusive_val, val);      \
-                                                                              \
-    if(r == (DATA_##type)cm_exclusive_val) {                                  \
-        cpu_single_env->regs[res] = 0;                                        \
-        goto done;                                                            \
-    } else {                                                                  \
-        goto fail;                                                            \
-    }                                                                         \
-                                                                              \
-fail:                                                                         \
-    cpu_single_env->regs[res] = 1;                                            \
-                                                                              \
-done:                                                                         \
-    cm_exclusive_addr = -1;                                                   \
-    return;                                                                   \
-}
-
-GEN_STORE_EXCLUSIVE(b, B);
-GEN_STORE_EXCLUSIVE(w, W);
-GEN_STORE_EXCLUSIVE(l, L);
-//GEN_STORE_EXCLUSIVE(q, Q);
+#define DATA_BITS 32
+#include "cm-atomic-template.h"
 
 void HELPER(load_exclusiveq)(uint32_t reg, uint32_t addr)
 {
