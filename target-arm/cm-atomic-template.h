@@ -18,7 +18,13 @@ void HELPER(glue(load_exclusive, SUFFIX))(uint32_t reg, uint32_t addr)
 
     cm_exclusive_addr = addr;
     CM_GET_QEMU_ADDR(q_addr,addr);
+#ifdef CONFIG_REPLAY
+    memobj_t *mo = cm_start_atomic_read_insn((const void *)q_addr);
+#endif
     val = *(DATA_TYPE *)q_addr;
+#ifdef CONFIG_REPLAY
+    cm_end_atomic_read_insn(mo);
+#endif
     cm_exclusive_val = val;
     cpu_single_env->regs[reg] = val;
 }
@@ -35,8 +41,14 @@ void HELPER(glue(store_exclusive, SUFFIX))(uint32_t res, uint32_t reg, uint32_t 
     CM_GET_QEMU_ADDR(q_addr,addr);
     val = (DATA_TYPE)cpu_single_env->regs[reg];
 
+#ifdef CONFIG_REPLAY
+    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
+#endif
     r = glue(atomic_compare_exchange, SUFFIX)((DATA_TYPE *)q_addr,
                                     (DATA_TYPE)cm_exclusive_val, val);
+#ifdef CONFIG_REPLAY
+    cm_end_atomic_insn(mo);
+#endif
 
     if(r == (DATA_TYPE)cm_exclusive_val) {
         cpu_single_env->regs[res] = 0;

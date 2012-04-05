@@ -771,9 +771,11 @@ static void do_interrupt_v7m(CPUARMState *env)
 void do_interrupt(CPUARMState *env)
 {
 #ifdef CONFIG_REPLAY
+#ifdef DEBUG_REPLAY
     static int fail_print_cnt = 0;
-    static int irq_cnt = 0;
     static int print_cnt = 0;
+#endif
+    static int irq_cnt = 0;
     if (cm_run_mode == CM_RUNMODE_REPLAY) {
         int exception_index = env->exception_index & ~CM_REPLAY_INT;
         if ((env->exception_index & CM_REPLAY_INT) == 0 && IS_INTERRUPT(exception_index)) {
