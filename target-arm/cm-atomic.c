@@ -55,6 +55,9 @@ void HELPER(load_exclusiveq)(uint32_t reg, uint32_t addr)
     val = *(uint64_t *)q_addr;
 #ifdef CONFIG_REPLAY
     cm_end_atomic_read_insn(mo);
+#ifdef DEBUG_MEM_ACCESS
+    debug_read_access(val);
+#endif
 #endif
     cm_exclusive_val = val;
     cpu_single_env->regs[reg] = (uint32_t)val;
@@ -81,6 +84,9 @@ void HELPER(store_exclusiveq)(uint32_t res, uint32_t reg, uint32_t addr)
             (uint64_t)cm_exclusive_val, val);
 #ifdef CONFIG_REPLAY
     cm_end_atomic_insn(mo);
+#ifdef DEBUG_MEM_ACCESS
+    debug_write_access(val);
+#endif
 #endif
 
     if(r == (uint64_t)cm_exclusive_val) {
