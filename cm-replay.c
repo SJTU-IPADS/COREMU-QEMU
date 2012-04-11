@@ -398,19 +398,6 @@ void cm_replay_assert_pc(uint64_t eip)
      * execution of a TB chain. */
     cpu_single_env->eip = eip;
 
-    /*
-     *if (cm_tb_exec_cnt[cm_coreid] % 10240 != 0)
-     *    return;
-     */
-
-    /*
-     *if (!logset && cm_tb_exec_cnt[cm_coreid] > 45000000) {
-     *    coremu_debug("Enabling log");
-     *    loglevel |= CPU_LOG_EXEC | CPU_LOG_TB_IN_ASM | CPU_LOG_TB_CPU;
-     *    logset = 1;
-     *}
-     */
-
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
         if (fscanf(cm_log[cm_coreid][PC], PC_LOG_FMT, &next_eip,
