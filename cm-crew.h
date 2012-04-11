@@ -68,49 +68,6 @@ extern void *cm_crew_record_write_func[4];
 extern void *cm_crew_replay_read_func[4];
 extern void *cm_crew_replay_write_func[4];
 
-/* For atomic instructions */
-
-static inline memobj_t *cm_start_atomic_insn(const void *q_addr)
-{
-    memobj_t *mo = NULL;
-    switch (cm_run_mode) {
-    case CM_RUNMODE_RECORD:
-        mo = cm_write_lock(memobj_id(q_addr));
-        break;
-    case CM_RUNMODE_REPLAY:
-        cm_apply_replay_log();
-        break;
-    }
-    return mo;
-}
-
-static inline void cm_end_atomic_insn(memobj_t *mo)
-{
-    (*memop)++;
-    if (cm_run_mode == CM_RUNMODE_RECORD)
-        cm_write_unlock(mo);
-}
-
-static inline memobj_t *cm_start_atomic_read_insn(const void *q_addr)
-{
-    memobj_t *mo = NULL;
-    switch (cm_run_mode) {
-    case CM_RUNMODE_RECORD:
-        mo = cm_read_lock(memobj_id(q_addr));
-        break;
-    case CM_RUNMODE_REPLAY:
-        cm_apply_replay_log();
-        break;
-    }
-    return mo;
-}
-
-static inline void cm_end_atomic_read_insn(memobj_t *mo)
-{
-    (*memop)++;
-    if (cm_run_mode == CM_RUNMODE_RECORD)
-        cm_read_unlock(mo);
-}
 /* For debug. */
 
 void debug_read_access(uint64_t val);
@@ -144,6 +101,33 @@ static inline void cm_end_atomic_insn(memobj_t *mo, uint64_t val)
 #ifdef DEBUG_MEM_ACCESS
     if (cm_run_mode != CM_RUNMODE_NORMAL)
         debug_write_access(val);
+#endif
+}
+
+static inline memobj_t *cm_start_atomic_read_insn(const void *q_addr)
+{
+    memobj_t *mo = NULL;
+    switch (cm_run_mode) {
+    case CM_RUNMODE_RECORD:
+        mo = cm_read_lock(memobj_id(q_addr));
+        break;
+    case CM_RUNMODE_REPLAY:
+        cm_apply_replay_log();
+        break;
+    }
+    return mo;
+}
+
+static inline void cm_end_atomic_read_insn(memobj_t *mo, uint64_t val)
+{
+    (void)val;
+    (*memop)++;
+    if (cm_run_mode == CM_RUNMODE_RECORD) {
+        cm_read_unlock(mo);
+    }
+#ifdef DEBUG_MEM_ACCESS
+    if (cm_run_mode != CM_RUNMODE_NORMAL)
+        debug_read_access(val);
 #endif
 }
 

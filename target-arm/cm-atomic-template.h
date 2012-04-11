@@ -23,10 +23,7 @@ void HELPER(glue(load_exclusive, SUFFIX))(uint32_t reg, uint32_t addr)
 #endif
     val = *(DATA_TYPE *)q_addr;
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_read_insn(mo);
-#ifdef DEBUG_MEM_ACCESS
-    debug_read_access(val);
-#endif
+    cm_end_atomic_read_insn(mo, val);
 #endif
     cm_exclusive_val = val;
     cpu_single_env->regs[reg] = val;
@@ -50,10 +47,7 @@ void HELPER(glue(store_exclusive, SUFFIX))(uint32_t res, uint32_t reg, uint32_t 
     r = glue(atomic_compare_exchange, SUFFIX)((DATA_TYPE *)q_addr,
                                     (DATA_TYPE)cm_exclusive_val, val);
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
-#ifdef DEBUG_MEM_ACCESS
-    debug_write_access(val);
-#endif
+    cm_end_atomic_insn(mo, val);
 #endif
 
     if(r == (DATA_TYPE)cm_exclusive_val) {
