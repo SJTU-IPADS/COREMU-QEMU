@@ -4881,12 +4881,12 @@ static float approx_rcp(float a)
 void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
 #ifdef CONFIG_REPLAY
-    if (cm_is_in_tc) {
 #ifdef ASSERT_REPLAY_TLBFILL
+    if (cm_is_in_tc) {
         tlb_fill_cnt++;
         cm_replay_assert_tlbfill(addr);
-#endif
     }
+#endif
     /* Ignore memory access not directly caused by translated code. */
     int saved_in_tc = cm_is_in_tc;
     cm_is_in_tc = 0;
