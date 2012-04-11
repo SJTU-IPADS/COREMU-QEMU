@@ -122,28 +122,6 @@ static void cm_set_reg_val(int ot, int hregs, int reg, target_ulong val)
       }
 }
 
-static inline memobj_t *cm_start_atomic_insn(const void *q_addr)
-{
-    memobj_t *mo = NULL;
-    switch (cm_run_mode) {
-    case CM_RUNMODE_RECORD:
-        mo = cm_write_lock(memobj_id(q_addr));
-        break;
-    case CM_RUNMODE_REPLAY:
-        cm_apply_replay_log();
-        break;
-    }
-    return mo;
-}
-
-static inline void cm_end_atomic_insn(memobj_t *mo)
-{
-    if (cm_run_mode != CM_RUNMODE_NORMAL)
-        (*memop)++;
-    if (cm_run_mode == CM_RUNMODE_RECORD)
-        cm_write_unlock(mo);
-}
-
 #define DATA_BITS 8
 #include "cm-atomic-template.h"
 
@@ -197,7 +175,7 @@ void helper_atomic_cmpxchg8b(target_ulong a0)
     CC_SRC = eflags;
 
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
+    cm_end_atomic_insn(mo, 0xdeadbeef);
 #endif
 }
 
@@ -230,7 +208,7 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
 
     CC_SRC = eflags;
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
+    cm_end_atomic_insn(mo, 0xdeadbeef);
 #endif
 }
 

@@ -1,6 +1,8 @@
 #ifndef _CM_CREW_H
 #define _CM_CREW_H
 
+#include "cm-replay.h"
+
 /* Now we track memory as MEMOBJ_SIZE shared object, each object will have a
  * memobj_t tracking its ownership */
 #define MEMOBJ_SIZE 4096
@@ -72,5 +74,34 @@ void debug_read_access(uint64_t val);
 void debug_write_access(uint64_t val);
 
 void cm_assert_not_in_tc(void);
+
+/* For atomic instructions */
+
+static inline memobj_t *cm_start_atomic_insn(const void *q_addr)
+{
+    memobj_t *mo = NULL;
+    switch (cm_run_mode) {
+    case CM_RUNMODE_RECORD:
+        mo = cm_write_lock(memobj_id(q_addr));
+        break;
+    case CM_RUNMODE_REPLAY:
+        cm_apply_replay_log();
+        break;
+    }
+    return mo;
+}
+
+static inline void cm_end_atomic_insn(memobj_t *mo, uint64_t val)
+{
+    (void)val;
+    (*memop)++;
+    if (cm_run_mode == CM_RUNMODE_RECORD) {
+        cm_write_unlock(mo);
+    }
+#ifdef DEBUG_MEM_ACCESS
+    if (cm_run_mode != CM_RUNMODE_NORMAL)
+        debug_write_access(val);
+#endif
+}
 
 #endif /* _CM_CREW_H */

@@ -40,7 +40,7 @@ void glue(helper_atomic_, INSN)(target_ulong a0, target_ulong offset,
     eflags = helper_cc_compute_all(CC_OP_SARB + ot);
     CC_SRC = eflags;
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
+    cm_end_atomic_insn(mo, value);
 #endif
 }
 
