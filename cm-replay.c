@@ -411,6 +411,7 @@ void cm_replay_assert_pc(uint64_t eip)
      *}
      */
 
+    int error = 0;
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
         if (fscanf(cm_log[cm_coreid][PC], PC_LOG_FMT, &next_eip, &recorded_memop) == EOF) {
@@ -419,28 +420,29 @@ void cm_replay_assert_pc(uint64_t eip)
             cm_print_replay_info();
             pthread_exit(NULL);
         }
-        if ((eip != next_eip)
-                || (recorded_memop != *memop)) {
-            if (eip != next_eip)
-                coremu_debug("core %d ERROR in execution path!", cm_coreid);
-            else if (*memop != recorded_memop) {
-                return;
-                coremu_debug("core %d ERROR in memop cnt", cm_coreid);
-            }
+        if (eip != next_eip) {
+            coremu_debug("core %d ERROR in execution path!", cm_coreid);
+            error = 1;
+        }
+        if (*memop != recorded_memop) {
+            coremu_debug("core %d ERROR in memop cnt", cm_coreid);
+            error = 1;
+        }
+        if (error) {
             coremu_debug(
-                      "cm_coreid = %u, eip = %016lx, recorded eip = %016lx, "
-                      "memop_cnt = %u, recorded_memop = %u, "
-                      "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
-                      "cm_ioport_read_cnt = %lu, "
-                      "cm_mmio_read_cnt = %lu",
-                      cm_coreid,
-                      (long)eip,
-                      (long)next_eip,
-                      *memop, recorded_memop,
-                      cm_tb_exec_cnt[cm_coreid],
-                      cm_inject_intr.exec_cnt,
-                      cm_ioport_read_cnt,
-                      cm_mmio_read_cnt);
+                    "cm_coreid = %u, eip = %016lx, recorded eip = %016lx, "
+                    "memop_cnt = %u, recorded_memop = %u, "
+                    "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
+                    "cm_ioport_read_cnt = %lu, "
+                    "cm_mmio_read_cnt = %lu",
+                    cm_coreid,
+                    (long)eip,
+                    (long)next_eip,
+                    *memop, recorded_memop,
+                    cm_tb_exec_cnt[cm_coreid],
+                    cm_inject_intr.exec_cnt,
+                    cm_ioport_read_cnt,
+                    cm_mmio_read_cnt);
             pthread_exit(NULL);
         }
         break;

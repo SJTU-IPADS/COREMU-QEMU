@@ -267,6 +267,8 @@ void cm_crew_core_init(void)
 #include "cpu.h"
 
 __thread uint32_t memacc_cnt;
+__thread int error_print_cnt = 0;
+#define PRINT_ERROR_TIMES 10
 
 #define READ_LOG_FMT "%lx %lx %u %u\n"
 void debug_read_access(uint64_t val)
@@ -293,12 +295,12 @@ void debug_read_access(uint64_t val)
         if (fscanf(cm_log[cm_coreid][READ], READ_LOG_FMT,
                &rec_eip, &rec_val, &tlb_cnt, &rec_memop) == EOF)
             return;
-        if (rec_eip != cpu_single_env->ENVPC) {
+        if (rec_eip != cpu_single_env->ENVPC && error_print_cnt < PRINT_ERROR_TIMES) {
             coremu_debug("read ERROR in eip: core = %d, eip = %lx, recorded_eip = %lx",
                          cm_coreid, (uint64_t)cpu_single_env->ENVPC, rec_eip);
             error = 1;
         }
-        if (val != rec_val) {
+        if (val != rec_val && error_print_cnt < PRINT_ERROR_TIMES) {
             coremu_debug("read ERROR in val: core = %d, val = %lx, recorded_val = %lx",
                          cm_coreid, val, rec_val);
             error = 1;
@@ -310,9 +312,10 @@ void debug_read_access(uint64_t val)
          *    error = 1;
          *}
          */
-        if (error) {
+        if (error && error_print_cnt < PRINT_ERROR_TIMES) {
             cm_print_replay_info();
-            pthread_exit(NULL);
+            error_print_cnt++;
+            /*pthread_exit(NULL);*/
         }
     }
 }
@@ -340,12 +343,12 @@ void debug_write_access(uint64_t val)
         if (fscanf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
                &rec_eip, &rec_val, &cnt) == EOF)
             return;
-        if (rec_eip != cpu_single_env->ENVPC) {
+        if (rec_eip != cpu_single_env->ENVPC && error_print_cnt < PRINT_ERROR_TIMES) {
             coremu_debug("write ERROR in eip: core = %d, eip = %lx, recorded_eip = %lx",
                          cm_coreid, (uint64_t)cpu_single_env->ENVPC, rec_eip);
             error = 1;
         }
-        if (val != rec_val) {
+        if (val != rec_val && error_print_cnt < PRINT_ERROR_TIMES) {
             coremu_debug("write ERROR in val: core = %d, val = %lx, recorded_val = %lx",
                          cm_coreid, val, rec_val);
             error = 1;
@@ -357,9 +360,10 @@ void debug_write_access(uint64_t val)
          *    error = 1;
          *}
          */
-        if (error) {
+        if (error && error_print_cnt < PRINT_ERROR_TIMES) {
             cm_print_replay_info();
-            pthread_exit(NULL);
+            error_print_cnt++;
+            /*pthread_exit(NULL);*/
         }
     }
 }
