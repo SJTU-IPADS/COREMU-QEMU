@@ -175,7 +175,7 @@ void helper_atomic_cmpxchg8b(target_ulong a0)
     CC_SRC = eflags;
 
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
+    cm_end_atomic_insn(mo, 0xdeadbeef);
 #endif
 }
 
@@ -208,7 +208,7 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
 
     CC_SRC = eflags;
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
+    cm_end_atomic_insn(mo, 0xdeadbeef);
 #endif
 }
 

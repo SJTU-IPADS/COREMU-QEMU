@@ -69,7 +69,7 @@ void glue(helper_atomic_inc, SUFFIX)(target_ulong a0, int c)
     eflags = helper_cc_compute_all(cc_op);
     CC_SRC = eflags;
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
+    cm_end_atomic_insn(mo, value);
 #endif
 }
 
@@ -89,7 +89,7 @@ void glue(helper_xchg, SUFFIX)(target_ulong a0, int reg, int hreg)
 
     cm_set_reg_val(OT, hreg, reg, out);
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
+    cm_end_atomic_insn(mo, val);
 #endif
 }
 
@@ -155,7 +155,7 @@ void glue(helper_atomic_op, SUFFIX)(target_ulong a0, target_ulong t1,
     eflags = helper_cc_compute_all(cc_op);
     CC_SRC = eflags;
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
+    cm_end_atomic_insn(mo, value);
 #endif
 }
 
@@ -188,7 +188,7 @@ void glue(helper_atomic_xadd, SUFFIX)(target_ulong a0, int reg,
     eflags = helper_cc_compute_all(glue(CC_OP_ADD, UPSUFFIX));
     CC_SRC = eflags;
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
+    cm_end_atomic_insn(mo, newv);
 #endif
 }
 
@@ -220,7 +220,7 @@ void glue(helper_atomic_cmpxchg, SUFFIX)(target_ulong a0, int reg,
     eflags = helper_cc_compute_all(glue(CC_OP_SUB, UPSUFFIX));
     CC_SRC = eflags;
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
+    cm_end_atomic_insn(mo, eax_v);
 #endif
 }
 
@@ -236,7 +236,7 @@ void glue(helper_atomic_not, SUFFIX)(target_ulong a0)
         value = ~value;
     });
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
+    cm_end_atomic_insn(mo, value);
 #endif
 }
 
@@ -260,7 +260,7 @@ void glue(helper_atomic_neg, SUFFIX)(target_ulong a0)
     eflags = helper_cc_compute_all(glue(CC_OP_SUB, UPSUFFIX));
     CC_SRC = eflags;
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo);
+    cm_end_atomic_insn(mo, value);
 #endif
 }
 

@@ -275,8 +275,8 @@ void debug_read_access(uint64_t val)
 {
     if (cm_run_mode == CM_RUNMODE_NORMAL)
         return;
-    if (cm_is_in_tc)
-        memacc_cnt++;
+    assert(cm_is_in_tc);
+    memacc_cnt++;
     if (memacc_cnt != *memop) {
         coremu_debug("core %d read error memacc_cnt = %u", cm_coreid, memacc_cnt);
         cm_print_replay_info();
@@ -325,8 +325,8 @@ void debug_write_access(uint64_t val)
 {
     if (cm_run_mode == CM_RUNMODE_NORMAL)
         return;
-    if (cm_is_in_tc)
-        memacc_cnt++;
+    assert(cm_is_in_tc);
+    memacc_cnt++;
     if (memacc_cnt != *memop) {
         coremu_debug("core %d write error memacc_cnt = %u", cm_coreid, memacc_cnt);
         cm_print_replay_info();
