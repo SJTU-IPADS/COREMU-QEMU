@@ -767,9 +767,11 @@ int cpu_exec(CPUState *env1)
                      *            cm_tb_exec_cnt[cm_coreid], env->ENVPC);
                      *}
                      */
-                    if (cm_coreid > 0)
-                        coremu_debug("core %d: tb_exec_cnt = %lu, pc = %x",
-                                 cm_coreid, cm_tb_exec_cnt[cm_coreid], env->ENVPC);
+                    /*
+                     *if (cm_coreid > 0)
+                     *    coremu_debug("core %d: tb_exec_cnt = %lu, pc = %x",
+                     *             cm_coreid, cm_tb_exec_cnt[cm_coreid], env->ENVPC);
+                     */
 #endif
                     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
                     cm_is_in_tc = 0;

@@ -270,7 +270,7 @@ __thread uint32_t memacc_cnt;
 __thread int error_print_cnt = 0;
 #define PRINT_ERROR_TIMES 10
 
-#define READ_LOG_FMT "%lx %lx %u %u\n"
+#define READ_LOG_FMT "%lx %lx %u\n"
 void debug_read_access(uint64_t val)
 {
     if (cm_run_mode == CM_RUNMODE_NORMAL)
@@ -284,21 +284,16 @@ void debug_read_access(uint64_t val)
     }
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         fprintf(cm_log[cm_coreid][READ], READ_LOG_FMT,
-                (uint64_t)cpu_single_env->ENVPC, val, tlb_fill_cnt, *memop);
+                (uint64_t)cpu_single_env->ENVPC, val, tlb_fill_cnt);
         return;
     }
     // For replay
-    uint64_t rec_eip, rec_val, rec_memop;
+    uint64_t rec_eip, rec_val;
     uint32_t tlb_cnt;
-    memop_t rec_memop;
     int error = 0;
     if (fscanf(cm_log[cm_coreid][READ], READ_LOG_FMT,
-                &rec_eip, &rec_val, &tlb_cnt, &rec_memop) == EOF)
+                &rec_eip, &rec_val, &tlb_cnt) == EOF)
         return;
-    if (rec_memop != *memop) {
-        coremu_debug("read memop cnt not match: *memop = %lu, rec_memop = %lu", *memop, rec_memop);
-        error = 1;
-    }
     if (rec_eip != cpu_single_env->ENVPC && error_print_cnt < PRINT_ERROR_TIMES) {
         coremu_debug("read ERROR in eip: core = %d, eip = %lx, recorded_eip = %lx",
                 cm_coreid, (uint64_t)cpu_single_env->ENVPC, rec_eip);
@@ -337,20 +332,16 @@ void debug_write_access(uint64_t val)
     }
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         fprintf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
-                (uint64_t)cpu_single_env->ENVPC, val, tlb_fill_cnt, *memop);
+                (uint64_t)cpu_single_env->ENVPC, val, tlb_fill_cnt);
         return;
     }
     // For replay
-    uint64_t rec_eip, rec_val, rec_memop;
+    uint64_t rec_eip, rec_val;
     uint32_t cnt;
     int error = 0;
     if (fscanf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
-                &rec_eip, &rec_val, &cnt, &rec_memop) == EOF)
+                &rec_eip, &rec_val, &cnt) == EOF)
         return;
-    if (rec_memop != *memop) {
-        coremu_debug("write memop cnt not match: *memop = %lu, rec_memop = %lu", *memop, rec_memop);
-        error = 1;
-    }
     if (rec_eip != cpu_single_env->ENVPC && error_print_cnt < PRINT_ERROR_TIMES) {
         coremu_debug("write ERROR in eip: core = %d, eip = %lx, recorded_eip = %lx",
                 cm_coreid, (uint64_t)cpu_single_env->ENVPC, rec_eip);
