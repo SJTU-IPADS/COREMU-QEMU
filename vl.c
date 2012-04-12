@@ -2954,9 +2954,6 @@ int main(int argc, char **argv, char **envp)
 
     os_set_line_buffering();
 
-#ifdef CONFIG_REPLAY
-    if (cm_run_mode != CM_RUNMODE_REPLAY)
-#endif
     if (init_timer_alarm() < 0) {
         fprintf(stderr, "could not initialize alarm timer\n");
         exit(1);

@@ -60,7 +60,12 @@ void cm_init_pit_freq(void)
 /* Called by each core thread to create a local timer. */
 int cm_init_local_timer_alarm(void)
 {
+#ifdef CONFIG_REPLAY
+    if (cm_run_mode == CM_RUNMODE_REPLAY) {
+        return 0;
+    }
     coremu_assert_core_thr();
+#endif
     /* core thr block the Timer Alarm signal */
     struct qemu_alarm_timer *t = NULL;
     int i, err = -1;
@@ -149,11 +154,22 @@ void cm_del_local_timer(QEMUTimer *ts)
 
 int cm_local_alarm_pending(void)
 {
+#ifdef CONFIG_REPLAY
+    /* Return false so that cm_run_all_local_timers will never be called in
+     * replay mode. */
+    if (cm_run_mode == CM_RUNMODE_REPLAY)
+        return 0;
+#endif
     return cm_local_alarm_timer->pending;
 }
 
 void cm_run_all_local_timers(void)
 {
+#ifdef DEBUG_REPLAY
+    /* Ensure correctness only for debugging code. */
+    if (cm_run_mode == CM_RUNMODE_REPLAY)
+        coremu_assert(0, "should not run timer in replay mode");
+#endif
     cm_local_alarm_timer->pending = 0;
 
     /* rearm timer, if not periodic */

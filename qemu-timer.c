@@ -1088,6 +1088,10 @@ static void alarm_timer_on_change_state_rearm(void *opaque, int running, int rea
 
 int init_timer_alarm(void)
 {
+#ifdef CONFIG_REPLAY
+    if (cm_run_mode == CM_RUNMODE_REPLAY)
+        return 0;
+#endif
     struct qemu_alarm_timer *t = NULL;
     int i, err = -1;
 
