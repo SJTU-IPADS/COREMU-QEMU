@@ -53,9 +53,6 @@ static bool cm_tcg_cpu_exec(void)
     halt_interval.tv_nsec = 10000;
 
     for (;;) {
-#ifdef CONFIG_REPLAY
-        if (cm_run_mode != CM_RUNMODE_REPLAY)
-#endif
         if (cm_local_alarm_pending())
             cm_run_all_local_timers();
 

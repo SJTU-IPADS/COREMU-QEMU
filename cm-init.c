@@ -138,9 +138,6 @@ void cm_cpu_exec_init_core(void)
     cpu_enable_ticks();
 
     /* Create per core timer. */
-#ifdef CONFIG_REPLAY
-    if (cm_run_mode != CM_RUNMODE_REPLAY)
-#endif
     if (cm_init_local_timer_alarm() < 0) {
         coremu_assert(0, "local alarm initialize failed");
     }
