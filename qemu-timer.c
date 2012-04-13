@@ -890,7 +890,7 @@ static int dynticks_start_timer(struct qemu_alarm_timer *t)
         signo = COREMU_HARDWARE_ALARM;
         sigaction(COREMU_HARDWARE_ALARM, &act, NULL);
     } else {
-        /* Core signal handler is registerd before running all core. */
+        /* Core signal handler is registerd in main_loop() before running all core. */
         signo = COREMU_CORE_ALARM;
     }
 

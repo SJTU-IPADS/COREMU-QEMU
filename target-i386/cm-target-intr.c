@@ -115,18 +115,9 @@ static void cm_ipi_intr_handler(void *opaque)
 #endif
 }
 
-/* Handler the tlb flush request */
+/* Handle the tlb flush request */
 static void cm_tlb_flush_req_handler(void *opaque)
 {
-#ifdef TLBFLUSH_AS_INTERRUPT
-    assert(!cm_is_in_tc);
-    assert(cm_run_mode != CM_RUNMODE_REPLAY);
-    if (cm_run_mode == CM_RUNMODE_RECORD) {
-        /* Record tlb flush as an interrupt. This is handled somewhat like the
-         * INIT and SIPI ipi. Refer to do_cpu_sipi() */
-        cm_record_intr(CM_CPU_TLBFLUSH, cpu_single_env->eip);
-    }
-#endif
     tlb_flush(cpu_single_env, 1);
 }
 
