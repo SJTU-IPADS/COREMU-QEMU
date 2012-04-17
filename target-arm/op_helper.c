@@ -72,6 +72,11 @@ uint32_t HELPER(neon_tbl)(uint32_t ireg, uint32_t def,
 /* XXX: fix it to restore all registers */
 void tlb_fill (target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
+#ifdef CONFIG_REPLAY
+    /* Ignore memory access not directly caused by translated code. */
+    int saved_in_tc = cm_is_in_tc;
+    cm_is_in_tc = 0;
+#endif /* CONFIG_REPLAY */
     TranslationBlock *tb;
     CPUState *saved_env;
     unsigned long pc;
@@ -96,6 +101,9 @@ void tlb_fill (target_ulong addr, int is_write, int mmu_idx, void *retaddr)
         raise_exception(env->exception_index);
     }
     env = saved_env;
+#ifdef CONFIG_REPLAY
+    cm_is_in_tc = saved_in_tc;
+#endif
 }
 #endif
 

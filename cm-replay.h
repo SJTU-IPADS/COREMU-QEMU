@@ -1,6 +1,7 @@
 #ifndef _CM_REPLAY_H
 #define _CM_REPLAY_H
 
+#include "coremu-config.h"
 #include "cm-log.h"
 
 enum {

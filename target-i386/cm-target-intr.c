@@ -115,29 +115,10 @@ static void cm_ipi_intr_handler(void *opaque)
 #endif
 }
 
-/* Handler the tlb flush request */
+/* Handle the tlb flush request */
 static void cm_tlb_flush_req_handler(void *opaque)
 {
-#ifdef TLBFLUSH_AS_INTERRUPT
-    assert(!cm_is_in_tc);
-    assert(cm_run_mode != CM_RUNMODE_REPLAY);
-    if (cm_run_mode == CM_RUNMODE_RECORD) {
-        /* Record tlb flush as an interrupt. This is handled somewhat like the
-         * INIT and SIPI ipi. Refer to do_cpu_sipi() */
-        cm_record_intr(CM_CPU_TLBFLUSH, cpu_single_env->eip);
-    }
-#endif
     tlb_flush(cpu_single_env, 1);
-}
-
-static void cm_exit_intr_handler(void *opaque)
-{
-    coremu_debug("exiting");
-    cm_replay_flush_log(cm_coreid);
-#ifdef CONFIG_REPLAY
-    cm_print_replay_info();
-#endif
-    pthread_exit(NULL);
 }
 
 /* The initial function for interrupts */
@@ -208,13 +189,5 @@ void cm_send_tlb_flush_req(int target)
         return;
 #endif
     coremu_send_intr(cm_tlb_flush_req_init(), target);
-}
-
-void cm_send_exit_intr(int target)
-{
-    CMExitIntr *intr = coremu_mallocz(sizeof(*intr));
-    ((CMIntr *)intr)->handler = cm_exit_intr_handler;
-
-    coremu_send_intr(intr, target);
 }
 

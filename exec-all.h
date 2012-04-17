@@ -316,32 +316,6 @@ static inline tb_page_addr_t get_page_addr_code(CPUState *env1, target_ulong add
 /* NOTE: this function can trigger an exception */
 /* NOTE2: the returned address is not exactly the physical address: it
    is the offset relative to phys_ram_base */
-#ifdef SEP_TLB
-static inline tb_page_addr_t get_page_addr_code(CPUState *env1, target_ulong addr)
-{
-    int mmu_idx, page_index, pd;
-    void *p;
-    CPUTLBEntry *te;
-
-    page_index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-    mmu_idx = cpu_mmu_index(env1);
-    te = &env1->tlb_table2[mmu_idx][page_index];
-    if (unlikely(te->addr_code !=
-                 (addr & TARGET_PAGE_MASK))) {
-        ldub_code(addr);
-    }
-    pd = te->addr_code & ~TARGET_PAGE_MASK;
-    if (pd > IO_MEM_ROM && !(pd & IO_MEM_ROMD)) {
-#if defined(TARGET_SPARC) || defined(TARGET_MIPS)
-        do_unassigned_access(addr, 0, 1, 0, 4);
-#else
-        cpu_abort(env1, "Trying to execute code outside RAM or ROM at 0x" TARGET_FMT_lx "\n", addr);
-#endif
-    }
-    p = (void *)(unsigned long)addr + te->addend;
-    return qemu_ram_addr_from_host_nofail(p);
-}
-#else /* !CONFIG_REPLAY */
 static inline tb_page_addr_t get_page_addr_code(CPUState *env1, target_ulong addr)
 {
     int mmu_idx, page_index, pd;
@@ -365,7 +339,6 @@ static inline tb_page_addr_t get_page_addr_code(CPUState *env1, target_ulong add
         + env1->tlb_table[mmu_idx][page_index].addend;
     return qemu_ram_addr_from_host_nofail(p);
 }
-#endif
 #endif
 
 typedef void (CPUDebugExcpHandler)(CPUState *env);

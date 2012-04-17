@@ -26,6 +26,7 @@
  */
 #include <stdlib.h>
 #include <stdio.h>
+#include <pthread.h>
 #include "cpu.h"
 
 #include "coremu-config.h"
@@ -69,3 +70,22 @@ void cm_receive_intr(void)
     /*if (cm_run_mode != CM_RUNMODE_REPLAY)*/
         coremu_receive_intr();
 }
+
+static void cm_exit_intr_handler(void *opaque)
+{
+    coremu_debug("exiting");
+    cm_replay_flush_log(cm_coreid);
+#ifdef CONFIG_REPLAY
+    cm_print_replay_info();
+#endif
+    pthread_exit(NULL);
+}
+
+void cm_send_exit_intr(int target)
+{
+    CMExitIntr *intr = coremu_mallocz(sizeof(*intr));
+    ((CMIntr *)intr)->handler = cm_exit_intr_handler;
+
+    coremu_send_intr(intr, target);
+}
+

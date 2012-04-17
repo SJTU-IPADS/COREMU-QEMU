@@ -61,6 +61,7 @@
 
 #include "coremu-config.h"
 #include "coremu-atomic.h"
+#include "cm-defs.h"
 
 #if defined(CONFIG_USE_GUEST_BASE) && !defined(TCG_TARGET_HAS_GUEST_BASE)
 #error GUEST_BASE not supported on this host.
@@ -2033,7 +2034,7 @@ static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
      * TB, cpu_restore_state will call tcg_gen_code_search_pc. At that time, the
      * eip in cpu_single_env is the eip of the pc in first TB in the link. So we
      * should NOT modify the generated code in this case. */
-    tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDI, cpu_single_env->eip);
+    tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDI, cpu_single_env->ENVPC);
     tcg_out_calli(s, (tcg_target_ulong)cm_replay_assert_pc);
 #endif
     cm_tcg_gen_tb_exec_cnt(s);
@@ -2237,6 +2238,33 @@ void cm_inject_invalidate_code(TranslationBlock *tb)
 
     TCGArg args[] = { (long) tb + 3};
     tcg_out_op(&s, INDEX_op_exit_tb, args, NULL);
+}
+#endif
+
+#ifdef CONFIG_REPLAY
+#include "cm-replay.h"
+
+void cm_tcg_gen_tb_exec_cnt(TCGContext *s)
+{
+    uint8_t *ptr = s->code_ptr;
+    /* tcg_out_addi can only generate code which operate on register, but we
+     * want to directly operate on memory location.
+     * So I hard code the machine code which is platform dependent. The
+     * following binary code is extracted from object code compiled by gcc. */
+/*
+ *    tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_RAX, (long)&cm_tb_exec_cnt[cm_coreid]);
+ *
+ *    [> incq (%rax) <]
+ *    tcg_out8(s, 0x48); [> insn. prefix REX.W <]
+ *    tcg_out8(s, 0xff); [> inc <]
+ *    tcg_out8(s, 0x00); [> modrm byte <]
+ */
+
+    /* This version uses a single instruction. */
+    tcg_out32(s, 0x2504ff48); /* Actually 0x 48 ff 04 25 */
+    tcg_out32(s, (uint32_t)(long)&cm_tb_exec_cnt[cm_coreid]);
+
+    cm_tb_cnt_code_size = s->code_ptr - ptr;
 }
 #endif
 

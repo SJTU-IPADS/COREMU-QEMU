@@ -28,6 +28,7 @@
 #include "coremu-atomic.h"
 #include "coremu-sched.h"
 #include "cm-mmu.h"
+#include "cm-crew.h"
 
 COREMU_THREAD uint64_t cm_exclusive_val;
 COREMU_THREAD uint32_t cm_exclusive_addr = -1;
@@ -43,39 +44,51 @@ COREMU_THREAD uint32_t cm_exclusive_addr = -1;
 
 void HELPER(load_exclusiveq)(uint32_t reg, uint32_t addr)
 {
-   ram_addr_t q_addr = 0;
-   uint64_t val = 0;
+    ram_addr_t q_addr = 0;
+    uint64_t val = 0;
 
-   cm_exclusive_addr = addr;
-   CM_GET_QEMU_ADDR(q_addr,addr);
-   val = *(uint64_t *)q_addr;
-   cm_exclusive_val = val;
-   cpu_single_env->regs[reg] = (uint32_t)val;
-   cpu_single_env->regs[reg + 1] = (uint32_t)(val>>32);
+    cm_exclusive_addr = addr;
+    CM_GET_QEMU_ADDR(q_addr,addr);
+#ifdef CONFIG_REPLAY
+    memobj_t *mo = cm_start_atomic_read_insn((const void *)q_addr);
+#endif
+    val = *(uint64_t *)q_addr;
+#ifdef CONFIG_REPLAY
+    cm_end_atomic_read_insn(mo, val);
+#endif
+    cm_exclusive_val = val;
+    cpu_single_env->regs[reg] = (uint32_t)val;
+    cpu_single_env->regs[reg + 1] = (uint32_t)(val>>32);
 }
 
 void HELPER(store_exclusiveq)(uint32_t res, uint32_t reg, uint32_t addr)
 {
-   ram_addr_t q_addr = 0;
-   uint64_t val = 0;
-   uint64_t r = 0;
+    ram_addr_t q_addr = 0;
+    uint64_t val = 0;
+    uint64_t r = 0;
 
-   if(addr != cm_exclusive_addr)
+    if(addr != cm_exclusive_addr)
         goto fail;
 
-   CM_GET_QEMU_ADDR(q_addr,addr);
-   val = (uint32_t)cpu_single_env->regs[reg];
-   val |= ((uint64_t)cpu_single_env->regs[reg + 1]) << 32;
+    CM_GET_QEMU_ADDR(q_addr,addr);
+    val = (uint32_t)cpu_single_env->regs[reg];
+    val |= ((uint64_t)cpu_single_env->regs[reg + 1]) << 32;
 
-   r = atomic_compare_exchangeq((uint64_t *)q_addr,
-                                    (uint64_t)cm_exclusive_val, val);
+#ifdef CONFIG_REPLAY
+    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
+#endif
+    r = atomic_compare_exchangeq((uint64_t *)q_addr,
+            (uint64_t)cm_exclusive_val, val);
+#ifdef CONFIG_REPLAY
+    cm_end_atomic_insn(mo, val);
+#endif
 
-   if(r == (uint64_t)cm_exclusive_val) {
+    if(r == (uint64_t)cm_exclusive_val) {
         cpu_single_env->regs[res] = 0;
         goto done;
-   } else {
+    } else {
         goto fail;
-   }
+    }
 
 fail:
     cpu_single_env->regs[res] = 1;

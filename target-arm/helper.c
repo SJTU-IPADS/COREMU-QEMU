@@ -12,7 +12,12 @@
 #include "hw/loader.h"
 #endif
 
+#include "cm-defs.h"
+#include "cm-replay.h"
 #include "coremu-core.h"
+
+#define DEBUG_COREMU
+#include "coremu-debug.h"
 
 static uint32_t cortexa9_cp15_c0_c1[8] =
 { 0x1031, 0x11, 0x000, 0, 0x00100103, 0x20000000, 0x01230000, 0x00002111 };
@@ -757,9 +762,30 @@ static void do_interrupt_v7m(CPUARMState *env)
     env->thumb = addr & 1;
 }
 
+#ifdef CONFIG_REPLAY
+#define IS_INTERRUPT(intno) \
+    (intno == EXCP_IRQ || intno == EXCP_FIQ)
+#endif
+
 /* Handle a CPU exception.  */
 void do_interrupt(CPUARMState *env)
 {
+#ifdef CONFIG_REPLAY
+#ifdef DEBUG_REPLAY
+    static int fail_print_cnt = 0;
+    static int print_cnt = 0;
+#endif
+    static int irq_cnt = 0;
+    if (cm_run_mode == CM_RUNMODE_REPLAY) {
+        int exception_index = env->exception_index & ~CM_REPLAY_INT;
+        if ((env->exception_index & CM_REPLAY_INT) == 0 && IS_INTERRUPT(exception_index)) {
+            /*coremu_debug("ignore irq");*/
+            return;
+        }
+        env->exception_index = exception_index;
+        irq_cnt++;
+    }
+#endif
     uint32_t addr;
     uint32_t mask;
     int new_mode;
@@ -833,6 +859,12 @@ void do_interrupt(CPUARMState *env)
         /* Disable IRQ and imprecise data aborts.  */
         mask = CPSR_A | CPSR_I;
         offset = 4;
+#ifdef DEBUG_REPLAY
+        if ((print_cnt++ % 1000) == 0 || (fail_print_cnt++ < 30)) {
+            coremu_debug("inject interrupt 0x%x irq_cnt = %d, pc = %x",
+                    env->exception_index, irq_cnt, env->ENVPC);
+        }
+#endif
         break;
     case EXCP_FIQ:
         new_mode = ARM_CPU_MODE_FIQ;
@@ -845,6 +877,12 @@ void do_interrupt(CPUARMState *env)
         cpu_abort(env, "Unhandled exception 0x%x\n", env->exception_index);
         return; /* Never happens.  Keep compiler happy.  */
     }
+#ifdef CONFIG_REPLAY
+    if (IS_INTERRUPT(env->exception_index) && cm_run_mode == CM_RUNMODE_RECORD) {
+        cm_record_intr(env->exception_index, env->ENVPC);
+        irq_cnt++;
+    }
+#endif
     /* High vectors.  */
     if (env->cp15.c1_sys & (1 << 13)) {
         addr += 0xffff0000;

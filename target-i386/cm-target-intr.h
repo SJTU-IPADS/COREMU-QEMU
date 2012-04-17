@@ -74,10 +74,6 @@ typedef struct CMTLBFlushReq {
     CMIntr *base;
 } CMTLBFlushReq;
 
-typedef struct CMExitIntr {
-    CMIntr *base;
-} CMExitIntr;
-
 /* The declaration for apic wrapper function */
 void cm_apic_set_irq(DeviceState *s, int vector_num, int trigger_mode);
 void cm_apic_startup(DeviceState *s, int vector_num);
@@ -92,6 +88,5 @@ void cm_send_apicbus_intr(int target, int mask, int vector_num, int
 						  trigger_mode);
 void cm_send_ipi_intr(int target, int vector_num, int deliver_mode);
 void cm_send_tlb_flush_req(int target);
-void cm_send_exit_intr(int target);
 
 #endif

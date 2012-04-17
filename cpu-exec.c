@@ -25,6 +25,7 @@
 
 #include <pthread.h>
 #include "coremu-config.h"
+#include "cm-defs.h"
 #include "cm-intr.h"
 #include "cm-replay.h"
 #include "cm-crew.h"
@@ -57,7 +58,9 @@
 
 COREMU_THREAD int tb_invalidated_flag;
 
+#ifdef CHECK_MEMOP_CNT
 static __thread uint32_t prev_memcnt = 0;
+#endif
 
 // For debug
 extern COREMU_THREAD uint64_t cm_intr_cnt;
@@ -74,7 +77,9 @@ void cpu_loop_exit(void)
 {
     env->current_tb = NULL;
 #ifdef CONFIG_REPLAY
+#ifdef CHECK_MEMOP_CNT
     prev_memcnt = memop_cnt[cm_coreid];
+#endif
     cm_is_in_tc = 0;
 #endif
     longjmp(env->jmp_env, 1);
@@ -113,7 +118,9 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
 #endif
     env->exception_index = -1;
 #ifdef CONFIG_REPLAY
+#ifdef CHECK_MEMOP_CNT
     prev_memcnt = memop_cnt[cm_coreid];
+#endif
     cm_is_in_tc = 0;
 #endif
     longjmp(env->jmp_env, 1);
@@ -136,14 +143,18 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
     env->current_tb = tb;
     /* execute the generated code */
 #ifdef CONFIG_REPLAY
+#ifdef CHECK_MEMOP_CNT
     if (memop_cnt[cm_coreid] != prev_memcnt) {
         coremu_debug("prev_memcnt: %u memop_cnt[%u] = %u",
                      prev_memcnt, cm_coreid, memop_cnt[cm_coreid]);
         exit(1);
     }
+#endif
     cm_is_in_tc = 1;
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
+#ifdef CHECK_MEMOP_CNT
     prev_memcnt = memop_cnt[cm_coreid];
+#endif
     cm_is_in_tc = 0;
 #else
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
@@ -256,7 +267,7 @@ static void cpu_handle_debug_exception(CPUState *env)
 
 /* main execution loop */
 
-#ifdef CONFIG_REPLAY
+#if defined(CONFIG_REPLAY) && defined(TARGET_I386)
 static void cm_do_cpu_init(void)
 {
     /* XXX Here we need to wait until the BSP sets the jump insn.
@@ -292,8 +303,16 @@ int cpu_exec(CPUState *env1)
         /* It's possible the CPU ignores an interrupt and cpu_halted returns
          * true. But actually we need to inject the inject now.  */
         /*coremu_debug("cm_coreid = %u, cm_inject_exec_cnt = %lu", cm_coreid, cm_inject_exec_cnt);*/
-        if (cm_run_mode == CM_RUNMODE_REPLAY &&
-            cm_tb_exec_cnt[cm_coreid] == cm_inject_intr.exec_cnt) {
+#ifdef TARGET_ARM
+        /* Hack. Processor does not execute interrupt handler immediately after
+         * waken up from WFI. In Linux, it will execute 2 TBs before handling
+         * interrupt. This will cause problem if the WFIed core is waken up by
+         * hardware interrupt (like timer interrupt) which will not be generated
+         * during replay. */
+        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_tb_exec_cnt[cm_coreid] + 2 >= cm_inject_intr.exec_cnt) {
+#else
+        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_tb_exec_cnt[cm_coreid] == cm_inject_intr.exec_cnt) {
+#endif
             /* Continue to execute. */
         } else
             return EXCP_HALTED;
@@ -650,6 +669,7 @@ int cpu_exec(CPUState *env1)
                     cpu_loop_exit();
                 }
 #ifdef CONFIG_REPLAY
+                /* Replay the interrupt here. */
                 int inject_intno;
 #ifdef ASSERT_REPLAY_PC
                 unsigned long inject_eip = cm_inject_intr.eip;
@@ -657,22 +677,29 @@ int cpu_exec(CPUState *env1)
                 if (cm_run_mode == CM_RUNMODE_REPLAY &&
                         (inject_intno = cm_replay_intr()) != -1) {
                     switch (inject_intno) {
+#ifdef TARGET_I386
                     case CM_CPU_INIT:
                         cm_do_cpu_init();
                         break;
                     case CM_CPU_SIPI:
                         cm_do_cpu_sipi();
                         break;
+#endif
                     default:
 #ifdef ASSERT_REPLAY_PC
                         /* The assertion only works when the eip is correct. It
                          * need to be updated in cm_replay_assert_pc. */
-                        coremu_assert(env->eip == inject_eip,
+                        coremu_assert(env->ENVPC == inject_eip,
                                       "abort: cm_coreid = %u, eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
-                                      cm_coreid, (void *)(long)env->eip,
+                                      cm_coreid, (void *)(long)env->ENVPC,
                                       (void *)cm_inject_intr.eip, cm_tb_exec_cnt[cm_coreid]);
 #endif
+#ifdef TARGET_I386
                         do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
+#elif defined(TARGET_ARM)
+                        env->exception_index = inject_intno | CM_REPLAY_INT;
+                        do_interrupt(env);
+#endif
                         break;
                     }
                     /* XXX ensure that no TB jump will be modified as

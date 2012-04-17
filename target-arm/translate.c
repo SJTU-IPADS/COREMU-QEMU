@@ -6727,7 +6727,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
 #ifdef CONFIG_COREMU
                                 gen_helper_load_exclusivel(cm_tmp, addr);
 #else
-                                 gen_load_exclusive(s, rd, 15, addr, 2);
+                                gen_load_exclusive(s, rd, 15, addr, 2);
 #endif
                                 break;
                             case 1: /* ldrexd */
