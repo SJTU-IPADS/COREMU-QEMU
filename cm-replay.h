@@ -71,11 +71,6 @@ void cm_replay_assert_tlbfill(uint64_t addr);
 
 void cm_print_replay_info(void);
 
-#ifdef DEBUG_REPLAY
-extern int going_to_fail;
-extern int pl050_read_cnt;
-#endif
-
 #undef GEN_HEADER
 
 #endif /* _CM_REPLAY_H */

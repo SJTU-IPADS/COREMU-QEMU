@@ -303,8 +303,16 @@ int cpu_exec(CPUState *env1)
         /* It's possible the CPU ignores an interrupt and cpu_halted returns
          * true. But actually we need to inject the inject now.  */
         /*coremu_debug("cm_coreid = %u, cm_inject_exec_cnt = %lu", cm_coreid, cm_inject_exec_cnt);*/
+#ifdef TARGET_ARM
+        /* Hack. Processor does not execute interrupt handler immediately after
+         * waken up from WFI. In Linux, it will execute 2 TBs before handling
+         * interrupt. This will cause problem if the WFIed core is waken up by
+         * hardware interrupt (like timer interrupt) which will not be generated
+         * during replay. */
+        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_tb_exec_cnt[cm_coreid] + 2 >= cm_inject_intr.exec_cnt) {
+#else
         if (cm_run_mode == CM_RUNMODE_REPLAY && cm_tb_exec_cnt[cm_coreid] == cm_inject_intr.exec_cnt) {
-        /*if (cm_run_mode == CM_RUNMODE_REPLAY) {*/
+#endif
             /* Continue to execute. */
         } else
             return EXCP_HALTED;
@@ -769,20 +777,6 @@ int cpu_exec(CPUState *env1)
                         exit(1);
                     }
 #  endif
-#ifdef DEBUG_REPLAY
-                    /*
-                     *static int print_cnt = 0;
-                     *if (going_to_fail && print_cnt++ < 30) {
-                     *    coremu_debug("tb_exec_cnt = %lu, pc = %x",
-                     *            cm_tb_exec_cnt[cm_coreid], env->ENVPC);
-                     *}
-                     */
-                    /*
-                     *if (cm_coreid > 0)
-                     *    coremu_debug("core %d: tb_exec_cnt = %lu, pc = %x",
-                     *             cm_coreid, cm_tb_exec_cnt[cm_coreid], env->ENVPC);
-                     */
-#endif
                     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
                     cm_is_in_tc = 0;
 #  ifdef CHECK_MEMOP_CNT

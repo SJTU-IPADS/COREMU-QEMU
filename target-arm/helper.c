@@ -860,7 +860,7 @@ void do_interrupt(CPUARMState *env)
         mask = CPSR_A | CPSR_I;
         offset = 4;
 #ifdef DEBUG_REPLAY
-        if ((print_cnt++ % 1000) == 0 || (going_to_fail && fail_print_cnt++ < 30)) {
+        if ((print_cnt++ % 1000) == 0 || (fail_print_cnt++ < 30)) {
             coremu_debug("inject interrupt 0x%x irq_cnt = %d, pc = %x",
                     env->exception_index, irq_cnt, env->ENVPC);
         }
