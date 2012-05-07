@@ -220,6 +220,8 @@ DEF_HELPER_2(rcrq, tl, tl, tl)
 #include "coremu-config.h"
 #ifdef CONFIG_COREMU
 #include "cm-atomic.h"
-#endif
+
+DEF_HELPER_0(time_backdoor, void)
+#endif /* CONFIG_COREMU */
 
 #include "def-helper.h"

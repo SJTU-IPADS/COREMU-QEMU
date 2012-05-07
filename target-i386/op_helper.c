@@ -26,6 +26,7 @@
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
+#include <sys/time.h>
 
 //#define DEBUG_PCALL
 
@@ -5747,4 +5748,28 @@ uint32_t helper_cc_compute_c(int op)
 #include "coremu-config.h"
 #ifdef CONFIG_COREMU
 #include "cm-atomic.c"
+
+static int cm_time_backdoor_cnt;
+
+void helper_time_backdoor(void)
+{
+    static struct timeval tv[2];
+
+    int i = cm_time_backdoor_cnt++ & 1;
+    if (gettimeofday(&tv[i], NULL) != 0) {
+        printf("Error in gettimeofday, in time backdoor!\n");
+    }
+    if (i == 1) {
+        time_t sec = tv[1].tv_sec - tv[0].tv_sec;
+        suseconds_t usec = 0;
+        if (tv[1].tv_usec >= tv[0].tv_usec) {
+            usec = tv[1].tv_usec - tv[0].tv_usec;
+        } else {
+            sec--;
+            usec = tv[1].tv_usec + 1000000 - tv[0].tv_usec;
+        }
+        printf("\n==========\nCOREMU HOST TIME: %d.%03d seconds\n==========\n", (int)sec, (int)(usec / 1000));
+    }
+}
+
 #endif
