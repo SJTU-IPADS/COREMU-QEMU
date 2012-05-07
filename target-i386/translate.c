@@ -4146,6 +4146,8 @@ static void gen_sse(DisasContext *s, int b, target_ulong pc_start, int rex_r)
     }
 }
 
+#define COREMU_TIME_BACKDOOR_INT 0x77
+
 /* convert one instruction. s->is_jmp is set if the translation must
    be stopped. Return the next pc value */
 static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
@@ -6945,6 +6947,11 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         val = ldub_code(s->pc++);
         if (s->vm86 && s->iopl != 3) {
             gen_exception(s, EXCP0D_GPF, pc_start - s->cs_base);
+#ifdef CONFIG_COREMU
+        /* Add a timing backdoor. */
+        } else if (COREMU_TIME_BACKDOOR_INT == val) {
+            gen_helper_time_backdoor();
+#endif
         } else {
             gen_interrupt(s, val, pc_start - s->cs_base, s->pc - s->cs_base);
         }
