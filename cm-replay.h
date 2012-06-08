@@ -3,6 +3,7 @@
 
 #include "coremu-config.h"
 #include "cm-log.h"
+#include <stdint.h>
 
 enum {
     CM_RUNMODE_NORMAL, /* Not being recorded or replayed, this is default */

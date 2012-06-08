@@ -48,7 +48,7 @@ static memobj_t *memobj;
  * version of the last read. Updated on CREW fault. */
 __thread cpuid_t *last_read_version;
 
-/* Initialize to be cm_log[cm_coreid][CREW_INC] */
+/* Initialize to be cm_log[CREW_INC] */
 static __thread FILE *crew_inc_log;
 
 enum {
@@ -94,7 +94,7 @@ static inline void write_inc_log(cpuid_t owner, memop_t owner_memop)
 {
 #ifdef DEBUG_REPLAY
     coremu_assert(cm_coreid != owner, "no need to wait self");
-    fprintf(cm_log[cm_coreid][CREW_INC], CREW_LOG_FMT, memop_cnt[cm_coreid] + 1,
+    fprintf(cm_log[CREW_INC], CREW_LOG_FMT, memop_cnt[cm_coreid] + 1,
             owner, owner_memop);
 #elif defined(REPLAY_LOGBUF)
     IncLog *log = coremu_logbuf_next_entry(&(cm_log_buf[cm_coreid][CREW_INC]), sizeof(*log));
@@ -106,7 +106,7 @@ static inline void write_inc_log(cpuid_t owner, memop_t owner_memop)
     log.self_memop = memop_cnt[cm_coreid] + 1;
     log.owner = owner;
     log.owner_memop = owner_memop;
-    if (fwrite(&log, sizeof(log), 1, cm_log[cm_coreid][CREW_INC]) != 1) {
+    if (fwrite(&log, sizeof(log), 1, cm_log[CREW_INC]) != 1) {
         coremu_print("inc log write failed");
     }
 #endif
@@ -120,7 +120,7 @@ static inline int read_inc_log(void)
         goto no_more_log;
     }
 #else
-    if (fread(&cm_inc_log, sizeof(cm_inc_log), 1, cm_log[cm_coreid][CREW_INC]) != 1)
+    if (fread(&cm_inc_log, sizeof(cm_inc_log), 1, cm_log[CREW_INC]) != 1)
         goto no_more_log;
 #endif
 
@@ -254,7 +254,7 @@ void cm_crew_init(void)
 
 void cm_crew_core_init(void)
 {
-    crew_inc_log = cm_log[cm_coreid][CREW_INC];
+    crew_inc_log = cm_log[CREW_INC];
     memop = &memop_cnt[cm_coreid];
 
     last_read_version = calloc(n_memobj, sizeof(*last_read_version));
@@ -266,6 +266,7 @@ void cm_crew_core_init(void)
 #include <assert.h>
 #include "cpu.h"
 
+#ifdef DEBUG_MEMACC
 __thread uint32_t memacc_cnt;
 __thread int error_print_cnt = 0;
 #define PRINT_ERROR_TIMES 10
@@ -283,7 +284,7 @@ void debug_read_access(uint64_t val)
         exit(1);
     }
     if (cm_run_mode == CM_RUNMODE_RECORD) {
-        fprintf(cm_log[cm_coreid][READ], READ_LOG_FMT,
+        fprintf(cm_log[READ], READ_LOG_FMT,
                 (uint64_t)cpu_single_env->ENVPC, val, tlb_fill_cnt);
         return;
     }
@@ -291,7 +292,7 @@ void debug_read_access(uint64_t val)
     uint64_t rec_eip, rec_val;
     uint32_t tlb_cnt;
     int error = 0;
-    if (fscanf(cm_log[cm_coreid][READ], READ_LOG_FMT,
+    if (fscanf(cm_log[READ], READ_LOG_FMT,
                 &rec_eip, &rec_val, &tlb_cnt) == EOF)
         return;
     if (rec_eip != cpu_single_env->ENVPC && error_print_cnt < PRINT_ERROR_TIMES) {
@@ -331,7 +332,7 @@ void debug_write_access(uint64_t val)
         exit(1);
     }
     if (cm_run_mode == CM_RUNMODE_RECORD) {
-        fprintf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
+        fprintf(cm_log[WRITE], WRITE_LOG_FMT,
                 (uint64_t)cpu_single_env->ENVPC, val, tlb_fill_cnt);
         return;
     }
@@ -339,7 +340,7 @@ void debug_write_access(uint64_t val)
     uint64_t rec_eip, rec_val;
     uint32_t cnt;
     int error = 0;
-    if (fscanf(cm_log[cm_coreid][WRITE], WRITE_LOG_FMT,
+    if (fscanf(cm_log[WRITE], WRITE_LOG_FMT,
                 &rec_eip, &rec_val, &cnt) == EOF)
         return;
     if (rec_eip != cpu_single_env->ENVPC && error_print_cnt < PRINT_ERROR_TIMES) {
@@ -365,6 +366,7 @@ void debug_write_access(uint64_t val)
         /*pthread_exit(NULL);*/
     }
 }
+#endif
 
 void cm_assert_not_in_tc(void)
 {

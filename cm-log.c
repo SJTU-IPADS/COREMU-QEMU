@@ -1,24 +1,47 @@
+#include "coremu-config.h"
+#include "cm-log.h"
+#include "cm-replay.h"
 #include <stdlib.h>
 #include <malloc.h>
-
-#include "coremu-config.h"
 
 #define CONFIG_REPLAY
 #include "coremu-debug.h"
 
-#include "cm-log.h"
-
 static const char *cm_log_name[] = {
-    "intr", "ipi", "pc", "in", "rdtsc", "mmio", "dma", "crewinc", "allpc", "tlbflush",
-    "gencode", "read", "write", "tlbfill", "tbflush"
+    "intr",
+    "ipi",
+    "in",
+    "rdtsc",
+    "mmio",
+    "dma",
+    "crewinc",
+#ifdef ASSERT_REPLAY_PC
+    "pc",
+#endif
+#ifdef ASSERT_REPLAY_TLBFLU
+    "tlbflush",
+#endif
+#ifdef ASSERT_REPLAY_GENCODE
+    "gencode",
+#endif
+#ifdef DEBUG_MEM_ACCESS
+    "read",
+    "write",
+#endif
+#ifdef ASSERT_REPLAY_TLBFILL 
+    "tlbfill",
+#endif
+#ifdef ASSERT_REPLAY_TBFILL 
+    "tbflush"
+#endif
 };
 
-log_t **cm_log;
+__thread log_t *cm_log;
+log_t *cm_log_allpc;
+
 #ifdef REPLAY_LOGBUF
 CMLogBuf ***cm_log_buf;
 #endif
-
-#define LOG_BUFSIZE 1024
 
 #define MAXLOGLEN 256
 
@@ -36,64 +59,33 @@ static FILE *open_log1(const char* logname, const char *mode, int coreid)
     return log;
 }
 
-static void cm_open_log(const char *mode, int coreid)
+void cm_replay_flush_log(int coreid)
 {
     int i;
     for (i = 0; i < N_CM_LOG; i++) {
-        cm_log[coreid][i] = open_log1(cm_log_name[i], mode, coreid);
-#ifdef REPLAY_LOGBUF
-        cm_log_buf[coreid][i] =
-            coremu_logbuf_new(LOG_BUFSIZE, cm_log[coreid][i]);
-#endif
+        fflush(cm_log[i]);
     }
-}
-
-void cm_replay_flush_log(int coreid) {
-    int i;
-    for (i = 0; i < N_CM_LOG; i++) {
-#ifdef REPLAY_LOGBUF
-        coremu_logbuf_flush(cm_log_buf[coreid][i]);
-#else
-        fflush(cm_log[coreid][i]);
-#endif
-    }
-}
-
-extern int cm_run_mode;
-
-static void cm_debug_open_log(int coreid)
-{
-    /*
-     *if (cm_run_mode == 1)
-     *    open_log1(&(cm_log[coreid][MEMREC]), "memrec", "w", coreid);
-     *else {
-     *    open_log1(&(cm_log[coreid][MEMPLAY]), "memplay", "w", coreid);
-     *    open_log1(&(cm_log[coreid][MEMREC]), "memrec", "r", coreid);
-     *}
-     */
 }
 
 extern int smp_cpus;
 
-void cm_log_init(const char *mode)
+void cm_log_init(void)
 {
-    cm_log = calloc(smp_cpus, sizeof(FILE **));
-    assert(cm_log);
-#ifdef REPLAY_LOGBUF
-    cm_log_buf = calloc(smp_cpus, sizeof(*cm_log_buf));
-    assert(cm_log_buf);
-#endif
-    int i;
-    for (i = 0; i < smp_cpus; i++) {
-        cm_log[i] = calloc(N_CM_LOG, sizeof(FILE *));
-        assert(cm_log[i]);
-#ifdef REPLAY_LOGBUF
-        cm_log_buf[i] = calloc(N_CM_LOG, sizeof(*cm_log_buf[0]));
-        assert(cm_log_buf[i]);
-#endif
-
-        cm_open_log(mode, i);
-        cm_debug_open_log(i);
-    }
+    cm_log_allpc = calloc(smp_cpus, sizeof(*cm_log_allpc));
+    assert(cm_log_allpc);
 }
 
+void cm_log_init_core(void)
+{
+    cm_log = calloc(N_CM_LOG, sizeof(*cm_log));
+    assert(cm_log);
+
+    const char *mode = (cm_run_mode == CM_RUNMODE_REPLAY) ? "r" : "w";
+
+    int i;
+    for (i = 0; i < N_CM_LOG; i++) {
+        cm_log[i] = open_log1(cm_log_name[i], mode, cm_coreid);
+    }
+
+    cm_log_allpc[cm_coreid] = open_log1("allpc", mode, cm_coreid);
+}

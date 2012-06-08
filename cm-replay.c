@@ -77,17 +77,13 @@ void cm_record_intr(int intno, long eip)
         cm_record_disk_dma();
     }
 #ifdef DEBUG_REPLAY
-    fprintf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, intno,
+    fprintf(cm_log[INTR], LOG_INTR_FMT, intno,
             cm_tb_exec_cnt[cm_coreid], (void *)(long)eip);
-#elif defined(REPLAY_LOGBUF)
-    IntrLog *log = coremu_logbuf_next_entry(&(cm_log_buf[cm_coreid][INTR]), sizeof(*log));
-    log->intno = intno;
-    log->exec_cnt = cm_tb_exec_cnt[cm_coreid];
 #else
     IntrLog log;
     log.intno = intno;
     log.exec_cnt = cm_tb_exec_cnt[cm_coreid];
-    if (fwrite(&log, sizeof(log), 1, cm_log[cm_coreid][INTR]) != 1) {
+    if (fwrite(&log, sizeof(log), 1, cm_log[INTR]) != 1) {
         coremu_print("intr log record error");
     }
 #endif
@@ -96,12 +92,12 @@ void cm_record_intr(int intno, long eip)
 static inline void cm_read_intr_log(void)
 {
 #ifdef DEBUG_REPLAY
-    if (fscanf(cm_log[cm_coreid][INTR], LOG_INTR_FMT, &cm_inject_intr.intno,
+    if (fscanf(cm_log[INTR], LOG_INTR_FMT, &cm_inject_intr.intno,
                &cm_inject_intr.exec_cnt,
                (void **)&cm_inject_intr.eip) == EOF)
         cm_inject_intr.exec_cnt = -1;
 #else
-    if (fread(&cm_inject_intr, sizeof(cm_inject_intr), 1, cm_log[cm_coreid][INTR]) != 1)
+    if (fread(&cm_inject_intr, sizeof(cm_inject_intr), 1, cm_log[INTR]) != 1)
         cm_inject_intr.exec_cnt = -1;
 #endif
 }
@@ -188,22 +184,22 @@ int cm_replay_##name(type *arg) \
 
 /* IPI hander cnt */
 #define IPI_LOG_FMT "%x\n"
-GEN_FUNC(ipi_handler_cnt, int, cm_log[cm_coreid][IPI], IPI_LOG_FMT);
+GEN_FUNC(ipi_handler_cnt, int, cm_log[IPI], IPI_LOG_FMT);
 
 /* input data */
 
 #define IN_LOG_FMT "%x\n"
-GEN_FUNC(in, uint32_t, cm_log[cm_coreid][IN], IN_LOG_FMT);
+GEN_FUNC(in, uint32_t, cm_log[IN], IN_LOG_FMT);
 /*
  *#define IN_LOG_FMT "%x %x\n"
  *[> XXX Recording address is only for debugging. <]
  *void cm_record_in(uint32_t address, uint32_t value) {
- *    fprintf(cm_log[cm_coreid][IN], IN_LOG_FMT, address, value);
+ *    fprintf(cm_log[IN], IN_LOG_FMT, address, value);
  *}
  *[> Returns 0 if ther's no more log entry. <]
  *int cm_replay_in(uint32_t *value) {
  *    uint32_t address;
- *    if (fscanf(cm_log[cm_coreid][IN], IN_LOG_FMT, &address, value) == EOF) {
+ *    if (fscanf(cm_log[IN], IN_LOG_FMT, &address, value) == EOF) {
  *        printf("no more in log\n");
  *        exit(0);
  *        return 0;
@@ -214,15 +210,15 @@ GEN_FUNC(in, uint32_t, cm_log[cm_coreid][IN], IN_LOG_FMT);
 
 /* mmio */
 #define MMIO_LOG_FMT "%u\n"
-GEN_FUNC(mmio, uint32_t, cm_log[cm_coreid][MMIO], MMIO_LOG_FMT);
+GEN_FUNC(mmio, uint32_t, cm_log[MMIO], MMIO_LOG_FMT);
 
 void cm_debug_mmio(void *f)
 {
-    fprintf(cm_log[cm_coreid][MMIO], "%p\n", f);
+    fprintf(cm_log[MMIO], "%p\n", f);
 }
 /* rdtsc */
 #define RDTSC_LOG_FMT "%lu\n"
-GEN_FUNC(rdtsc, uint64_t, cm_log[cm_coreid][RDTSC], RDTSC_LOG_FMT);
+GEN_FUNC(rdtsc, uint64_t, cm_log[RDTSC], RDTSC_LOG_FMT);
 
 /* dma */
 
@@ -244,10 +240,10 @@ void cm_record_disk_dma(void)
      *    fprintf(cm_log[i][DISK_DMA], DMA_LOG_FMT, cm_tb_exec_cnt[i]);
      */
 #ifdef DEBUG_REPLAY
-    fprintf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, cm_dma_cnt);
+    fprintf(cm_log[DISK_DMA], DMA_LOG_FMT, cm_dma_cnt);
 #else
     uint64_t cnt = cm_dma_cnt;
-    if (fwrite(&cnt, sizeof(cnt), 1, cm_log[cm_coreid][DISK_DMA]) == -1) {
+    if (fwrite(&cnt, sizeof(cnt), 1, cm_log[DISK_DMA]) == -1) {
         fprintf(stderr, "writing disk dma log error\n");
     }
 #endif
@@ -256,16 +252,16 @@ void cm_record_disk_dma(void)
 static inline void cm_read_dma_log(void)
 {
     /*
-     *if (fscanf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, &cm_dma_done_exec_cnt) == EOF) {
+     *if (fscanf(cm_log[DISK_DMA], DMA_LOG_FMT, &cm_dma_done_exec_cnt) == EOF) {
      *    [> Set dma done cnt to max possible value so will not wait any more. <]
      *    cm_dma_done_exec_cnt = (uint64_t)-1;
      *}
      */
 #ifdef DEBUG_REPLAY
-     if (fscanf(cm_log[cm_coreid][DISK_DMA], DMA_LOG_FMT, &cm_next_dma_cnt) == EOF)
+     if (fscanf(cm_log[DISK_DMA], DMA_LOG_FMT, &cm_next_dma_cnt) == EOF)
         printf("no more dma log\n");
 #else
-     if (fread(&cm_next_dma_cnt, sizeof(cm_dma_cnt), 1, cm_log[cm_coreid][DISK_DMA]) != 1)
+     if (fread(&cm_next_dma_cnt, sizeof(cm_dma_cnt), 1, cm_log[DISK_DMA]) != 1)
         printf("no more dma log\n");
 #endif
 }
@@ -303,6 +299,7 @@ static void cm_wait_disk_dma(void)
 
 void cm_replay_init(void)
 {
+    cm_log_init();
     /* Setup CPU local variable */
     cm_tb_exec_cnt = calloc(smp_cpus, sizeof(uint64_t));
 
@@ -314,6 +311,7 @@ void cm_replay_init(void)
 
 void cm_replay_core_init(void)
 {
+    cm_log_init_core();
     if (cm_run_mode == CM_RUNMODE_NORMAL)
         return;
 
@@ -334,7 +332,7 @@ void cm_record_all_exec_cnt(void)
 
     for (i = 0; i < smp_cpus; i++) {
         if (i != cm_coreid) {
-            fprintf(cm_log[cm_coreid][ALLPC], LOG_ALL_EXEC_CNT_FMT, i,
+            fprintf(cm_log_allpc[i], LOG_ALL_EXEC_CNT_FMT, i,
                     cm_tb_exec_cnt[i]);
         }
     }
@@ -348,7 +346,7 @@ void cm_replay_all_exec_cnt(void)
     for (i = 0; i < smp_cpus; i++) {
         if (i == cm_coreid)
             continue;
-        if (fscanf(cm_log[cm_coreid][ALLPC], LOG_ALL_EXEC_CNT_FMT, &coreid,
+        if (fscanf(cm_log_allpc[i], LOG_ALL_EXEC_CNT_FMT, &coreid,
                    &wait_exec_cnt) == EOF) {
             coremu_print("No more all pc log.");
             return;
@@ -371,13 +369,6 @@ void cm_replay_all_exec_cnt(void)
 extern uint64_t cm_ioport_read_cnt;
 extern uint64_t cm_mmio_read_cnt;
 
-#include "config-target.h"
-#ifdef TARGET_X86_64
-#define PC_LOG_FMT "%016lx %u\n"
-#else
-#define PC_LOG_FMT "%08lx %u\n"
-#endif
-
 /*
  *#include "cpu-all.h"
  *int logset = 0;
@@ -385,6 +376,15 @@ extern uint64_t cm_mmio_read_cnt;
  */
 
 #include "cpu.h"
+
+#ifdef ASSERT_REPLAY_PC
+
+#include "config-target.h"
+#ifdef TARGET_X86_64
+#define PC_LOG_FMT "%016lx %u\n"
+#else
+#define PC_LOG_FMT "%08lx %u\n"
+#endif
 
 void cm_replay_assert_pc(uint64_t eip)
 {
@@ -401,7 +401,7 @@ void cm_replay_assert_pc(uint64_t eip)
     int error = 0;
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
-        if (fscanf(cm_log[cm_coreid][PC], PC_LOG_FMT, &next_eip, &recorded_memop) == EOF) {
+        if (fscanf(cm_log[PC], PC_LOG_FMT, &next_eip, &recorded_memop) == EOF) {
             coremu_debug("no more pc log, cm_coreid = %u, cm_tb_exec_cnt = %lu", cm_coreid,
                    cm_tb_exec_cnt[cm_coreid]);
             cm_print_replay_info();
@@ -434,10 +434,11 @@ void cm_replay_assert_pc(uint64_t eip)
         }
         break;
     case CM_RUNMODE_RECORD:
-        fprintf(cm_log[cm_coreid][PC], PC_LOG_FMT, eip, *memop);
+        fprintf(cm_log[PC], PC_LOG_FMT, eip, *memop);
         break;
     }
 }
+#endif
 
 #define GEN_ASSERT(name, type, log_item, fmt) \
 void cm_replay_assert_##name(type cur) \
@@ -445,7 +446,7 @@ void cm_replay_assert_##name(type cur) \
     type recorded; \
     switch (cm_run_mode) { \
     case CM_RUNMODE_REPLAY: \
-        if (fscanf(cm_log[cm_coreid][log_item], fmt, &recorded) == EOF) { \
+        if (fscanf(cm_log[log_item], fmt, &recorded) == EOF) { \
             printf("no more " #name " log\n"); \
         } \
         if (cur != recorded) { \
@@ -465,13 +466,16 @@ void cm_replay_assert_##name(type cur) \
         } \
         break; \
     case CM_RUNMODE_RECORD: \
-        fprintf(cm_log[cm_coreid][log_item], fmt, cur); \
+        fprintf(cm_log[log_item], fmt, cur); \
         break; \
     } \
 }
 
+#ifdef ASSERT_REPLAY_TBFLUSH
 GEN_ASSERT(tbflush, uint64_t, TBFLUSH, "%ld\n");
+#endif
 
+#ifdef ASSERT_TLBFLUSH
 #define TLBFLUSH_LOG_FMT "%ld %lx %u\n"
 void cm_replay_assert_tlbflush(uint64_t exec_cnt, uint64_t eip, int coreid)
 {
@@ -482,7 +486,7 @@ void cm_replay_assert_tlbflush(uint64_t exec_cnt, uint64_t eip, int coreid)
 
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
-        if (fscanf(cm_log[coreid][TLBFLUSH], TLBFLUSH_LOG_FMT, &recorded_exec_cnt,
+        if (fscanf(cm_log[TLBFLUSH], TLBFLUSH_LOG_FMT, &recorded_exec_cnt,
                    &recorded_eip, &recorded_tlb_fill_cnt) == EOF) {
             coremu_debug("no more tlbflush log, coreid = %u, cm_tb_exec_cnt = %lu", coreid,
                    exec_cnt);
@@ -517,12 +521,14 @@ void cm_replay_assert_tlbflush(uint64_t exec_cnt, uint64_t eip, int coreid)
             pthread_exit(NULL);
         break;
     case CM_RUNMODE_RECORD:
-        fprintf(cm_log[coreid][TLBFLUSH], TLBFLUSH_LOG_FMT,
+        fprintf(cm_log[TLBFLUSH], TLBFLUSH_LOG_FMT,
                 cm_tb_exec_cnt[coreid], eip, tlb_fill_cnt);
         break;
     }
 }
+#endif
 
+#ifdef ASSERT_REPLAY_GENCODE
 #define GENCODE_LOG_FMT "%ld %lx\n"
 void cm_replay_assert_gencode(uint64_t eip)
 {
@@ -530,7 +536,7 @@ void cm_replay_assert_gencode(uint64_t eip)
 
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
-        if (fscanf(cm_log[cm_coreid][GENCODE], GENCODE_LOG_FMT, &recorded_exec_cnt,
+        if (fscanf(cm_log[GENCODE], GENCODE_LOG_FMT, &recorded_exec_cnt,
                    &recorded_eip) == EOF) {
             coremu_debug("no more gencode log, cm_coreid = %u, cm_tb_exec_cnt = %lu", cm_coreid,
                    cm_tb_exec_cnt[cm_coreid]);
@@ -557,12 +563,14 @@ void cm_replay_assert_gencode(uint64_t eip)
         }
         break;
     case CM_RUNMODE_RECORD:
-        fprintf(cm_log[cm_coreid][GENCODE], GENCODE_LOG_FMT,
+        fprintf(cm_log[GENCODE], GENCODE_LOG_FMT,
                 cm_tb_exec_cnt[cm_coreid], eip);
         break;
     }
 }
+#endif
 
+#ifdef ASSERT_TLB_TLBFILL
 #define TLBFILL_LOG_FMT "%lu %lu %u\n"
 void cm_replay_assert_tlbfill(uint64_t addr)
 {
@@ -571,7 +579,7 @@ void cm_replay_assert_tlbfill(uint64_t addr)
 
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
-        if (fscanf(cm_log[cm_coreid][TLBFILL], TLBFILL_LOG_FMT, &recorded_exec_cnt,
+        if (fscanf(cm_log[TLBFILL], TLBFILL_LOG_FMT, &recorded_exec_cnt,
                    &recorded_addr, &recorded_memop) == EOF) {
             coremu_debug("no more tlbfill log, cm_coreid = %u, cm_tb_exec_cnt = %lu", cm_coreid,
                    cm_tb_exec_cnt[cm_coreid]);
@@ -594,11 +602,12 @@ void cm_replay_assert_tlbfill(uint64_t addr)
         }
         break;
     case CM_RUNMODE_RECORD:
-        fprintf(cm_log[cm_coreid][TLBFILL], TLBFILL_LOG_FMT,
+        fprintf(cm_log[TLBFILL], TLBFILL_LOG_FMT,
                 cm_tb_exec_cnt[cm_coreid], addr, *memop);
         break;
     }
 }
+#endif
 
 void cm_print_replay_info(void)
 {
