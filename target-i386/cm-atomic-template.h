@@ -27,16 +27,30 @@
 #endif
 
 /* Lightweight transactional memory. */
+#ifdef CONFIG_REPLAY
+
+#define TX(__q_addr, type, value, command) \
+    DATA_TYPE value;                       \
+                                           \
+    value = *(DATA_TYPE *)__q_addr;        \
+    {command;};                            \
+    *(DATA_TYPE *)__q_addr = value;
+
+#else /* CONFIG_REPLAY */
+
 #define TX(__q_addr, type, value, command) \
     DATA_TYPE __oldv;                                         \
     DATA_TYPE value;                                          \
                                                               \
     do {                                                      \
-        __oldv = value = *(DATA_TYPE *)__q_addr;           \
+        __oldv = value = *(DATA_TYPE *)__q_addr;              \
         {command;};                                           \
         mb();                                                 \
     } while (__oldv != (glue(atomic_compare_exchange, SUFFIX)(        \
                     (DATA_TYPE *)__q_addr, __oldv, value)))
+
+#endif
+
 
 /* Atomically emulate INC instruction using CAS1 and memory transaction. */
 void glue(helper_atomic_inc, SUFFIX)(target_ulong a0, int c)
