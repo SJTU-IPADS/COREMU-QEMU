@@ -16,7 +16,6 @@ void glue(helper_atomic_, INSN)(target_ulong a0, target_ulong offset,
     int eflags;
 
     unsigned long __q_addr;
-    uint8_t __oldv;
     uint8_t value;
 
     CM_GET_QEMU_ADDR(__q_addr, a0);
@@ -24,7 +23,16 @@ void glue(helper_atomic_, INSN)(target_ulong a0, target_ulong offset,
     __q_addr += offset >> 3;
 #ifdef CONFIG_REPLAY
     memobj_t *mo = cm_start_atomic_insn((const void *)__q_addr);
-#endif
+
+    /* Since we get a lock to the page, no other core can read/write this page.
+     * So no transaction is needed. */
+    old_byte = value = *((uint8_t *)__q_addr);
+    {COMMAND;};
+    *((uint8_t *)__q_addr) = value;
+
+    cm_end_atomic_insn(mo, value);
+#else
+    uint8_t __oldv;
     /* This is different from TX.
      * Note that, when using register bitoffset, the value can be larger than
      * operand size - 1 (operand size can be 16/32/64), refer to intel manual 2A
@@ -35,8 +43,6 @@ void glue(helper_atomic_, INSN)(target_ulong a0, target_ulong offset,
         {COMMAND;};
         mb();
     } while (__oldv != atomic_compare_exchangeb((uint8_t *)__q_addr, __oldv, value));
-#ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo, value);
 #endif
 
     CC_SRC = (old_byte >> (offset & 0x7));
