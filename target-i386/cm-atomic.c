@@ -152,14 +152,14 @@ void helper_atomic_cmpxchg8b(target_ulong a0)
 
     CM_GET_QEMU_ADDR(q_addr, a0);
 
-#ifdef CONFIG_REPLAY
-    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
-#endif
-
     eflags = helper_cc_compute_all(CC_OP);
 
     edx_eax = (((uint64_t)EDX << 32) | (uint32_t)EAX);
     ecx_ebx = (((uint64_t)ECX << 32) | (uint32_t)EBX);
+
+#ifdef CONFIG_REPLAY
+    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
+#endif
 
     res = atomic_compare_exchangeq((uint64_t *)q_addr, edx_eax, ecx_ebx);
     mb();
