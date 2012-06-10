@@ -125,36 +125,25 @@ void glue(helper_atomic_op, SUFFIX)(target_ulong a0, target_ulong t1,
         switch(op) {
         case OP_ADCL:
             value += operand + eflags_c;
-            cc_op = glue(CC_OP_ADD, UPSUFFIX) + (eflags_c << 2);
-            CC_SRC = operand;
             break;
         case OP_SBBL:
             value = value - operand - eflags_c;
-            cc_op = glue(CC_OP_SUB, UPSUFFIX) + (eflags_c << 2);
-            CC_SRC = operand;
             break;
         case OP_ADDL:
             value += operand;
-            cc_op = glue(CC_OP_ADD, UPSUFFIX);
-            CC_SRC = operand;
             break;
         case OP_SUBL:
             value -= operand;
-            cc_op = glue(CC_OP_SUB, UPSUFFIX);
-            CC_SRC = operand;
             break;
         default:
         case OP_ANDL:
             value &= operand;
-            cc_op = glue(CC_OP_LOGIC, UPSUFFIX);
             break;
         case OP_ORL:
             value |= operand;
-            cc_op = glue(CC_OP_LOGIC, UPSUFFIX);
             break;
         case OP_XORL:
             value ^= operand;
-            cc_op = glue(CC_OP_LOGIC, UPSUFFIX);
             break;
         case OP_CMPL:
             abort();
@@ -164,6 +153,37 @@ void glue(helper_atomic_op, SUFFIX)(target_ulong a0, target_ulong t1,
 #ifdef CONFIG_REPLAY
     cm_end_atomic_insn(mo, value);
 #endif
+    switch(op) {
+    case OP_ADCL:
+        cc_op = glue(CC_OP_ADD, UPSUFFIX) + (eflags_c << 2);
+        CC_SRC = operand;
+        break;
+    case OP_SBBL:
+        cc_op = glue(CC_OP_SUB, UPSUFFIX) + (eflags_c << 2);
+        CC_SRC = operand;
+        break;
+    case OP_ADDL:
+        cc_op = glue(CC_OP_ADD, UPSUFFIX);
+        CC_SRC = operand;
+        break;
+    case OP_SUBL:
+        cc_op = glue(CC_OP_SUB, UPSUFFIX);
+        CC_SRC = operand;
+        break;
+    default:
+    case OP_ANDL:
+        cc_op = glue(CC_OP_LOGIC, UPSUFFIX);
+        break;
+    case OP_ORL:
+        cc_op = glue(CC_OP_LOGIC, UPSUFFIX);
+        break;
+    case OP_XORL:
+        cc_op = glue(CC_OP_LOGIC, UPSUFFIX);
+        break;
+    case OP_CMPL:
+        abort();
+        break;
+    }
     CC_DST = value;
     /* successful transaction, compute the eflags */
     eflags = helper_cc_compute_all(cc_op);
