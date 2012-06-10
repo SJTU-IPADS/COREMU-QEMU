@@ -187,11 +187,11 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
 
     CM_GET_QEMU_ADDR(q_addr, a0);
 
+    eflags = helper_cc_compute_all(CC_OP);
+
 #ifdef CONFIG_REPLAY
     memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
 #endif
-
-    eflags = helper_cc_compute_all(CC_OP);
 
     uint64_t old_rax = *(uint64_t *)q_addr;
     uint64_t old_rdx = *(uint64_t *)(q_addr + 8);
