@@ -164,6 +164,10 @@ void helper_atomic_cmpxchg8b(target_ulong a0)
     res = atomic_compare_exchangeq((uint64_t *)q_addr, edx_eax, ecx_ebx);
     mb();
 
+#ifdef CONFIG_REPLAY
+    cm_end_atomic_insn(mo, 0xdeadbeef);
+#endif
+
     if (res == edx_eax) {
          eflags |= CC_Z;
     } else {
@@ -173,10 +177,6 @@ void helper_atomic_cmpxchg8b(target_ulong a0)
     }
 
     CC_SRC = eflags;
-
-#ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo, 0xdeadbeef);
-#endif
 }
 
 void helper_atomic_cmpxchg16b(target_ulong a0)
@@ -198,6 +198,10 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
     res = atomic_compare_exchange16b((uint64_t *)q_addr, EAX, EDX, EBX, ECX);
     mb();
 
+#ifdef CONFIG_REPLAY
+    cm_end_atomic_insn(mo, 0xdeadbeef);
+#endif
+
     if (res) {
         eflags |= CC_Z;         /* swap success */
     } else {
@@ -207,9 +211,6 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
     }
 
     CC_SRC = eflags;
-#ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo, 0xdeadbeef);
-#endif
 }
 
 /* fence **/
