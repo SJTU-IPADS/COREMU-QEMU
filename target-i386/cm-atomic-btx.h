@@ -20,6 +20,8 @@ void glue(helper_atomic_, INSN)(target_ulong a0, target_ulong offset,
     uint8_t value;
 
     CM_GET_QEMU_ADDR(__q_addr, a0);
+    /* This is the address that's actually gets changed. */
+    __q_addr += offset >> 3;
 #ifdef CONFIG_REPLAY
     memobj_t *mo = cm_start_atomic_insn((const void *)__q_addr);
 #endif
@@ -27,7 +29,6 @@ void glue(helper_atomic_, INSN)(target_ulong a0, target_ulong offset,
      * Note that, when using register bitoffset, the value can be larger than
      * operand size - 1 (operand size can be 16/32/64), refer to intel manual 2A
      * page 3-11. */
-    __q_addr += offset >> 3;
     do {
         __oldv = value = *((uint8_t *)__q_addr);
         old_byte = value;
