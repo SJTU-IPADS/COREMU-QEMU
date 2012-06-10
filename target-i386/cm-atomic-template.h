@@ -69,15 +69,19 @@ void glue(helper_atomic_inc, SUFFIX)(target_ulong a0, int c)
     TX(q_addr, type, value, {
         if (c > 0) {
             value++;
-            cc_op = glue(CC_OP_INC, UPSUFFIX);
         } else {
             value--;
-            cc_op = glue(CC_OP_DEC, UPSUFFIX);
         }
     });
 #ifdef CONFIG_REPLAY
     cm_end_atomic_insn(mo, value);
 #endif
+
+    if (c > 0) {
+        cc_op = glue(CC_OP_INC, UPSUFFIX);
+    } else {
+        cc_op = glue(CC_OP_DEC, UPSUFFIX);
+    }
 
     CC_SRC = eflags_c;
     CC_DST = value;
