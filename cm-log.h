@@ -2,7 +2,11 @@
 #define _CM_LOG_H
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "coremu-config.h"
+
+/* For logs that need to be flushed upon exit, put it in this file because it
+ * contains the logic to open and flush. */
 
 enum {
     INTR,
@@ -11,7 +15,6 @@ enum {
     RDTSC,
     MMIO,
     DISK_DMA,
-    CREW_INC,
 #ifdef ASSERT_REPLAY_PC
     PC,
 #endif
@@ -33,6 +36,16 @@ enum {
 #endif
     N_CM_LOG,
 };
+
+#define MAX_PATH_LEN 256
+#define LOGDIR "replay-log/"
+
+static inline void cm_logpath(char *buf, const char *name, long id) {
+    if (snprintf(buf, MAX_PATH_LEN, LOGDIR"%s-%ld", name, id) >= MAX_PATH_LEN) {
+        printf("Path name too long\n");
+        exit(1);
+    }
+}
 
 typedef FILE *log_t;
 

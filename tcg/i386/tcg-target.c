@@ -1401,10 +1401,9 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
                                tcg_target_call_iarg_regs[0], 0, opc);
     } else {
         /* Host address is in rdi after calling tcg_out_tlb_load, we need also
-         * pass the write value, put it in the second arg register. */
+         * pass the write value, put it in the 3rd arg register. */
         tcg_out_mov(s, (opc == 3 ? TCG_TYPE_I64 : TCG_TYPE_I32),
-                    tcg_target_call_iarg_regs[cm_run_mode == CM_RUNMODE_RECORD ?  2 : 1],
-                    data_reg);
+                    tcg_target_call_iarg_regs[2], data_reg);
         if (cm_run_mode == CM_RUNMODE_RECORD)
             tcg_out_calli(s, (tcg_target_long)cm_crew_record_write_func[s_bits & 3]);
         else

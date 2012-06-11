@@ -30,11 +30,13 @@
 #ifdef CONFIG_REPLAY
 
 #define TX(__q_addr, type, value, command) \
+    CM_START_ATOMIC_INSN(q_addr);          \
     DATA_TYPE value;                       \
                                            \
     value = *(DATA_TYPE *)__q_addr;        \
     {command;};                            \
-    *(DATA_TYPE *)__q_addr = value;
+    *(DATA_TYPE *)__q_addr = value;        \
+    CM_END_ATOMIC_INSN(value)
 
 #else /* CONFIG_REPLAY */
 
@@ -63,9 +65,6 @@ void glue(helper_atomic_inc, SUFFIX)(target_ulong a0, int c)
     /* compute the previous instruction c flags */
     eflags_c = helper_cc_compute_c(CC_OP);
 
-#ifdef CONFIG_REPLAY
-    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
-#endif
     TX(q_addr, type, value, {
         if (c > 0) {
             value++;
@@ -73,9 +72,6 @@ void glue(helper_atomic_inc, SUFFIX)(target_ulong a0, int c)
             value--;
         }
     });
-#ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo, value);
-#endif
 
     if (c > 0) {
         cc_op = glue(CC_OP_INC, UPSUFFIX);
@@ -98,12 +94,12 @@ void glue(helper_xchg, SUFFIX)(target_ulong a0, int reg, int hreg)
     CM_GET_QEMU_ADDR(q_addr, a0);
     val = (DATA_TYPE)cm_get_reg_val(OT, hreg, reg);
 #ifdef CONFIG_REPLAY
-    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
+    CM_START_ATOMIC_INSN(q_addr);
 #endif
     out = glue(atomic_exchange, SUFFIX)((DATA_TYPE *)q_addr, val);
     mb();
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo, val);
+    CM_END_ATOMIC_INSN(val);
 #endif
 
     cm_set_reg_val(OT, hreg, reg, out);
@@ -122,9 +118,6 @@ void glue(helper_atomic_op, SUFFIX)(target_ulong a0, target_ulong t1,
     eflags_c = helper_cc_compute_c(CC_OP);
     operand = (DATA_TYPE)t1;
 
-#ifdef CONFIG_REPLAY
-    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
-#endif
     TX(q_addr, type, value, {
         switch(op) {
         case OP_ADCL:
@@ -154,9 +147,6 @@ void glue(helper_atomic_op, SUFFIX)(target_ulong a0, target_ulong t1,
             break;
         }
     });
-#ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo, value);
-#endif
     switch(op) {
     case OP_ADCL:
         cc_op = glue(CC_OP_ADD, UPSUFFIX) + (eflags_c << 2);
@@ -205,16 +195,10 @@ void glue(helper_atomic_xadd, SUFFIX)(target_ulong a0, int reg,
     operand = (DATA_TYPE)cm_get_reg_val(
             OT, hreg, reg);
 
-#ifdef CONFIG_REPLAY
-    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
-#endif
     TX(q_addr, type, newv, {
         oldv = newv;
         newv += operand;
     });
-#ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo, newv);
-#endif
 
     /* transaction successes */
     /* xchg the register and compute the eflags */
@@ -238,13 +222,13 @@ void glue(helper_atomic_cmpxchg, SUFFIX)(target_ulong a0, int reg,
     eax_v = (DATA_TYPE)cm_get_reg_val(OT, 0, R_EAX);
 
 #ifdef CONFIG_REPLAY
-    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
+    CM_START_ATOMIC_INSN(q_addr);
 #endif
     res = glue(atomic_compare_exchange, SUFFIX)(
             (DATA_TYPE *)q_addr, eax_v, reg_v);
     mb();
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo, eax_v);
+    CM_END_ATOMIC_INSN(eax_v);
 #endif
 
     if (res != eax_v)
@@ -262,15 +246,9 @@ void glue(helper_atomic_not, SUFFIX)(target_ulong a0)
     unsigned long q_addr;
     CM_GET_QEMU_ADDR(q_addr, a0);
 
-#ifdef CONFIG_REPLAY
-    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
-#endif
     TX(q_addr, type, value, {
         value = ~value;
     });
-#ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo, value);
-#endif
 }
 
 void glue(helper_atomic_neg, SUFFIX)(target_ulong a0)
@@ -279,15 +257,9 @@ void glue(helper_atomic_neg, SUFFIX)(target_ulong a0)
 
     unsigned long q_addr;
     CM_GET_QEMU_ADDR(q_addr, a0);
-#ifdef CONFIG_REPLAY
-    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
-#endif
     TX(q_addr, type, value, {
         value = -value;
     });
-#ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo, value);
-#endif
 
     /* We should use the old value to compute CC */
     CC_SRC = CC_DST = -value;

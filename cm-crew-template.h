@@ -27,26 +27,65 @@
 
 /* Record read/write functino. */
 
-DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, long objid)
+DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid)
 {
     coremu_assert(cm_is_in_tc, "Must in TC execution");
-    memobj_t *mo = cm_read_lock(objid);
-    DATA_TYPE val = *addr;
+    DATA_TYPE val;
+    version_t version;
+    memobj_t *mo = &memobj[objid];
+
+    do {
+repeat:
+        version = mo->version;
+        if (unlikely(version & 1)) {
+            cpu_relax();
+            goto repeat;
+        }
+        barrier();
+
+        val = *addr;
+        barrier();
+    } while (version != mo->version);
+
+    last_memobj_t *last = &last_memobj[objid];
+    if (last->version != version) {
+        log_order(objid, version, last);
+        last->version = version;
+    }
+
     memop++;
-    cm_read_unlock(mo);
 #ifdef DEBUG_MEM_ACCESS
     debug_read_access(val);
 #endif
     return val;
 }
 
-void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, long objid, DATA_TYPE val)
+void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYPE val)
 {
     coremu_assert(cm_is_in_tc, "Must in TC execution");
-    memobj_t *mo = cm_write_lock(objid);
+    version_t version;
+    memobj_t *mo = &memobj[objid];
+
+    coremu_spin_lock(&mo->write_lock);
+
+    version = mo->version;
+    barrier();
+    mo->version++;
+    barrier();
     *addr = val;
+    barrier();
+    mo->version++;
+
+    coremu_spin_unlock(&mo->write_lock);
+
+    last_memobj_t *last = &last_memobj[objid];
+    if (last->version != version) {
+        log_order(objid, version, last);
+    }
+
+    last->memop = memop;
+    last->version = version + 2;
     memop++;
-    cm_write_unlock(mo);
 #ifdef DEBUG_MEM_ACCESS
     debug_write_access(val);
 #endif
@@ -54,9 +93,9 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, long objid, DATA_TYPE v
 
 /* Replay read/write functino. */
 
-DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr)
+DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid)
 {
-    cm_apply_replay_log();
+    wait_object_version(objid);
 
     DATA_TYPE val = *addr;
     memop++;
@@ -66,11 +105,14 @@ DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr)
     return val;
 }
 
-void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
+void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, objid_t objid,
+        DATA_TYPE val)
 {
-    cm_apply_replay_log();
+    wait_object_version(objid);
+    wait_memop(objid);
 
     *addr = val;
+    obj_version[objid] += 2;
     memop++;
 #ifdef DEBUG_MEM_ACCESS
     debug_write_access(val);

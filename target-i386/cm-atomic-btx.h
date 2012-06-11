@@ -22,15 +22,13 @@ void glue(helper_atomic_, INSN)(target_ulong a0, target_ulong offset,
     /* This is the address that's actually gets changed. */
     __q_addr += offset >> 3;
 #ifdef CONFIG_REPLAY
-    memobj_t *mo = cm_start_atomic_insn((const void *)__q_addr);
-
+    CM_START_ATOMIC_INSN(__q_addr);
     /* Since we get a lock to the page, no other core can read/write this page.
      * So no transaction is needed. */
     old_byte = value = *((uint8_t *)__q_addr);
     {COMMAND;};
     *((uint8_t *)__q_addr) = value;
-
-    cm_end_atomic_insn(mo, value);
+    CM_END_ATOMIC_INSN(value);
 #else
     uint8_t __oldv;
     /* This is different from TX.

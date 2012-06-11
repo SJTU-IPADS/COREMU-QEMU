@@ -181,7 +181,7 @@ typedef union {
         else if (cm_run_mode == CM_RUNMODE_RECORD) \
             return (rettype)cm_crew_record_##size_func(ptr, memobj_id(ptr)); \
         else \
-            return (rettype)cm_crew_replay_##size_func(ptr); \
+            return (rettype)cm_crew_replay_##size_func(ptr, memobj_id(ptr)); \
     } while (0)
 
 #define WRITE(valtype, hostaddr, v, size_func) \
@@ -191,7 +191,7 @@ typedef union {
         else if (cm_run_mode == CM_RUNMODE_RECORD) \
             cm_crew_record_##size_func(ptr, memobj_id(ptr), v); \
         else \
-            cm_crew_replay_##size_func(ptr, v); \
+            cm_crew_replay_##size_func(ptr, memobj_id(ptr), v); \
     } while (0)
 #endif
 

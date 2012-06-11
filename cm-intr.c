@@ -75,6 +75,7 @@ static void cm_exit_intr_handler(void *opaque)
 {
     coremu_debug("exiting");
     cm_replay_flush_log(cm_coreid);
+    cm_crew_core_finish();
 #ifdef CONFIG_REPLAY
     cm_print_replay_info();
 #endif

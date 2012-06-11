@@ -11,7 +11,7 @@
         else if (cm_run_mode == CM_RUNMODE_RECORD) \
             res = (restype)glue(cm_crew_record_read, SUFFIX)((DATA_TYPE *)(__hostaddr), objid); \
         else \
-            res = (restype)glue(cm_crew_replay_read, SUFFIX)((DATA_TYPE *)(__hostaddr)); \
+            res = (restype)glue(cm_crew_replay_read, SUFFIX)((DATA_TYPE *)(__hostaddr), objid); \
     } while (0)
 
 #define WRITE_WITH_ID(hostaddr, objid, v) \
@@ -23,6 +23,6 @@
             glue(cm_crew_record_write, SUFFIX)((DATA_TYPE *)(__hostaddr), \
                 objid, v); \
         else \
-            glue(cm_crew_replay_write, SUFFIX)((DATA_TYPE *)(__hostaddr), v); \
+            glue(cm_crew_replay_write, SUFFIX)((DATA_TYPE *)(__hostaddr), objid, v); \
     } while (0)
 

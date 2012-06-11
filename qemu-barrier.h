@@ -5,6 +5,8 @@
 #define smp_wmb()   asm volatile("" ::: "memory")
 
 /* Compiler barrier */
+#ifndef CONFIG_REPLAY
 #define barrier()   asm volatile("" ::: "memory")
+#endif
 
 #endif

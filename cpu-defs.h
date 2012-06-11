@@ -100,14 +100,14 @@ typedef struct CPUTLBEntry {
        use the corresponding iotlb value.  */
     unsigned long addend;
 #ifdef CONFIG_REPLAY
-    long objid;
+    int objid;
 #endif
     /* padding to get a power of two size */
     uint8_t dummy[(1 << CPU_TLB_ENTRY_BITS) - 
                   (sizeof(target_ulong) * 3 + 
                    ((-sizeof(target_ulong) * 3) & (sizeof(unsigned long) - 1)) + 
 #ifdef CONFIG_REPLAY
-                   sizeof(long) +
+                   sizeof(int) +
 #endif
                    sizeof(unsigned long))];
 } CPUTLBEntry;

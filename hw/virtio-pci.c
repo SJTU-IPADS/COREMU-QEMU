@@ -88,7 +88,9 @@
  * lock-step.  We'll leave the calls to wmb() in though to make it obvious for
  * KVM or if kqemu gets SMP support.
  */
+#ifndef CONFIG_REPLAY
 #define wmb() do { } while (0)
+#endif
 
 /* PCI bindings.  */
 

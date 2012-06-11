@@ -14,7 +14,6 @@ static const char *cm_log_name[] = {
     "rdtsc",
     "mmio",
     "dma",
-    "crewinc",
 #ifdef ASSERT_REPLAY_PC
     "pc",
 #endif
@@ -43,13 +42,10 @@ log_t *cm_log_allpc;
 CMLogBuf ***cm_log_buf;
 #endif
 
-#define MAXLOGLEN 256
-
-#define LOGDIR "replay-log/"
 static FILE *open_log1(const char* logname, const char *mode, int coreid)
 {
-    char logpath[MAXLOGLEN];
-    snprintf(logpath, MAXLOGLEN, LOGDIR"%s-%d", logname, coreid);
+    char logpath[MAX_PATH_LEN];
+    cm_logpath(logpath, logname, coreid);
 
     FILE *log = fopen(logpath, mode);
     if (!(log)) {

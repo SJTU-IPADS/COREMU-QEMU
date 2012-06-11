@@ -8,7 +8,6 @@
 
 #include "rwlock.h"
 #include "coremu-config.h"
-#include "coremu-atomic.h"
 #include "cm-defs.h"
 #include "cm-crew.h"
 #include "cm-replay.h"
@@ -19,252 +18,152 @@
 
 extern int smp_cpus;
 
-/* This is not good practice, but typedef causes warning in printf */
-#define memop_t uint32_t
-/* Record memory operation count for each vCPU
- * Overflow should not cause problem if we do not sort the output log. */
+/* TODO Consider what will happen if there's overflow. */
 __thread memop_t memop;
 memop_t **memop_cnt;
 
 __thread int cm_is_in_tc;
 
-__thread uint32_t tlb_fill_cnt;
-
-#define SHARED_READ -1
-
-struct memobj_t {
-    volatile cpuid_t owner;
-    volatile uint16_t version;
-    /* Keeps track last writer's info. */
-    volatile cpuid_t last_writer;
-    volatile memop_t last_writer_memop;
-
-    tbb_rwlock_t lock;
-};
-
 static int n_memobj;
-static memobj_t *memobj;
-/* cache_info emulates the cache directory. last_read_version keeps track of the
- * version of the last read. Updated on CREW fault. */
-__thread cpuid_t *last_read_version;
+memobj_t *memobj; /* Used during recording. */
+__thread last_memobj_t *last_memobj;
+version_t *obj_version; /* Used during replay. */
 
-/* Initialize to be cm_log[CREW_INC] */
-static __thread FILE *crew_inc_log;
+__thread MappedLog memop_log;
+__thread MappedLog version_log;
 
-enum {
-    LOGENT_MEMOP,
-    LOGENT_CPUNO,
-    LOGENT_WAITMEMOP,
-    LOGENT_N
-};
-#define READLOG_N 3
+/* For replay */
+__thread WaitVersion wait_version;
+WaitMemopLog *wait_memop_log;
+int *wait_memop_idx;
 
 /* Using hash table or even just using a 2 entry cache here will actually
  * make performance worse. */
 __thread unsigned long last_addr = 0;
-__thread long last_id = 0;
+__thread objid_t last_id = 0;
 
-long __memobj_id(unsigned long addr)
+objid_t __memobj_id(unsigned long addr)
 {
     ram_addr_t r;
-    long id;
+    objid_t id;
 
     /*assert(qemu_ram_addr_from_host((void *)addr, &r) != -1);*/
     qemu_ram_addr_from_host((void *)addr, &r);
     id = r >> MEMOBJ_SHIFT;
 
-    coremu_assert(id >= 0 && id <= n_memobj,
-                  "addr: %p, id: %ld, memop: %d, n_memobj: %d", (void *)addr, id,
-                  memop, n_memobj);
-
     return id;
 }
 
-#define CREW_LOG_FMT "%u %hu %u\n"
+/* Initialization */
 
-typedef struct IncLog {
-    memop_t self_memop;
-    memop_t owner_memop;
-    cpuid_t owner;
-} __attribute__ ((packed)) IncLog;
-
-__thread IncLog cm_inc_log;
-
-static inline void write_inc_log(cpuid_t owner, memop_t owner_memop)
-{
-#ifdef DEBUG_REPLAY
-    coremu_assert(cm_coreid != owner, "no need to wait self");
-    fprintf(cm_log[CREW_INC], CREW_LOG_FMT, memop + 1,
-            owner, owner_memop);
-#elif defined(REPLAY_LOGBUF)
-    IncLog *log = coremu_logbuf_next_entry(&(cm_log_buf[cm_coreid][CREW_INC]), sizeof(*log));
-    log->self_memop = memop + 1;
-    log->owner = owner;
-    log->owner_memop = owner_memop;
-#else
-    IncLog log;
-    log.self_memop = memop + 1;
-    log.owner = owner;
-    log.owner_memop = owner_memop;
-    if (fwrite(&log, sizeof(log), 1, cm_log[CREW_INC]) != 1) {
-        coremu_print("inc log write failed");
+static inline void *calloc_check(size_t nmemb, size_t size, const char *err_msg) {
+    void *p = calloc(nmemb, size);
+    if (!p) {
+        printf("memory allocation failed: %s\n", err_msg);
+        exit(1);
     }
-#endif
+    return p;
 }
 
-static inline int read_inc_log(void)
-{
-#ifdef DEBUG_REPLAY
-    if (fscanf(crew_inc_log, CREW_LOG_FMT, &cm_inc_log.self_memop,
-           (uint16_t *)&cm_inc_log.owner, &cm_inc_log.owner_memop) == EOF) {
-        goto no_more_log;
+static void load_wait_memop_log(void) {
+    MappedLog memop_log, index_log;
+    if (open_mapped_log_path("log/memop", &memop_log) != 0) {
+        printf("Error opening memop log\n");
+        exit(1);
     }
-#else
-    if (fread(&cm_inc_log, sizeof(cm_inc_log), 1, cm_log[CREW_INC]) != 1)
-        goto no_more_log;
-#endif
+    if (open_mapped_log_path("log/memop-index", &index_log) != 0) {
+        printf("Error opening memop log\n");
+        exit(1);
+    }
 
-    return 0;
+    wait_memop_log = calloc_check(n_memobj, sizeof(*wait_memop_log), "Can't allocate wait_memop");
 
-no_more_log:
-    coremu_debug("no more inc log");
-    cm_print_replay_info();
-    /* XXX when the inc log are consumed up, we should not pause the current
-     * processor, so set self_memop to a value that will not become.
-     * Note, overflow will cause problem here. */
-    cm_inc_log.self_memop--;
-
-    return 1;
-}
-
-/* TODO We'd better use a buffer */
-static inline void record_read_crew_fault(cpuid_t owner, memop_t wait_memop) {
-    /* The owner's privilege is decreased. */
-
-    /* increase log: memop, objid, R/W, cpuno, memop
-     * The above is the original log format. objid and R/W are removed. But
-     * these information may be needed if we want to apply analysis on the log. */
-    /*coremu_debug("record read fault");*/
-    write_inc_log(owner, wait_memop);
-}
-
-static inline void record_write_crew_fault(cpuid_t owner) {
-    /*coremu_debug("record write fault");*/
-    if (owner != SHARED_READ) {
-        write_inc_log(owner, *memop_cnt[owner]);
-    } else {
-        int i;
-        for (i = 0; i < smp_cpus; i++) {
-            if (i != cm_coreid) {
-                write_inc_log(i, *memop_cnt[i]);
-            }
+    char *index = index_log.buf;
+    WaitMemop *log_start = (WaitMemop *)memop_log.buf;
+    int i = 0;
+    for (; i < n_memobj; i++) {
+        if (*(objid_t *)index == -1) {
+            wait_memop_log[i].log = NULL;
+            wait_memop_log[i].n = 0;
+            wait_memop_log[i].size = -1;
+            index += sizeof(objid_t) + sizeof(int);
+            continue;
         }
+        wait_memop_log[i].log = &log_start[*(objid_t *)index];
+        index += sizeof(objid_t);
+        wait_memop_log[i].n = 0;
+        wait_memop_log[i].size = *(int *)index;
+        index += sizeof(int);
     }
-}
-
-memobj_t *cm_read_lock(long objid)
-{
-    memobj_t *mo = &memobj[objid];
-
-    tbb_start_read(&mo->lock);
-    if ((last_read_version[objid] != mo->version)) {
-        /* If version mismatch, it means there's write before this read. */
-        if (mo->owner != SHARED_READ)
-            mo->owner = SHARED_READ;
-        last_read_version[objid] = mo->version;
-        if (cm_coreid != mo->last_writer) {
-            record_read_crew_fault(mo->last_writer, mo->last_writer_memop);
-        }
-    }
-    return mo;
-}
-
-void cm_read_unlock(memobj_t *mo)
-{
-    tbb_end_read(&mo->lock);
-}
-
-memobj_t *cm_write_lock(long objid)
-{
-    memobj_t *mo = &memobj[objid];
-
-    tbb_start_write(&mo->lock);
-    mo->last_writer_memop = memop + 1;
-    if (mo->owner != cm_coreid) {
-        cpuid_t owner = mo->owner;
-        mo->version++;
-        /* XXX Avoid version checking in following read. */
-        last_read_version[objid] = mo->version;
-        mo->owner = cm_coreid; /* Increase own privilege here. */
-        mo->last_writer = cm_coreid;
-
-        record_write_crew_fault(owner);
-    }
-    return mo;
-}
-
-void cm_write_unlock(memobj_t *mo)
-{
-    tbb_end_write(&mo->lock);
-}
-
-static inline int apply_replay_inclog(void)
-{
-    /* Wait for the target CPU's memop to reach the recorded value. */
-    while (*memop_cnt[cm_inc_log.owner] < cm_inc_log.owner_memop) {
-        asm volatile ("pause" : : : "memory");
-    }
-    return read_inc_log();
-}
-
-void cm_apply_replay_log(void)
-{
-    while (cm_inc_log.self_memop == memop + 1)
-        apply_replay_inclog();
+    unmap_log(index_log.buf, index_log.end - index_log.buf);
 }
 
 void cm_crew_init(void)
 {
-    memop_cnt = calloc(smp_cpus, sizeof(*memop_cnt));
-    if (!memop_cnt) {
-        printf("Can't allocate memop count\n");
-        exit(1);
-    }
-
     /* 65536 is for cirrus_vga.rom, added in hw/pci.c:pci_add_option_rom */
     /*n_memobj = (ram_size+PC_ROM_SIZE+VGA_RAM_SIZE+65536+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;*/
     n_memobj = (ram_size+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;
     /* XXX I don't know exactly how many is needed, providing more is safe */
     n_memobj += (n_memobj / 100);
-    memobj = calloc(n_memobj, sizeof(memobj_t));
-    if (!memobj) {
-        printf("Can't allocate mem info\n");
-        exit(1);
-    }
 
-    /* Initialize all memobj_t to shared read */
-    int i;
-    for (i = 0; i < n_memobj; i++) {
-        memobj[i].owner = SHARED_READ;
-        memobj[i].version = 0;
-        memobj[i].last_writer = SHARED_READ;
-        memobj[i].last_writer_memop = 0;
+    if (cm_run_mode == CM_RUNMODE_REPLAY) {
+        memop_cnt = calloc_check(smp_cpus, sizeof(*memop_cnt), "Can't allocate memop count\n");
+        obj_version = calloc_check(n_memobj, sizeof(*obj_version), "Can't allocate obj_version\n");
+        wait_memop_idx = calloc_check(n_memobj, sizeof(*wait_memop_idx),
+                "Can't allocate wait_memop_idx");
+        load_wait_memop_log();
+    } else {
+        memobj = calloc(n_memobj, sizeof(memobj_t));
+        if (!memobj) {
+            printf("Can't allocate memobj\n");
+            exit(1);
+        }
     }
 }
 
 void cm_crew_core_init(void)
 {
-    crew_inc_log = cm_log[CREW_INC];
-    memop_cnt[cm_coreid] = &memop;
+    if (cm_run_mode == CM_RUNMODE_RECORD) {
+        new_mapped_log("memop", cm_coreid, &memop_log);
+        new_mapped_log("version", cm_coreid, &version_log);
+    } else {
+        if (open_mapped_log("version", cm_coreid, &version_log) != 0) {
+            printf("core %d opening version log failed\n", cm_coreid);
+            exit(1);
+        }
+        version_log.end = version_log.buf + LOG_BUFFER_SIZE;
+    }
 
-    last_read_version = calloc(n_memobj, sizeof(*last_read_version));
+    last_memobj = calloc(n_memobj, sizeof(*last_memobj));
+    int i = 0;
+    for (; i < n_memobj; ++i) {
+        // memop -1 means there's no previous memop
+        last_memobj[i].memop = -1;
+    }
+}
 
-    if (cm_run_mode == CM_RUNMODE_REPLAY)
-        read_inc_log();
+void cm_crew_core_finish(void)
+{
+    int i;
+
+    for (i = 0; i < n_memobj; i++) {
+        if (last_memobj[i].version != memobj[i].version) {
+            log_other_wait_memop(i, &last_memobj[i]);
+        }
+    }
+
+    /* Use -1 to mark the end of the log. */
+    WaitVersion *l = next_version_log();
+    l->memop = -1;
+
+    RecWaitMemop *t = next_memop_log();
+    t->objid = -1;
 }
 
 #include <assert.h>
 #include "cpu.h"
+
+__thread uint32_t tlb_fill_cnt;
 
 #ifdef DEBUG_MEMACC
 __thread uint32_t memacc_cnt;
@@ -278,7 +177,7 @@ void debug_read_access(uint64_t val)
         return;
     assert(cm_is_in_tc);
     memacc_cnt++;
-    if (memacc_cnt != *memop) {
+    if (memacc_cnt != memop) {
         coremu_debug("core %d read error memacc_cnt = %u", cm_coreid, memacc_cnt);
         cm_print_replay_info();
         exit(1);
@@ -326,7 +225,7 @@ void debug_write_access(uint64_t val)
         return;
     assert(cm_is_in_tc);
     memacc_cnt++;
-    if (memacc_cnt != *memop) {
+    if (memacc_cnt != memop) {
         coremu_debug("core %d write error memacc_cnt = %u", cm_coreid, memacc_cnt);
         cm_print_replay_info();
         exit(1);

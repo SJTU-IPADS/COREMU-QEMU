@@ -68,7 +68,6 @@ enum {
     OP_CMPL,
 };
 
-/* */
 static target_ulong cm_get_reg_val(int ot, int hregs, int reg)
 {
     target_ulong val, offset;
@@ -158,12 +157,12 @@ void helper_atomic_cmpxchg8b(target_ulong a0)
     ecx_ebx = (((uint64_t)ECX << 32) | (uint32_t)EBX);
 
 #ifdef CONFIG_REPLAY
-    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
+    CM_START_ATOMIC_INSN(q_addr);
 #endif
     res = atomic_compare_exchangeq((uint64_t *)q_addr, edx_eax, ecx_ebx);
     mb();
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo, 0xdeadbeef);
+    CM_END_ATOMIC_INSN(0xdeadbeef);
 #endif
 
     if (res == edx_eax) {
@@ -188,14 +187,14 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
     eflags = helper_cc_compute_all(CC_OP);
 
 #ifdef CONFIG_REPLAY
-    memobj_t *mo = cm_start_atomic_insn((const void *)q_addr);
+    CM_START_ATOMIC_INSN(q_addr);
 #endif
     uint64_t old_rax = *(uint64_t *)q_addr;
     uint64_t old_rdx = *(uint64_t *)(q_addr + 8);
     res = atomic_compare_exchange16b((uint64_t *)q_addr, EAX, EDX, EBX, ECX);
     mb();
 #ifdef CONFIG_REPLAY
-    cm_end_atomic_insn(mo, 0xdeadbeef);
+    CM_END_ATOMIC_INSN(0xdeadbeef);
 #endif
 
     if (res) {
