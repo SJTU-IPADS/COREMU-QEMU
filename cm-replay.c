@@ -615,6 +615,6 @@ void cm_print_replay_info(void)
                  cm_coreid,
                  (uint64_t)cpu_single_env->ENVPC,
                  cm_tb_exec_cnt[cm_coreid],
-                 *memop);
+                 memop);
 }
 

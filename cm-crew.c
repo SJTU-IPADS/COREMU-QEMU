@@ -23,8 +23,8 @@ extern int smp_cpus;
 #define memop_t uint32_t
 /* Record memory operation count for each vCPU
  * Overflow should not cause problem if we do not sort the output log. */
-volatile memop_t *memop_cnt;
-__thread volatile memop_t *memop;
+__thread memop_t memop;
+memop_t **memop_cnt;
 
 __thread int cm_is_in_tc;
 
@@ -75,7 +75,7 @@ long __memobj_id(unsigned long addr)
 
     coremu_assert(id >= 0 && id <= n_memobj,
                   "addr: %p, id: %ld, memop: %d, n_memobj: %d", (void *)addr, id,
-                  memop_cnt[cm_coreid], n_memobj);
+                  memop, n_memobj);
 
     return id;
 }
@@ -94,16 +94,16 @@ static inline void write_inc_log(cpuid_t owner, memop_t owner_memop)
 {
 #ifdef DEBUG_REPLAY
     coremu_assert(cm_coreid != owner, "no need to wait self");
-    fprintf(cm_log[CREW_INC], CREW_LOG_FMT, memop_cnt[cm_coreid] + 1,
+    fprintf(cm_log[CREW_INC], CREW_LOG_FMT, memop + 1,
             owner, owner_memop);
 #elif defined(REPLAY_LOGBUF)
     IncLog *log = coremu_logbuf_next_entry(&(cm_log_buf[cm_coreid][CREW_INC]), sizeof(*log));
-    log->self_memop = memop_cnt[cm_coreid] + 1;
+    log->self_memop = memop + 1;
     log->owner = owner;
     log->owner_memop = owner_memop;
 #else
     IncLog log;
-    log.self_memop = memop_cnt[cm_coreid] + 1;
+    log.self_memop = memop + 1;
     log.owner = owner;
     log.owner_memop = owner_memop;
     if (fwrite(&log, sizeof(log), 1, cm_log[CREW_INC]) != 1) {
@@ -151,12 +151,12 @@ static inline void record_read_crew_fault(cpuid_t owner, memop_t wait_memop) {
 static inline void record_write_crew_fault(cpuid_t owner) {
     /*coremu_debug("record write fault");*/
     if (owner != SHARED_READ) {
-        write_inc_log(owner, memop_cnt[owner]);
+        write_inc_log(owner, *memop_cnt[owner]);
     } else {
         int i;
         for (i = 0; i < smp_cpus; i++) {
             if (i != cm_coreid) {
-                write_inc_log(i, memop_cnt[i]);
+                write_inc_log(i, *memop_cnt[i]);
             }
         }
     }
@@ -189,7 +189,7 @@ memobj_t *cm_write_lock(long objid)
     memobj_t *mo = &memobj[objid];
 
     tbb_start_write(&mo->lock);
-    mo->last_writer_memop = *memop + 1;
+    mo->last_writer_memop = memop + 1;
     if (mo->owner != cm_coreid) {
         cpuid_t owner = mo->owner;
         mo->version++;
@@ -211,7 +211,7 @@ void cm_write_unlock(memobj_t *mo)
 static inline int apply_replay_inclog(void)
 {
     /* Wait for the target CPU's memop to reach the recorded value. */
-    while (memop_cnt[cm_inc_log.owner] < cm_inc_log.owner_memop) {
+    while (*memop_cnt[cm_inc_log.owner] < cm_inc_log.owner_memop) {
         asm volatile ("pause" : : : "memory");
     }
     return read_inc_log();
@@ -219,7 +219,7 @@ static inline int apply_replay_inclog(void)
 
 void cm_apply_replay_log(void)
 {
-    while (cm_inc_log.self_memop == *memop + 1)
+    while (cm_inc_log.self_memop == memop + 1)
         apply_replay_inclog();
 }
 
@@ -255,7 +255,7 @@ void cm_crew_init(void)
 void cm_crew_core_init(void)
 {
     crew_inc_log = cm_log[CREW_INC];
-    memop = &memop_cnt[cm_coreid];
+    memop_cnt[cm_coreid] = &memop;
 
     last_read_version = calloc(n_memobj, sizeof(*last_read_version));
 
@@ -374,11 +374,11 @@ void cm_assert_not_in_tc(void)
         coremu_debug(
              "cm_coreid = %u, eip = %0lx, "
              "cm_tb_exec_cnt = %lu, "
-             "memop_cnt = %u",
+             "memop = %u",
              cm_coreid,
              (long)cpu_single_env->ENVPC,
              cm_tb_exec_cnt[cm_coreid],
-             *memop_cnt);
+             memop);
         pthread_exit(NULL);
     }
 }

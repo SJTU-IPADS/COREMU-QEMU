@@ -8,8 +8,8 @@
 #define MEMOBJ_SIZE 4096
 #define MEMOBJ_SHIFT 12
 
-extern __thread volatile uint32_t *memop;
-extern volatile uint32_t *memop_cnt;
+extern __thread uint32_t memop;
+extern uint32_t **memop_cnt;
 extern __thread int cm_is_in_tc;
 
 extern __thread uint32_t tlb_fill_cnt;
@@ -94,7 +94,7 @@ static inline memobj_t *cm_start_atomic_insn(const void *q_addr)
 static inline void cm_end_atomic_insn(memobj_t *mo, uint64_t val)
 {
     (void)val;
-    (*memop)++;
+    memop++;
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         cm_write_unlock(mo);
     }
@@ -121,7 +121,7 @@ static inline memobj_t *cm_start_atomic_read_insn(const void *q_addr)
 static inline void cm_end_atomic_read_insn(memobj_t *mo, uint64_t val)
 {
     (void)val;
-    (*memop)++;
+    memop++;
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         cm_read_unlock(mo);
     }
