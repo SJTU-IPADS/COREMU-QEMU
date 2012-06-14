@@ -32,7 +32,8 @@ extern __thread volatile int cm_ipi_intr_handler_cnt;
 extern int cm_run_mode;
 int cm_get_run_mode(void);
 extern uint64_t *cm_tb_exec_cnt;
-#define cpuid_t int16_t
+
+typedef uint8_t cpuid_t;
 extern __thread cpuid_t cm_coreid;
 
 void cm_replay_init(void);

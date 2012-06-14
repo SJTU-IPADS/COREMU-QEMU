@@ -11,7 +11,8 @@ extern "C" {
 enum { LOG_BUFFER_SIZE = 4 * 1024 * 1024 };
 
 typedef struct {
-    char *buf;
+    char *start;
+    char *buf; // buf can be changed
     char *end;
     int fd;
 } MappedLog;

@@ -5,15 +5,14 @@
 #include "coremu-atomic.h" /* For barrier and cpu_relax */
 #include "cm-replay.h"
 #include "cm-mapped-log.h"
-#include <string.h>
 
 /* Now we track memory as MEMOBJ_SIZE shared object, each object will have a
  * memobj_t tracking its ownership */
 #define MEMOBJ_SIZE 4096
 #define MEMOBJ_SHIFT 12
 
-typedef int memop_t;
-typedef int version_t;
+typedef long memop_t;
+typedef long version_t;
 typedef int objid_t;
 
 /* Used in record mode where we only need memop of the current CPU. */
@@ -26,13 +25,14 @@ typedef struct {
     CMSpinLock write_lock;
 } memobj_t;
 
-struct last_memobj_t {
+typedef struct {
     /* field order is important */
     version_t version;
     memop_t memop;
-};
-//} __attribute___((packed));
-typedef struct last_memobj_t last_memobj_t;
+} __attribute__((packed)) last_memobj_t;
+
+extern int last_memobj_wrong_size[sizeof(last_memobj_t) == (sizeof(memop_t) +
+        sizeof(version_t)) ? 1 : -1];
 
 extern memobj_t *memobj; /* Used during recording. */
 extern __thread last_memobj_t *last_memobj;
@@ -64,22 +64,24 @@ static inline objid_t memobj_id(const void *addr)
 extern __thread MappedLog memop_log;
 extern __thread MappedLog version_log;
 
-struct WaitVersion {
+typedef struct {
     memop_t memop;
     version_t version;
-} __attribute__((packed));
-typedef struct WaitVersion WaitVersion;
+} __attribute__((packed)) wait_version_t;
+
+extern int wait_version_t_wrong_size[sizeof(wait_version_t) == (sizeof(memop_t) +
+        sizeof(version_t)) ? 1 : -1];
 
 /* For recording */
 
-static inline WaitVersion *next_version_log(void)
+static inline wait_version_t *next_version_log(void)
 {
-    return (WaitVersion *)next_log_entry(&version_log, sizeof(WaitVersion));
+    return (wait_version_t *)next_log_entry(&version_log, sizeof(wait_version_t));
 }
 
 static inline void log_wait_version(version_t ver)
 {
-    WaitVersion *wv = next_version_log();
+    wait_version_t *wv = next_version_log();
     wv->memop = memop;
     wv->version = ver;
 }
@@ -88,16 +90,16 @@ static inline void log_wait_version(version_t ver)
 typedef struct {
     objid_t objid;
     last_memobj_t last;
-} RecWaitMemop;
+} __attribute__((packed)) rec_wait_memop_t;
 
-static inline RecWaitMemop *next_memop_log(void)
+static inline rec_wait_memop_t *next_memop_log(void)
 {
-    return (RecWaitMemop *)next_log_entry(&memop_log, sizeof(RecWaitMemop));
+    return (rec_wait_memop_t *)next_log_entry(&memop_log, sizeof(rec_wait_memop_t));
 }
 
 static inline void log_other_wait_memop(objid_t objid, last_memobj_t *last)
 {
-    RecWaitMemop *wm = next_memop_log();
+    rec_wait_memop_t *wm = next_memop_log();
 
     wm->objid = objid;
     wm->last = *last;
@@ -125,11 +127,11 @@ extern void *cm_crew_record_write_func[4];
 
 /* For replay */
 
-extern __thread WaitVersion wait_version;
+extern __thread wait_version_t wait_version;
 
 static inline void read_next_version_log(void)
 {
-    WaitVersion *wv = (WaitVersion *)version_log.buf;
+    wait_version_t *wv = (wait_version_t *)version_log.buf;
     if (wv->memop == -1) {
         /* Assuming no overflow occurs for memop */
         wait_version.memop = -1;
@@ -137,10 +139,7 @@ static inline void read_next_version_log(void)
     }
 
     wait_version = *wv;
-    if (version_log.buf + sizeof(WaitVersion) > version_log.end) {
-        version_log.buf = version_log.end;
-        version_log.end = version_log.buf + LOG_BUFFER_SIZE;
-    }
+    version_log.buf = (char *)(wv + 1);
 }
 
 static inline void wait_object_version(objid_t objid)
@@ -160,20 +159,20 @@ typedef struct {
     version_t version;
     memop_t memop;
     cpuid_t coreid;
-} WaitMemop;
+} wait_memop_t;
 
 typedef struct {
-    WaitMemop *log;
+    wait_memop_t *log;
     int n;
     int size;
-} WaitMemopLog;
+} wait_memop_log_t;
 
-extern WaitMemopLog *wait_memop_log;
+extern wait_memop_log_t *wait_memop_log;
 extern int *wait_memop_idx;
 
-static inline WaitMemop *next_wait_memop(objid_t objid, version_t version) {
+static inline wait_memop_t *next_wait_memop(objid_t objid, version_t version) {
     int i;
-    WaitMemop *log = wait_memop_log[objid].log;
+    wait_memop_t *log = wait_memop_log[objid].log;
     for (i = wait_memop_idx[objid]; i <= wait_memop_log[objid].size &&
             (version > log[i].version || log[i].coreid == cm_coreid); ++i);
 
@@ -186,7 +185,7 @@ static inline WaitMemop *next_wait_memop(objid_t objid, version_t version) {
 
 static inline void wait_memop(objid_t objid)
 {
-    WaitMemop *log;
+    wait_memop_t *log;
     while ((log = next_wait_memop(objid, obj_version[objid])) != NULL) {
         while (*memop_cnt[log->coreid] <= log->memop) {
             cpu_relax();

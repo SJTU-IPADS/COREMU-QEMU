@@ -33,8 +33,8 @@ __thread MappedLog memop_log;
 __thread MappedLog version_log;
 
 /* For replay */
-__thread WaitVersion wait_version;
-WaitMemopLog *wait_memop_log;
+__thread wait_version_t wait_version;
+wait_memop_log_t *wait_memop_log;
 int *wait_memop_idx;
 
 /* Using hash table or even just using a 2 entry cache here will actually
@@ -67,11 +67,11 @@ static inline void *calloc_check(size_t nmemb, size_t size, const char *err_msg)
 
 static void load_wait_memop_log(void) {
     MappedLog memop_log, index_log;
-    if (open_mapped_log_path("log/memop", &memop_log) != 0) {
+    if (open_mapped_log_path(LOGDIR"memop", &memop_log) != 0) {
         printf("Error opening memop log\n");
         exit(1);
     }
-    if (open_mapped_log_path("log/memop-index", &index_log) != 0) {
+    if (open_mapped_log_path(LOGDIR"memop-index", &index_log) != 0) {
         printf("Error opening memop log\n");
         exit(1);
     }
@@ -79,7 +79,7 @@ static void load_wait_memop_log(void) {
     wait_memop_log = calloc_check(n_memobj, sizeof(*wait_memop_log), "Can't allocate wait_memop");
 
     char *index = index_log.buf;
-    WaitMemop *log_start = (WaitMemop *)memop_log.buf;
+    wait_memop_t *log_start = (wait_memop_t *)memop_log.buf;
     int i = 0;
     for (; i < n_memobj; i++) {
         if (*(objid_t *)index == -1) {
@@ -153,10 +153,10 @@ void cm_crew_core_finish(void)
     }
 
     /* Use -1 to mark the end of the log. */
-    WaitVersion *l = next_version_log();
+    wait_version_t *l = next_version_log();
     l->memop = -1;
 
-    RecWaitMemop *t = next_memop_log();
+    rec_wait_memop_t *t = next_memop_log();
     t->objid = -1;
 }
 
@@ -277,7 +277,7 @@ void cm_assert_not_in_tc(void)
              cm_coreid,
              (long)cpu_single_env->ENVPC,
              cm_tb_exec_cnt[cm_coreid],
-             memop);
+             (int)memop);
         pthread_exit(NULL);
     }
 }
