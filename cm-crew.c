@@ -106,18 +106,14 @@ void cm_crew_init(void)
     /* XXX I don't know exactly how many is needed, providing more is safe */
     n_memobj += (n_memobj / 100);
 
-    if (cm_run_mode == CM_RUNMODE_REPLAY) {
+    if (cm_run_mode == CM_RUNMODE_RECORD) {
+        memobj = calloc_check(n_memobj, sizeof(*memobj), "Can't allocate memobj");
+    } else {
         memop_cnt = calloc_check(smp_cpus, sizeof(*memop_cnt), "Can't allocate memop count\n");
         obj_version = calloc_check(n_memobj, sizeof(*obj_version), "Can't allocate obj_version\n");
         wait_memop_idx = calloc_check(n_memobj, sizeof(*wait_memop_idx),
                 "Can't allocate wait_memop_idx");
         load_wait_memop_log();
-    } else {
-        memobj = calloc(n_memobj, sizeof(memobj_t));
-        if (!memobj) {
-            printf("Can't allocate memobj\n");
-            exit(1);
-        }
     }
 }
 
@@ -126,21 +122,23 @@ void cm_crew_core_init(void)
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         new_mapped_log("memop", cm_coreid, &memop_log);
         new_mapped_log("version", cm_coreid, &version_log);
+
+        last_memobj = calloc(n_memobj, sizeof(*last_memobj));
+        int i = 0;
+        for (; i < n_memobj; ++i) {
+            // memop -1 means there's no previous memop
+            last_memobj[i].memop = -1;
+        }
     } else {
         if (open_mapped_log("version", cm_coreid, &version_log) != 0) {
             printf("core %d opening version log failed\n", cm_coreid);
             exit(1);
         }
-        version_log.end = version_log.buf + LOG_BUFFER_SIZE;
-
+        /* Register TLS variable address to a global array to allow cross thread
+         * access to TLS variable. */
         memop_cnt[cm_coreid] = &memop;
-    }
 
-    last_memobj = calloc(n_memobj, sizeof(*last_memobj));
-    int i = 0;
-    for (; i < n_memobj; ++i) {
-        // memop -1 means there's no previous memop
-        last_memobj[i].memop = -1;
+        read_next_version_log();
     }
 }
 
