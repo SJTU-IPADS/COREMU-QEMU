@@ -30,6 +30,7 @@
 DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid)
 {
     coremu_assert(cm_is_in_tc, "Must in TC execution");
+
     DATA_TYPE val;
     version_t version;
     memobj_t *mo = &memobj[objid];
@@ -64,6 +65,7 @@ repeat:
 void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYPE val)
 {
     coremu_assert(cm_is_in_tc, "Must in TC execution");
+
     version_t version;
     memobj_t *mo = &memobj[objid];
 
@@ -96,6 +98,9 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 
 DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid)
 {
+    coremu_assert(cm_is_in_tc, "Must in TC execution");
+    coremu_assert(objid < n_memobj, "objid out of range");
+
     wait_object_version(objid);
 
     DATA_TYPE val = *addr;
@@ -109,6 +114,9 @@ DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
 void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, objid_t objid,
         DATA_TYPE val)
 {
+    coremu_assert(cm_is_in_tc, "Must in TC execution");
+    coremu_assert(objid < n_memobj, "objid out of range");
+
     wait_object_version(objid);
     wait_memop(objid);
 
