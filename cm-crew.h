@@ -170,9 +170,10 @@ typedef struct {
 extern wait_memop_log_t *wait_memop_log;
 extern int *wait_memop_idx;
 
-static inline wait_memop_t *next_wait_memop(objid_t objid, version_t version) {
+static inline wait_memop_t *next_wait_memop(objid_t objid) {
     int i;
     wait_memop_t *log = wait_memop_log[objid].log;
+    version_t version = obj_version[objid];
     for (i = wait_memop_idx[objid]; i <= wait_memop_log[objid].size &&
             (version > log[i].version || log[i].coreid == cm_coreid); ++i);
 
@@ -186,7 +187,7 @@ static inline wait_memop_t *next_wait_memop(objid_t objid, version_t version) {
 static inline void wait_memop(objid_t objid)
 {
     wait_memop_t *log;
-    while ((log = next_wait_memop(objid, obj_version[objid])) != NULL) {
+    while ((log = next_wait_memop(objid)) != NULL) {
         while (*memop_cnt[log->coreid] <= log->memop) {
             cpu_relax();
         }
