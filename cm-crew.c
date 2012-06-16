@@ -132,6 +132,8 @@ void cm_crew_core_init(void)
             exit(1);
         }
         version_log.end = version_log.buf + LOG_BUFFER_SIZE;
+
+        memop_cnt[cm_coreid] = &memop;
     }
 
     last_memobj = calloc(n_memobj, sizeof(*last_memobj));
