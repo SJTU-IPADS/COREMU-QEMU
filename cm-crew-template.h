@@ -53,6 +53,7 @@ repeat:
         last->version = version;
     }
 
+    last->memop = memop;
     memop++;
 #ifdef DEBUG_MEM_ACCESS
     debug_read_access(val);
