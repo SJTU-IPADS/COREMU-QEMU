@@ -95,7 +95,7 @@ static void load_wait_memop_log(void) {
         wait_memop_log[i].size = *(int *)index;
         index += sizeof(int);
     }
-    unmap_log(index_log.buf, index_log.end - index_log.buf);
+    unmap_log(&index_log);
 }
 
 void cm_crew_init(void)
