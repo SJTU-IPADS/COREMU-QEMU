@@ -35,7 +35,7 @@ __thread MappedLog version_log;
 /* For replay */
 __thread wait_version_t wait_version;
 wait_memop_log_t *wait_memop_log;
-int *wait_memop_idx;
+__thread int *wait_memop_idx;
 
 /* Using hash table or even just using a 2 entry cache here will actually
  * make performance worse. */
@@ -72,7 +72,7 @@ static void load_wait_memop_log(void) {
         exit(1);
     }
     if (open_mapped_log_path(LOGDIR"memop-index", &index_log) != 0) {
-        printf("Error opening memop log\n");
+        printf("Error opening memop index log\n");
         exit(1);
     }
 
@@ -111,8 +111,6 @@ void cm_crew_init(void)
     } else {
         memop_cnt = calloc_check(smp_cpus, sizeof(*memop_cnt), "Can't allocate memop count\n");
         obj_version = calloc_check(n_memobj, sizeof(*obj_version), "Can't allocate obj_version\n");
-        wait_memop_idx = calloc_check(n_memobj, sizeof(*wait_memop_idx),
-                "Can't allocate wait_memop_idx");
         load_wait_memop_log();
     }
 }
@@ -134,6 +132,8 @@ void cm_crew_core_init(void)
             printf("core %d opening version log failed\n", cm_coreid);
             exit(1);
         }
+        wait_memop_idx = calloc_check(n_memobj, sizeof(*wait_memop_idx),
+                "Can't allocate wait_memop_idx");
         /* Register TLS variable address to a global array to allow cross thread
          * access to TLS variable. */
         memop_cnt[cm_coreid] = &memop;

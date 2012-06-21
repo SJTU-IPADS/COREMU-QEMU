@@ -35,6 +35,7 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     version_t version;
     memobj_t *mo = &memobj[objid];
 
+    __sync_synchronize();
     do {
 repeat:
         version = mo->version;
