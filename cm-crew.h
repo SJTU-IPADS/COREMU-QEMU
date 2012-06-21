@@ -266,11 +266,10 @@ static inline void cm_end_atomic_insn(memobj_t *mo, int objid,
         last->memop = memop;
         last->version = version + 2;
     }
-#ifdef DEBUG_MEM_ACCESS
-    if (cm_run_mode != CM_RUNMODE_NORMAL)
-        debug_write_access(val);
-#endif
     memop++;
+#ifdef DEBUG_MEM_ACCESS
+    debug_write_access(val);
+#endif
 }
 
 /* The atomic read insn function are for ARM target. */
@@ -295,8 +294,7 @@ static inline void cm_end_atomic_read_insn(memobj_t *mo, uint64_t val)
     (void)val;
     memop++;
 #ifdef DEBUG_MEM_ACCESS
-    if (cm_run_mode != CM_RUNMODE_NORMAL)
-        debug_read_access(val);
+    debug_read_access(val);
 #endif
 }
 

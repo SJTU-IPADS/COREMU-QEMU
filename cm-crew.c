@@ -165,7 +165,7 @@ void cm_crew_core_finish(void)
 
 __thread uint32_t tlb_fill_cnt;
 
-#ifdef DEBUG_MEMACC
+#ifdef DEBUG_MEM_ACCESS
 __thread uint32_t memacc_cnt;
 __thread int error_print_cnt = 0;
 #define PRINT_ERROR_TIMES 10

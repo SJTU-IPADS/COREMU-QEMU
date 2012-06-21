@@ -20,8 +20,7 @@
         if (!cm_is_in_tc) \
             *(DATA_TYPE *)(__hostaddr) = v; \
         else if (cm_run_mode == CM_RUNMODE_RECORD) \
-            glue(cm_crew_record_write, SUFFIX)((DATA_TYPE *)(__hostaddr), \
-                objid, v); \
+            glue(cm_crew_record_write, SUFFIX)((DATA_TYPE *)(__hostaddr), objid, v); \
         else \
             glue(cm_crew_replay_write, SUFFIX)((DATA_TYPE *)(__hostaddr), objid, v); \
     } while (0)
