@@ -78,22 +78,21 @@ static void load_wait_memop_log(void) {
 
     wait_memop_log = calloc_check(n_memobj, sizeof(*wait_memop_log), "Can't allocate wait_memop");
 
-    char *index = index_log.buf;
+    /* Each entry in index log contains start and log entry count, both are int. */
+    int *index = (int *)index_log.buf;
     wait_memop_t *log_start = (wait_memop_t *)memop_log.buf;
     int i = 0;
     for (; i < n_memobj; i++) {
-        if (*(objid_t *)index == -1) {
+        if (*index == -1) {
             wait_memop_log[i].log = NULL;
             wait_memop_log[i].n = 0;
             wait_memop_log[i].size = -1;
-            index += sizeof(objid_t) + sizeof(int);
+            index += 2;
             continue;
         }
-        wait_memop_log[i].log = &log_start[*(objid_t *)index];
-        index += sizeof(objid_t);
+        wait_memop_log[i].log = &log_start[*index++];
         wait_memop_log[i].n = 0;
-        wait_memop_log[i].size = *(int *)index;
-        index += sizeof(int);
+        wait_memop_log[i].size = *index++;
     }
     unmap_log(&index_log);
 }

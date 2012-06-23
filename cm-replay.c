@@ -385,15 +385,15 @@ extern uint64_t cm_mmio_read_cnt;
 
 #include "config-target.h"
 #ifdef TARGET_X86_64
-#define PC_LOG_FMT "%016lx %u\n"
+#define PC_LOG_FMT "%016lx %ld\n"
 #else
-#define PC_LOG_FMT "%08lx %u\n"
+#define PC_LOG_FMT "%08lx %ld\n"
 #endif
 
 void cm_replay_assert_pc(uint64_t eip)
 {
     uint64_t next_eip;
-    uint32_t recorded_memop;
+    memop_t recorded_memop;
 
     assert(cm_is_in_tc);
 
@@ -422,7 +422,7 @@ void cm_replay_assert_pc(uint64_t eip)
         if (error) {
             coremu_debug(
                     "cm_coreid = %u, eip = %016lx, recorded eip = %016lx, "
-                    "memop_cnt = %u, recorded_memop = %u, "
+                    "memop_cnt = %ld, recorded_memop = %ld, "
                     "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
                     "cm_ioport_read_cnt = %lu, "
                     "cm_mmio_read_cnt = %lu",
