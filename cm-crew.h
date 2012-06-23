@@ -265,6 +265,8 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
         }
         last->memop = memop;
         last->version = version + 2;
+    } else {
+        obj_version[objid] += 2;
     }
     memop++;
 #ifdef DEBUG_MEM_ACCESS
