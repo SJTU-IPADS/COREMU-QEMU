@@ -169,92 +169,68 @@ __thread uint32_t memacc_cnt;
 __thread int error_print_cnt = 0;
 #define PRINT_ERROR_TIMES 10
 
-#define READ_LOG_FMT "%lx %lx %u\n"
-void debug_read_access(uint64_t val)
+/*#define READ_LOG_FMT "%lx %lx %u\n"*/
+struct memacc_log_t {
+    uint64_t pc;
+    uint64_t val;
+    /*uint32_t tlb_fill_cnt;*/
+    objid_t objid;
+} __attribute__((packed));
+
+void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type)
 {
     if (cm_run_mode == CM_RUNMODE_NORMAL)
         return;
     assert(cm_is_in_tc);
     memacc_cnt++;
     if (memacc_cnt != memop) {
-        coremu_debug("core %d read error memacc_cnt = %u", cm_coreid, memacc_cnt);
+        coremu_debug("core %d %s error memacc_cnt = %u", cm_coreid, acc_type, memacc_cnt);
         cm_print_replay_info();
         exit(1);
     }
+
+    struct memacc_log_t l;
     if (cm_run_mode == CM_RUNMODE_RECORD) {
-        fprintf(cm_log[READ], READ_LOG_FMT,
-                (uint64_t)cpu_single_env->ENVPC, val, tlb_fill_cnt);
+        /*
+         *fprintf(cm_log[READ_ACC], READ_LOG_FMT,
+         *        (uint64_t)cpu_single_env->ENVPC, val, tlb_fill_cnt);
+         */
+        l.pc = (uint64_t)cpu_single_env->ENVPC;
+        l.val = val;
+        /*l.tlb_fill_cnt = tlb_fill_cnt;*/
+        l.objid = objid;
+        fwrite(&l, sizeof(l), 1, cm_log[MEMACC]);
         return;
     }
     // For replay
-    uint64_t rec_eip, rec_val;
-    uint32_t tlb_cnt;
     int error = 0;
-    if (fscanf(cm_log[READ], READ_LOG_FMT,
-                &rec_eip, &rec_val, &tlb_cnt) == EOF)
-        return;
-    if (rec_eip != cpu_single_env->ENVPC && error_print_cnt < PRINT_ERROR_TIMES) {
-        coremu_debug("read ERROR in eip: core = %d, eip = %lx, recorded_eip = %lx",
-                cm_coreid, (uint64_t)cpu_single_env->ENVPC, rec_eip);
+    /*
+     *if (fscanf(cm_log[MEMACC], READ_LOG_FMT,
+     *            &rec_eip, &rec_val, &tlb_cnt) == EOF)
+     *    return;
+     */
+    if (fread(&l, sizeof(l), 1, cm_log[MEMACC]) != 1) {
+        return; // No more log.
+    }
+    if (l.pc != cpu_single_env->ENVPC && error_print_cnt < PRINT_ERROR_TIMES) {
+        coremu_debug("%s ERROR in eip: core = %d, eip = %lx, recorded_eip = %lx",
+                acc_type, cm_coreid, (uint64_t)cpu_single_env->ENVPC, l.pc);
         error = 1;
     }
-    if (val != rec_val && error_print_cnt < PRINT_ERROR_TIMES) {
-        coremu_debug("read ERROR in val: core = %d, val = %lx, recorded_val = %lx",
-                cm_coreid, val, rec_val);
+    if (val != l.val && error_print_cnt < PRINT_ERROR_TIMES) {
+        coremu_debug("%s ERROR in val: core = %d, val = %lx, recorded_val = %lx",
+                acc_type, cm_coreid, val, l.val);
+        error = 1;
+    }
+    if (objid != l.objid && error_print_cnt < PRINT_ERROR_TIMES) {
+        coremu_debug("%s ERROR in objid: core = %d, objid = %i, recorded_objid = %i",
+                acc_type, cm_coreid, objid, l.objid);
         error = 1;
     }
     /*
      *if (tlb_fill_cnt != tlb_cnt) {
      *    coremu_debug("read ERROR in tlb fill cnt: coreid = %d, tlb_cnt = %u, recorded_cnt = %u",
      *                 cm_coreid, tlb_fill_cnt, tlb_cnt);
-     *    error = 1;
-     *}
-     */
-    if (error && error_print_cnt < PRINT_ERROR_TIMES) {
-        cm_print_replay_info();
-        error_print_cnt++;
-        /*pthread_exit(NULL);*/
-    }
-}
-
-#define WRITE_LOG_FMT "%lx %lx %u\n"
-void debug_write_access(uint64_t val)
-{
-    if (cm_run_mode == CM_RUNMODE_NORMAL)
-        return;
-    assert(cm_is_in_tc);
-    memacc_cnt++;
-    if (memacc_cnt != memop) {
-        coremu_debug("core %d write error memacc_cnt = %u", cm_coreid, memacc_cnt);
-        cm_print_replay_info();
-        exit(1);
-    }
-    if (cm_run_mode == CM_RUNMODE_RECORD) {
-        fprintf(cm_log[WRITE], WRITE_LOG_FMT,
-                (uint64_t)cpu_single_env->ENVPC, val, tlb_fill_cnt);
-        return;
-    }
-    // For replay
-    uint64_t rec_eip, rec_val;
-    uint32_t cnt;
-    int error = 0;
-    if (fscanf(cm_log[WRITE], WRITE_LOG_FMT,
-                &rec_eip, &rec_val, &cnt) == EOF)
-        return;
-    if (rec_eip != cpu_single_env->ENVPC && error_print_cnt < PRINT_ERROR_TIMES) {
-        coremu_debug("write ERROR in eip: core = %d, eip = %lx, recorded_eip = %lx",
-                cm_coreid, (uint64_t)cpu_single_env->ENVPC, rec_eip);
-        error = 1;
-    }
-    if (val != rec_val && error_print_cnt < PRINT_ERROR_TIMES) {
-        coremu_debug("write ERROR in val: core = %d, val = %lx, recorded_val = %lx",
-                cm_coreid, val, rec_val);
-        error = 1;
-    }
-    /*
-     *if (tlb_fill_cnt != cnt) {
-     *    coremu_debug("read ERROR in tlb fill cnt: core = %d, cnt = %u, recorded_cnt = %u",
-     *                 cm_coreid, tlb_fill_cnt, cnt);
      *    error = 1;
      *}
      */

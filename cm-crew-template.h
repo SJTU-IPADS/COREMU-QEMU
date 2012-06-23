@@ -58,7 +58,7 @@ repeat:
     last->memop = memop;
     memop++;
 #ifdef DEBUG_MEM_ACCESS
-    debug_read_access(val);
+    debug_mem_access(val, objid, "read");
 #endif
     return val;
 }
@@ -91,7 +91,7 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
     last->version = version + 2;
     memop++;
 #ifdef DEBUG_MEM_ACCESS
-    debug_write_access(val);
+    debug_mem_access(val, objid, "write");
 #endif
 }
 
@@ -107,7 +107,7 @@ DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     DATA_TYPE val = *addr;
     memop++;
 #ifdef DEBUG_MEM_ACCESS
-    debug_read_access(val);
+    debug_mem_access(val, objid, "read");
 #endif
     return val;
 }
@@ -125,7 +125,7 @@ void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, objid_t objid,
     obj_version[objid] += 2;
     memop++;
 #ifdef DEBUG_MEM_ACCESS
-    debug_write_access(val);
+    debug_mem_access(val, objid, "write");
 #endif
 }
 

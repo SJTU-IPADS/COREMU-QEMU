@@ -25,8 +25,7 @@ enum {
     GENCODE,
 #endif
 #ifdef DEBUG_MEM_ACCESS
-    READ,
-    WRITE,
+    MEMACC,
 #endif
 #ifdef ASSERT_REPLAY_TLBFILL
     TLBFILL,

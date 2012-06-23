@@ -24,8 +24,7 @@ static const char *cm_log_name[] = {
     "gencode",
 #endif
 #ifdef DEBUG_MEM_ACCESS
-    "read",
-    "write",
+    "memacc",
 #endif
 #ifdef ASSERT_REPLAY_TLBFILL 
     "tlbfill",

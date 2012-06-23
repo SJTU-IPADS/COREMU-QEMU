@@ -213,8 +213,7 @@ extern void *cm_crew_replay_write_func[4];
 
 extern __thread uint32_t tlb_fill_cnt;
 
-void debug_read_access(uint64_t val);
-void debug_write_access(uint64_t val);
+void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type);
 
 void cm_assert_not_in_tc(void);
 
@@ -270,7 +269,7 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
     }
     memop++;
 #ifdef DEBUG_MEM_ACCESS
-    debug_write_access(val);
+    debug_mem_access(val, objid, "atomic_write");
 #endif
 }
 
@@ -291,12 +290,12 @@ static inline version_t cm_start_atomic_read_insn(memobj_t *mo, objid_t objid)
     return version;
 }
 
-static inline void cm_end_atomic_read_insn(memobj_t *mo, uint64_t val)
+static inline void cm_end_atomic_read_insn(memobj_t *mo, objid_t objid, uint64_t val)
 {
     (void)val;
     memop++;
 #ifdef DEBUG_MEM_ACCESS
-    debug_read_access(val);
+    debug_mem_access(val, objid, "atomic_read");
 #endif
 }
 
