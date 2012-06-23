@@ -105,7 +105,7 @@ static inline void log_other_wait_memop(objid_t objid, last_memobj_t *last)
     wm->last = *last;
 }
 
-static inline void log_order(int objid, version_t ver,
+static inline void log_order(objid_t objid, version_t ver,
         last_memobj_t *last)
 {
     log_wait_version(ver);
@@ -159,7 +159,7 @@ typedef struct {
     version_t version;
     memop_t memop;
     cpuid_t coreid;
-} wait_memop_t;
+} __attribute__((packed)) wait_memop_t;
 
 typedef struct {
     wait_memop_t *log;
@@ -249,7 +249,7 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
     return version;
 }
 
-static inline void cm_end_atomic_insn(memobj_t *mo, int objid,
+static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
         version_t version, uint64_t val)
 {
     (void)val;
