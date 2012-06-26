@@ -29,8 +29,8 @@
 /* Lightweight transactional memory. */
 #ifdef CONFIG_REPLAY
 
-#define TX(__q_addr, type, value, command) \
-    CM_START_ATOMIC_INSN(q_addr);          \
+#define TX(__q_addr, value, command) \
+    CM_START_ATOMIC_INSN(__q_addr);        \
     DATA_TYPE value;                       \
                                            \
     value = *(DATA_TYPE *)__q_addr;        \
@@ -40,7 +40,7 @@
 
 #else /* CONFIG_REPLAY */
 
-#define TX(__q_addr, type, value, command) \
+#define TX(__q_addr, value, command) \
     DATA_TYPE __oldv;                                         \
     DATA_TYPE value;                                          \
                                                               \
@@ -65,7 +65,7 @@ void glue(helper_atomic_inc, SUFFIX)(target_ulong a0, int c)
     /* compute the previous instruction c flags */
     eflags_c = helper_cc_compute_c(CC_OP);
 
-    TX(q_addr, type, value, {
+    TX(q_addr, value, {
         if (c > 0) {
             value++;
         } else {
@@ -118,7 +118,7 @@ void glue(helper_atomic_op, SUFFIX)(target_ulong a0, target_ulong t1,
     eflags_c = helper_cc_compute_c(CC_OP);
     operand = (DATA_TYPE)t1;
 
-    TX(q_addr, type, value, {
+    TX(q_addr, value, {
         switch(op) {
         case OP_ADCL:
             value += operand + eflags_c;
@@ -195,7 +195,7 @@ void glue(helper_atomic_xadd, SUFFIX)(target_ulong a0, int reg,
     operand = (DATA_TYPE)cm_get_reg_val(
             OT, hreg, reg);
 
-    TX(q_addr, type, newv, {
+    TX(q_addr, newv, {
         oldv = newv;
         newv += operand;
     });
@@ -246,7 +246,7 @@ void glue(helper_atomic_not, SUFFIX)(target_ulong a0)
     unsigned long q_addr;
     CM_GET_QEMU_ADDR(q_addr, a0);
 
-    TX(q_addr, type, value, {
+    TX(q_addr, value, {
         value = ~value;
     });
 }
@@ -257,7 +257,7 @@ void glue(helper_atomic_neg, SUFFIX)(target_ulong a0)
 
     unsigned long q_addr;
     CM_GET_QEMU_ADDR(q_addr, a0);
-    TX(q_addr, type, value, {
+    TX(q_addr, value, {
         value = -value;
     });
 
