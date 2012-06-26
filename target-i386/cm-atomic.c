@@ -160,7 +160,6 @@ void helper_atomic_cmpxchg8b(target_ulong a0)
     CM_START_ATOMIC_INSN(q_addr);
 #endif
     res = atomic_compare_exchangeq((uint64_t *)q_addr, edx_eax, ecx_ebx);
-    mb();
 #ifdef CONFIG_REPLAY
     CM_END_ATOMIC_INSN(0xdeadbeef);
 #endif
@@ -192,7 +191,6 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
     uint64_t old_rax = *(uint64_t *)q_addr;
     uint64_t old_rdx = *(uint64_t *)(q_addr + 8);
     res = atomic_compare_exchange16b((uint64_t *)q_addr, EAX, EDX, EBX, ECX);
-    mb();
 #ifdef CONFIG_REPLAY
     CM_END_ATOMIC_INSN(0xdeadbeef);
 #endif
