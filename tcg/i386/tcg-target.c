@@ -1175,10 +1175,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
                                tcg_target_call_iarg_regs[0], 0, opc);
     } else {
-        if (cm_run_mode == CM_RUNMODE_RECORD)
-            tcg_out_calli(s, (tcg_target_long)cm_crew_record_read_func[s_bits]);
-        else
-            tcg_out_calli(s, (tcg_target_long)cm_crew_replay_read_func[s_bits]);
+        tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
 
         /* Duplicate with the code below. */
         switch(opc) {
@@ -1404,10 +1401,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
          * pass the write value, put it in the 3rd arg register. */
         tcg_out_mov(s, (opc == 3 ? TCG_TYPE_I64 : TCG_TYPE_I32),
                     tcg_target_call_iarg_regs[2], data_reg);
-        if (cm_run_mode == CM_RUNMODE_RECORD)
-            tcg_out_calli(s, (tcg_target_long)cm_crew_record_write_func[s_bits & 3]);
-        else
-            tcg_out_calli(s, (tcg_target_long)cm_crew_replay_write_func[s_bits & 3]);
+        tcg_out_calli(s, (tcg_target_long)cm_crew_write_func[cm_run_mode][s_bits & 3]);
     }
 #else
     tcg_out_qemu_st_direct(s, data_reg, data_reg2,

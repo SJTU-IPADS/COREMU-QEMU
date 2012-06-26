@@ -124,8 +124,8 @@ void cm_crew_record_writew(uint16_t *addr, objid_t, uint16_t val);
 void cm_crew_record_writel(uint32_t *addr, objid_t, uint32_t val);
 void cm_crew_record_writeq(uint64_t *addr, objid_t, uint64_t val);
 
-extern void *cm_crew_record_read_func[4];
-extern void *cm_crew_record_write_func[4];
+extern void *cm_crew_read_func[3][4];
+extern void *cm_crew_write_func[3][4];
 
 /* For replay */
 
