@@ -29,7 +29,7 @@ typedef struct {
     /* field order is important */
     version_t version;
     memop_t memop;
-} __attribute__((packed)) last_memobj_t;
+} last_memobj_t;
 
 extern int last_memobj_wrong_size[sizeof(last_memobj_t) == (sizeof(memop_t) +
         sizeof(version_t)) ? 1 : -1];
@@ -89,7 +89,8 @@ static inline void log_wait_version(version_t ver)
 /* This struct is only used during recording. */
 typedef struct {
     objid_t objid;
-    last_memobj_t last;
+    version_t version;
+    memop_t memop;
 } __attribute__((packed)) rec_wait_memop_t;
 
 static inline rec_wait_memop_t *next_memop_log(void)
@@ -102,7 +103,8 @@ static inline void log_other_wait_memop(objid_t objid, last_memobj_t *last)
     rec_wait_memop_t *wm = next_memop_log();
 
     wm->objid = objid;
-    wm->last = *last;
+    wm->version = last->version;
+    wm->memop = last->memop;
 }
 
 static inline void log_order(objid_t objid, version_t ver,
