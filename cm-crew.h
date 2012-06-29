@@ -5,6 +5,16 @@
 #include "coremu-atomic.h" /* For barrier and cpu_relax */
 #include "cm-replay.h"
 #include "cm-mapped-log.h"
+#include <pthread.h>
+
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
+#define DEBUG_MEMCNT
+
+#ifdef DEBUG_MEMCNT
+extern __thread MappedLog acc_version_log;
+#endif
 
 /* Now we track memory as MEMOBJ_SIZE shared object, each object will have a
  * memobj_t tracking its ownership */
@@ -113,6 +123,40 @@ static inline void log_order(objid_t objid, version_t ver,
     log_wait_version(ver);
     log_other_wait_memop(objid, last);
 }
+
+#ifdef DEBUG_MEMCNT
+static inline void log_acc_version(version_t ver, objid_t objid)
+{
+    version_t *pv = (version_t *)next_log_entry(&acc_version_log, sizeof(version_t));
+    *pv = ver;
+}
+
+static inline version_t read_acc_version(void)
+{
+    version_t *pv = (version_t *)acc_version_log.buf;
+    version_t ver = *pv;
+    acc_version_log.buf = (char *)(pv + 1);
+    return ver;
+}
+
+static inline void print_acc_info(version_t version, objid_t objid, const char *acc)
+{
+    if (48 <= memop && memop <= 50) {
+        coremu_debug("core %d %s memop %ld obj %d @%ld", (int)cm_coreid, acc,
+                memop, objid, version);
+        //coremu_backtrace();
+    }
+}
+
+static inline void check_acc_version(objid_t objid)
+{
+    version_t ver = read_acc_version();
+    if (ver != obj_version[objid]) {
+        printf("DEBUG recorded version = %ld, actual = %ld\n", ver, obj_version[objid]);
+        pthread_exit(NULL);
+    }
+}
+#endif
 
 uint8_t  cm_crew_record_readb(const  uint8_t *addr, objid_t);
 uint16_t cm_crew_record_readw(const uint16_t *addr, objid_t);
@@ -231,6 +275,7 @@ void cm_assert_not_in_tc(void);
 
 static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
 {
+    assert(cm_is_in_tc);
     version_t version;
 
     switch (cm_run_mode) {
@@ -245,6 +290,9 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
     case CM_RUNMODE_REPLAY:
         wait_object_version(objid);
         wait_memop(objid);
+#ifdef DEBUG_MEMCNT
+        return obj_version[objid];
+#endif
         break;
     }
     return version;
@@ -256,6 +304,10 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
     (void)val;
     last_memobj_t *last = &last_memobj[objid];
 
+#ifdef DEBUG_MEMCNT
+    print_acc_info(version, objid, "atomic");
+#endif
+
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         mo->version++;
 
@@ -266,7 +318,13 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
         }
         last->memop = memop;
         last->version = version + 2;
+#ifdef DEBUG_MEMCNT
+        log_acc_version(version, objid);
+#endif
     } else {
+#ifdef DEBUG_MEMCNT
+        check_acc_version(objid);
+#endif
         obj_version[objid] += 2;
     }
     memop++;

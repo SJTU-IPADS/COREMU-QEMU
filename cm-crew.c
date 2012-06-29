@@ -12,10 +12,6 @@
 #include "cm-crew.h"
 #include "cm-replay.h"
 
-/*#define VERBOSE_COREMU*/
-#define DEBUG_COREMU
-#include "coremu-debug.h"
-
 extern int smp_cpus;
 
 /* TODO Consider what will happen if there's overflow. */
@@ -31,6 +27,10 @@ version_t *obj_version; /* Used during replay. */
 
 __thread MappedLog memop_log;
 __thread MappedLog version_log;
+
+#ifdef DEBUG_MEMCNT
+__thread MappedLog acc_version_log;
+#endif
 
 /* For replay */
 __thread wait_version_t wait_version;
@@ -119,6 +119,9 @@ void cm_crew_core_init(void)
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         new_mapped_log("memop", cm_coreid, &memop_log);
         new_mapped_log("version", cm_coreid, &version_log);
+#ifdef DEBUG_MEMCNT
+        new_mapped_log("accversion", cm_coreid, &acc_version_log);
+#endif
 
         last_memobj = calloc(n_memobj, sizeof(*last_memobj));
         int i = 0;
@@ -131,6 +134,12 @@ void cm_crew_core_init(void)
             printf("core %d opening version log failed\n", cm_coreid);
             exit(1);
         }
+#ifdef DEBUG_MEMCNT
+        if (open_mapped_log("accversion", cm_coreid, &acc_version_log) != 0) {
+            printf("core %d opening memcnt log failed\n", cm_coreid);
+            exit(1);
+        }
+#endif
         wait_memop_idx = calloc_check(n_memobj, sizeof(*wait_memop_idx),
                 "Can't allocate wait_memop_idx");
         /* Register TLS variable address to a global array to allow cross thread

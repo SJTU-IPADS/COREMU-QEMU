@@ -56,6 +56,10 @@ repeat:
     }
 
     last->memop = memop;
+#ifdef DEBUG_MEMCNT
+    log_acc_version(version, objid);
+    print_acc_info(version, objid, "read");
+#endif
     memop++;
 #ifdef DEBUG_MEM_ACCESS
     debug_mem_access(val, objid, "read");
@@ -89,6 +93,10 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 
     last->memop = memop;
     last->version = version + 2;
+#ifdef DEBUG_MEMCNT
+    log_acc_version(version, objid);
+    print_acc_info(version, objid, "write");
+#endif
     memop++;
 #ifdef DEBUG_MEM_ACCESS
     debug_mem_access(val, objid, "write");
@@ -105,6 +113,10 @@ DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     wait_object_version(objid);
 
     DATA_TYPE val = *addr;
+#ifdef DEBUG_MEMCNT
+    print_acc_info(obj_version[objid], objid, "read");
+    check_acc_version(objid);
+#endif
     memop++;
 #ifdef DEBUG_MEM_ACCESS
     debug_mem_access(val, objid, "read");
@@ -122,6 +134,10 @@ void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, objid_t objid,
     wait_memop(objid);
 
     *addr = val;
+#ifdef DEBUG_MEMCNT
+    print_acc_info(obj_version[objid], objid, "write");
+    check_acc_version(objid);
+#endif
     obj_version[objid] += 2;
     memop++;
 #ifdef DEBUG_MEM_ACCESS
