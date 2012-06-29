@@ -328,15 +328,15 @@ void cm_replay_core_init(void)
 
 /* CPU initialization */
 
-#define LOG_ALL_EXEC_CNT_FMT "%hu %lu\n"
+#define LOG_ALL_EXEC_CNT_FMT "%hhd %ld\n"
 
 void cm_record_all_exec_cnt(void)
 {
-    uint16_t i;
+    cpuid_t i;
 
     for (i = 0; i < smp_cpus; i++) {
         if (i != cm_coreid) {
-            fprintf(cm_log_allpc[i], LOG_ALL_EXEC_CNT_FMT, i,
+            fprintf(cm_log_allpc[cm_coreid], LOG_ALL_EXEC_CNT_FMT, i,
                     cm_tb_exec_cnt[i]);
         }
     }
@@ -344,23 +344,23 @@ void cm_record_all_exec_cnt(void)
 
 void cm_replay_all_exec_cnt(void)
 {
-    uint16_t i, coreid;
+    cpuid_t i, coreid;
     uint64_t wait_exec_cnt;
 
     for (i = 0; i < smp_cpus; i++) {
         if (i == cm_coreid)
             continue;
-        if (fscanf(cm_log_allpc[i], LOG_ALL_EXEC_CNT_FMT, &coreid,
-                   &wait_exec_cnt) == EOF) {
-            coremu_print("No more all pc log.");
-            return;
-        } else {
+        if (fscanf(cm_log_allpc[cm_coreid], LOG_ALL_EXEC_CNT_FMT, &coreid,
+                   &wait_exec_cnt) != EOF) {
             while (cm_tb_exec_cnt[coreid] < wait_exec_cnt)
                 sched_yield();
             /*
              *coremu_debug("waited for %hu reach tb_exec_cnt %lu", coreid,
              *             wait_exec_cnt);
              */
+        } else {
+            coremu_print("No more all pc log.");
+            return;
         }
     }
 }

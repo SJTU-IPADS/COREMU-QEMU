@@ -115,7 +115,7 @@ DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     DATA_TYPE val = *addr;
 #ifdef DEBUG_MEMCNT
     print_acc_info(obj_version[objid], objid, "read");
-    check_acc_version(objid);
+    check_acc_version(objid, "read");
 #endif
     memop++;
 #ifdef DEBUG_MEM_ACCESS
@@ -136,7 +136,7 @@ void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, objid_t objid,
     *addr = val;
 #ifdef DEBUG_MEMCNT
     print_acc_info(obj_version[objid], objid, "write");
-    check_acc_version(objid);
+    check_acc_version(objid, "write");
 #endif
     obj_version[objid] += 2;
     memop++;

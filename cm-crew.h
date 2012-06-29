@@ -10,7 +10,7 @@
 #define DEBUG_COREMU
 #include "coremu-debug.h"
 
-#define DEBUG_MEMCNT
+//#define DEBUG_MEMCNT
 
 #ifdef DEBUG_MEMCNT
 extern __thread MappedLog acc_version_log;
@@ -148,11 +148,12 @@ static inline void print_acc_info(version_t version, objid_t objid, const char *
     }
 }
 
-static inline void check_acc_version(objid_t objid)
+static inline void check_acc_version(objid_t objid, const char *acc)
 {
     version_t ver = read_acc_version();
     if (ver != obj_version[objid]) {
-        printf("DEBUG recorded version = %ld, actual = %ld\n", ver, obj_version[objid]);
+        coremu_debug("core %d %s memop %ld obj %d recorded version = %ld, actual = %ld\n",
+                cm_coreid, acc, memop, objid, ver, obj_version[objid]);
         pthread_exit(NULL);
     }
 }
@@ -195,7 +196,12 @@ static inline void wait_object_version(objid_t objid)
             cpu_relax();
         }
 
-        assert(obj_version[objid] == wait_version.version);
+        if (obj_version[objid] != wait_version.version) {
+            coremu_debug("core %d memop %ld obj %d wait @%ld actual @%ld", (int)cm_coreid,
+                    memop, objid, wait_version.version, obj_version[objid]);
+            assert(0);
+        }
+        //assert(obj_version[objid] == wait_version.version);
         read_next_version_log();
     }
 }
@@ -323,7 +329,7 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
 #endif
     } else {
 #ifdef DEBUG_MEMCNT
-        check_acc_version(objid);
+        check_acc_version(objid, "atomic");
 #endif
         obj_version[objid] += 2;
     }
