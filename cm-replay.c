@@ -332,7 +332,7 @@ void cm_record_all_exec_cnt(void)
 
     for (i = 0; i < smp_cpus; i++) {
         if (i != cm_coreid) {
-            fprintf(cm_log_allpc[i], LOG_ALL_EXEC_CNT_FMT, i,
+            fprintf(cm_log_allpc[cm_coreid], LOG_ALL_EXEC_CNT_FMT, i,
                     cm_tb_exec_cnt[i]);
         }
     }
@@ -346,7 +346,7 @@ void cm_replay_all_exec_cnt(void)
     for (i = 0; i < smp_cpus; i++) {
         if (i == cm_coreid)
             continue;
-        if (fscanf(cm_log_allpc[i], LOG_ALL_EXEC_CNT_FMT, &coreid,
+        if (fscanf(cm_log_allpc[cm_coreid], LOG_ALL_EXEC_CNT_FMT, &coreid,
                    &wait_exec_cnt) == EOF) {
             coremu_print("No more all pc log.");
             return;
@@ -411,7 +411,7 @@ void cm_replay_assert_pc(uint64_t eip)
             coremu_debug("core %d ERROR in execution path!", cm_coreid);
             error = 1;
         }
-        if (*memop != recorded_memop) {
+        if (memop != recorded_memop) {
             coremu_debug("core %d ERROR in memop cnt", cm_coreid);
             error = 1;
         }
