@@ -3089,6 +3089,10 @@ ram_addr_t qemu_ram_alloc_from_ptr(DeviceState *dev, const char *name,
     new_block->length = size;
 
 #ifdef CONFIG_REPLAY
+    /*
+     *coremu_debug("host = %p offset = %08lx length = %#lx %s", (void *)new_block->host,
+     *        (long)new_block->offset, (long)new_block->length, name);
+     */
     /* The first allocated ramblock is the largest one and should be looked up
      * in qemu_ram_addr_from_host more frequently. So reversing the order of the
      * list should make the lookup faster.
