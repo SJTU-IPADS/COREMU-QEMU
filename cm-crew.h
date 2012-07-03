@@ -22,6 +22,14 @@ typedef struct memobj_t memobj_t;
 extern __thread unsigned long last_addr;
 extern __thread long last_id;
 
+#define FAST_MEMOBJID
+
+#ifdef FAST_MEMOBJID
+static inline long memobj_id(const void *addr)
+{
+    return ((long)addr >> 12) & 0xfffff;
+}
+#else
 long __memobj_id(unsigned long addr);
 static inline long memobj_id(const void *addr)
 {
@@ -32,6 +40,7 @@ static inline long memobj_id(const void *addr)
     }
     return last_id;
 }
+#endif
 
 /* Acquire lock before read/write operation, record log if necessary.
  * Unlock after operation done. */

@@ -64,6 +64,7 @@ enum {
 __thread unsigned long last_addr = 0;
 __thread long last_id = 0;
 
+#ifndef FAST_MEMOBJID
 long __memobj_id(unsigned long addr)
 {
     ram_addr_t r;
@@ -79,6 +80,7 @@ long __memobj_id(unsigned long addr)
 
     return id;
 }
+#endif
 
 #define CREW_LOG_FMT "%u %hu %u\n"
 
@@ -231,11 +233,15 @@ void cm_crew_init(void)
         exit(1);
     }
 
+#ifdef FAST_MEMOBJID
+    n_memobj = 1 << 20;
+#else
     /* 65536 is for cirrus_vga.rom, added in hw/pci.c:pci_add_option_rom */
     /*n_memobj = (ram_size+PC_ROM_SIZE+VGA_RAM_SIZE+65536+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;*/
     n_memobj = (ram_size+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;
     /* XXX I don't know exactly how many is needed, providing more is safe */
     n_memobj += (n_memobj / 100);
+#endif
     memobj = calloc(n_memobj, sizeof(memobj_t));
     if (!memobj) {
         printf("Can't allocate mem info\n");
