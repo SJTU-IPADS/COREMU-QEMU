@@ -42,6 +42,7 @@ __thread int *wait_memop_idx;
 __thread unsigned long last_addr = 0;
 __thread objid_t last_id = 0;
 
+#ifndef FAST_MEMOBJID
 objid_t __memobj_id(unsigned long addr)
 {
     ram_addr_t r;
@@ -53,6 +54,7 @@ objid_t __memobj_id(unsigned long addr)
 
     return id;
 }
+#endif
 
 /* Initialization */
 
@@ -99,11 +101,15 @@ static void load_wait_memop_log(void) {
 
 void cm_crew_init(void)
 {
+#ifdef FAST_MEMOBJID
+    n_memobj = 1 << 20;
+#else
     /* 65536 is for cirrus_vga.rom, added in hw/pci.c:pci_add_option_rom */
     /*n_memobj = (ram_size+PC_ROM_SIZE+VGA_RAM_SIZE+65536+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;*/
     n_memobj = (ram_size+MEMOBJ_SIZE-1) / MEMOBJ_SIZE;
     /* XXX I don't know exactly how many is needed, providing more is safe */
     n_memobj += (n_memobj / 100);
+#endif
 
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         memobj = calloc_check(n_memobj, sizeof(*memobj), "Can't allocate memobj");

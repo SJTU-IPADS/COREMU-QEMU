@@ -58,6 +58,14 @@ void cm_crew_core_finish(void);
 extern __thread unsigned long last_addr;
 extern __thread objid_t last_id;
 
+#define FAST_MEMOBJID
+
+#ifdef FAST_MEMOBJID
+static inline objid_t memobj_id(const void *addr)
+{
+    return ((long)addr >> 12) & 0xfffff;
+}
+#else
 objid_t __memobj_id(unsigned long addr);
 static inline objid_t memobj_id(const void *addr)
 {
@@ -68,6 +76,7 @@ static inline objid_t memobj_id(const void *addr)
     }
     return last_id;
 }
+#endif
 
 /* Log */
 

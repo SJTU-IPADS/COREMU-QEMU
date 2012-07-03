@@ -3079,7 +3079,19 @@ ram_addr_t qemu_ram_alloc_from_ptr(DeviceState *dev, const char *name,
                                    PROT_EXEC|PROT_READ|PROT_WRITE,
                                    MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 #else
+#  ifdef CONFIG_REPLAY
+            static uint8_t *emu_mem_start = (uint8_t *)0x600000000000;
+            new_block->host = (uint8_t *)mmap((void *)emu_mem_start, size,
+                    PROT_EXEC|PROT_READ|PROT_WRITE,
+                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+            if (new_block->host == MAP_FAILED) {
+                coremu_debug("mmap allocate memory failed");
+                exit(1);
+            }
+            emu_mem_start += size;
+#  else
             new_block->host = qemu_vmalloc(size);
+#  endif
 #endif
             qemu_madvise(new_block->host, size, QEMU_MADV_MERGEABLE);
         }
