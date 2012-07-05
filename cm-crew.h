@@ -5,6 +5,9 @@
 #include "coremu-atomic.h" /* For barrier and cpu_relax */
 #include "cm-replay.h"
 #include "cm-mapped-log.h"
+
+#include "rwlock.h"
+
 #include <pthread.h>
 
 #define DEBUG_COREMU
@@ -31,8 +34,12 @@ extern __thread memop_t memop;
 extern memop_t **memop_cnt;
 
 typedef struct {
-    volatile version_t version;
+    version_t version;
+#ifdef USE_RWLOCK
+    tbb_rwlock_t rwlock;
+#else
     CMSpinLock write_lock;
+#endif
 } memobj_t;
 
 typedef struct {
@@ -295,7 +302,11 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
 
     switch (cm_run_mode) {
     case CM_RUNMODE_RECORD:
+#ifdef USE_RWLOCK
+        tbb_start_write(&mo->rwlock);
+#else
         coremu_spin_lock(&mo->write_lock);
+#endif
 
         version = mo->version;
         barrier();
@@ -326,7 +337,11 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         mo->version++;
 
+#ifdef USE_RWLOCK
+        tbb_end_write(&mo->rwlock);
+#else
         coremu_spin_unlock(&mo->write_lock);
+#endif
 
         if (last->version != version) {
             log_order(objid, version, last);

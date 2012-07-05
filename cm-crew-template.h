@@ -35,6 +35,12 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     version_t version;
     memobj_t *mo = &memobj[objid];
 
+#ifdef USE_RWLOCK
+    tbb_start_read(&mo->rwlock);
+    version = mo->version;
+    val = *addr;
+    tbb_end_read(&mo->rwlock);
+#else
     __sync_synchronize();
     do {
 repeat:
@@ -48,6 +54,7 @@ repeat:
         val = *addr;
         barrier();
     } while (version != mo->version);
+#endif
 
     last_memobj_t *last = &last_memobj[objid];
     if (last->version != version) {
@@ -74,7 +81,11 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
     version_t version;
     memobj_t *mo = &memobj[objid];
 
+#ifdef USE_RWLOCK
+    tbb_start_write(&mo->rwlock);
+#else
     coremu_spin_lock(&mo->write_lock);
+#endif
 
     version = mo->version;
     barrier();
@@ -84,7 +95,11 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
     barrier();
     mo->version++;
 
+#ifdef USE_RWLOCK
+    tbb_end_write(&mo->rwlock);
+#else
     coremu_spin_unlock(&mo->write_lock);
+#endif
 
     last_memobj_t *last = &last_memobj[objid];
     if (last->version != version) {
