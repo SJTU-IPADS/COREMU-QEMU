@@ -93,7 +93,7 @@ extern __thread MappedLog version_log;
 typedef struct {
     memop_t memop;
     version_t version;
-} __attribute__((packed)) wait_version_t;
+} wait_version_t;
 
 extern int wait_version_t_wrong_size[sizeof(wait_version_t) == (sizeof(memop_t) +
         sizeof(version_t)) ? 1 : -1];
@@ -117,7 +117,7 @@ typedef struct {
     objid_t objid;
     version_t version;
     memop_t memop;
-} __attribute__((packed)) rec_wait_memop_t;
+} rec_wait_memop_t;
 
 static inline rec_wait_memop_t *next_memop_log(void)
 {
@@ -227,7 +227,7 @@ typedef struct {
     version_t version;
     memop_t memop;
     cpuid_t coreid;
-} __attribute__((packed)) wait_memop_t;
+} wait_memop_t;
 
 typedef struct {
     wait_memop_t *log;
