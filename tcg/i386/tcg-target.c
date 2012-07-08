@@ -1052,7 +1052,7 @@ static inline void tcg_out_tlb_load(TCGContext *s, int addrlo_idx,
     /* add addend(r1), r0 */
     tcg_out_modrm_offset(s, OPC_ADD_GvEv + P_REXW, r0, r1,
                          offsetof(CPUTLBEntry, addend) - which);
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
     if (cm_run_mode != CM_RUNMODE_NORMAL) {
         /* Put the objid into the 2nd argument.
          * Note r1 and tcg_target_call_iarg_regs[1] are the same, so this must
@@ -1169,7 +1169,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
                      label_ptr, offsetof(CPUTLBEntry, addr_read));
 
     /* TLB Hit.  */
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
     /* rdi contains the address */
     if (cm_run_mode == CM_RUNMODE_NORMAL) {
         tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
@@ -1392,7 +1392,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
                      label_ptr, offsetof(CPUTLBEntry, addr_write));
 
     /* TLB Hit.  */
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
     if (cm_run_mode == CM_RUNMODE_NORMAL) {
         tcg_out_qemu_st_direct(s, data_reg, data_reg2,
                                tcg_target_call_iarg_regs[0], 0, opc);
@@ -1566,7 +1566,7 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
             tcg_out32(s, 0);
 #ifdef CONFIG_REPLAY
 	    if (cm_run_mode == CM_RUNMODE_REPLAY)
-		tcg_out_label(s, exit_label, (long)s->code_ptr);
+            tcg_out_label(s, exit_label, (long)s->code_ptr);
             /*tcg_out_calli(s, (tcg_target_long)cm_tb_break_link);*/
 #endif
         } else {

@@ -297,6 +297,9 @@ void cm_assert_not_in_tc(void);
 
 static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
 {
+#ifndef CONFIG_MEM_ORDER
+    assert(0);
+#endif
     assert(cm_is_in_tc);
     version_t version;
 
@@ -366,6 +369,9 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
 /* The atomic read insn function are for ARM target. */
 static inline version_t cm_start_atomic_read_insn(memobj_t *mo, objid_t objid)
 {
+#ifndef CONFIG_MEM_ORDER
+    assert(0);
+#endif
     version_t version = -1;
 
     switch (cm_run_mode) {

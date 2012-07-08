@@ -310,7 +310,9 @@ void cm_replay_init(void)
     /* For hardware thread, set cm_coreid to -1. */
     cm_coreid = -1;
 
+#ifdef CONFIG_MEM_ORDER
     cm_crew_init();
+#endif
 }
 
 void cm_replay_core_init(void)
@@ -323,7 +325,9 @@ void cm_replay_core_init(void)
         cm_read_intr_log();
     }
 
+#ifdef CONFIG_MEM_ORDER
     cm_crew_core_init();
+#endif
 }
 
 /* CPU initialization */

@@ -43,7 +43,7 @@
 #define CPU_MMU_INDEX ACCESS_TYPE
 #define MMUSUFFIX _mmu
 
-#ifdef CONFIG_REPLAY
+#if defined(CONFIG_REPLAY) && defined(CONFIG_MEM_ORDER)
 #define CREW_MMU
 #endif
 
@@ -52,7 +52,7 @@
 #define CPU_MMU_INDEX (cpu_mmu_index(env))
 #define MMUSUFFIX _mmu
 
-#ifdef CONFIG_REPLAY
+#if defined(CONFIG_REPLAY) && defined(CONFIG_MEM_ORDER)
 #define CREW_MMU
 #endif
 
