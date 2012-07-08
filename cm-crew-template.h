@@ -29,6 +29,9 @@
 
 DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid)
 {
+#ifndef CONFIG_MEM_ORDER
+    assert(0);
+#endif
     coremu_assert(cm_is_in_tc, "Must in TC execution");
 
     DATA_TYPE val;
@@ -76,6 +79,9 @@ repeat:
 
 void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYPE val)
 {
+#ifndef CONFIG_MEM_ORDER
+    assert(0);
+#endif
     coremu_assert(cm_is_in_tc, "Must in TC execution");
 
     version_t version;

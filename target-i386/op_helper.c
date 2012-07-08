@@ -4851,7 +4851,7 @@ static float approx_rcp(float a)
 
 #define MMUSUFFIX _mmu
 
-#if defined(CONFIG_COREMU) && defined(CONFIG_REPLAY)
+#if defined(CONFIG_REPLAY) && defined(CONFIG_MEM_ORDER)
 #define CREW_MMU
 #include "cm-crew.h"
 #endif
@@ -4868,7 +4868,7 @@ static float approx_rcp(float a)
 #define SHIFT 3
 #include "softmmu_template.h"
 
-#if defined(CONFIG_COREMU) && defined(CONFIG_REPLAY)
+#ifdef CREW_MMU
 #undef CREW_MMU
 #endif
 

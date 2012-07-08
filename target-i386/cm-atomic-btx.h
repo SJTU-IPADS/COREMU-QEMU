@@ -21,7 +21,7 @@ void glue(helper_atomic_, INSN)(target_ulong a0, target_ulong offset,
     CM_GET_QEMU_ADDR(__q_addr, a0);
     /* This is the address that's actually gets changed. */
     __q_addr += offset >> 3;
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
     CM_START_ATOMIC_INSN(__q_addr);
     /* Since we get a lock to the page, no other core can read/write this page.
      * So no transaction is needed. */

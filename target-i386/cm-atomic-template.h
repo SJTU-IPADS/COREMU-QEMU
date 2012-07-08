@@ -27,7 +27,7 @@
 #endif
 
 /* Lightweight transactional memory. */
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
 
 #define TX(__q_addr, value, command) \
     CM_START_ATOMIC_INSN(__q_addr);        \
@@ -38,7 +38,7 @@
     *(DATA_TYPE *)__q_addr = value;        \
     CM_END_ATOMIC_INSN(value)
 
-#else /* CONFIG_REPLAY */
+#else /* CONFIG_MEM_ORDER */
 
 #define TX(__q_addr, value, command) \
     DATA_TYPE __oldv;                                         \
@@ -93,12 +93,12 @@ void glue(helper_xchg, SUFFIX)(target_ulong a0, int reg, int hreg)
 
     CM_GET_QEMU_ADDR(q_addr, a0);
     val = (DATA_TYPE)cm_get_reg_val(OT, hreg, reg);
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
     CM_START_ATOMIC_INSN(q_addr);
 #endif
     out = glue(atomic_exchange, SUFFIX)((DATA_TYPE *)q_addr, val);
     mb();
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
     CM_END_ATOMIC_INSN(val);
 #endif
 
@@ -221,13 +221,13 @@ void glue(helper_atomic_cmpxchg, SUFFIX)(target_ulong a0, int reg,
     reg_v = (DATA_TYPE)cm_get_reg_val(OT, hreg, reg);
     eax_v = (DATA_TYPE)cm_get_reg_val(OT, 0, R_EAX);
 
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
     CM_START_ATOMIC_INSN(q_addr);
 #endif
     res = glue(atomic_compare_exchange, SUFFIX)(
             (DATA_TYPE *)q_addr, eax_v, reg_v);
     mb();
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
     CM_END_ATOMIC_INSN(eax_v);
 #endif
 
