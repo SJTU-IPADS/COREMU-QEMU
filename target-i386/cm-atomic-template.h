@@ -27,7 +27,7 @@
 #endif
 
 /* Lightweight transactional memory. */
-#ifdef CONFIG_MEM_ORDER
+#if defined(CONFIG_MEM_ORDER) && !defined(NO_LOCK)
 
 #define TX(__q_addr, value, command) \
     CM_START_ATOMIC_INSN(__q_addr);        \

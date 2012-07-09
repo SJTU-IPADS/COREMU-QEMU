@@ -156,11 +156,11 @@ void helper_atomic_cmpxchg8b(target_ulong a0)
     edx_eax = (((uint64_t)EDX << 32) | (uint32_t)EAX);
     ecx_ebx = (((uint64_t)ECX << 32) | (uint32_t)EBX);
 
-#ifdef CONFIG_MEM_ORDER
+#if defined(CONFIG_MEM_ORDER) && !defined(NO_LOCK)
     CM_START_ATOMIC_INSN(q_addr);
 #endif
     res = atomic_compare_exchangeq((uint64_t *)q_addr, edx_eax, ecx_ebx);
-#ifdef CONFIG_MEM_ORDER
+#if defined(CONFIG_MEM_ORDER) && !defined(NO_LOCK)
     CM_END_ATOMIC_INSN(0xdeadbeef);
 #endif
 
@@ -185,13 +185,13 @@ void helper_atomic_cmpxchg16b(target_ulong a0)
 
     eflags = helper_cc_compute_all(CC_OP);
 
-#ifdef CONFIG_MEM_ORDER
+#if defined(CONFIG_MEM_ORDER) && !defined(NO_LOCK)
     CM_START_ATOMIC_INSN(q_addr);
 #endif
     uint64_t old_rax = *(uint64_t *)q_addr;
     uint64_t old_rdx = *(uint64_t *)(q_addr + 8);
     res = atomic_compare_exchange16b((uint64_t *)q_addr, EAX, EDX, EBX, ECX);
-#ifdef CONFIG_MEM_ORDER
+#if defined(CONFIG_MEM_ORDER) && !defined(NO_LOCK)
     CM_END_ATOMIC_INSN(0xdeadbeef);
 #endif
 

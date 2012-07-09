@@ -1229,7 +1229,7 @@ void do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw)
 {
 #ifdef CONFIG_REPLAY
-    assert(cm_is_in_tc == 0);
+    /*assert(cm_is_in_tc == 0);*/
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
         if (intno & CM_REPLAY_INT) {

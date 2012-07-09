@@ -32,13 +32,18 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
 #ifndef CONFIG_MEM_ORDER
     assert(0);
 #endif
+#ifdef DEBUG_MEM_ACCESS
     coremu_assert(cm_is_in_tc, "Must in TC execution");
+#endif
 
     DATA_TYPE val;
     version_t version;
     memobj_t *mo = &memobj[objid];
 
-#ifdef USE_RWLOCK
+#ifdef NO_LOCK
+    version = mo->version;
+    val = *addr;
+#elif defined(USE_RWLOCK)
     tbb_start_read(&mo->rwlock);
     version = mo->version;
     val = *addr;
@@ -82,12 +87,15 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 #ifndef CONFIG_MEM_ORDER
     assert(0);
 #endif
+#ifdef DEBUG_MEM_ACCESS
     coremu_assert(cm_is_in_tc, "Must in TC execution");
+#endif
 
     version_t version;
     memobj_t *mo = &memobj[objid];
 
-#ifdef USE_RWLOCK
+#ifdef NO_LOCK
+#elif defined(USE_RWLOCK)
     tbb_start_write(&mo->rwlock);
 #else
     coremu_spin_lock(&mo->write_lock);
@@ -101,7 +109,8 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
     barrier();
     mo->version++;
 
-#ifdef USE_RWLOCK
+#ifdef NO_LOCK
+#elif defined(USE_RWLOCK)
     tbb_end_write(&mo->rwlock);
 #else
     coremu_spin_unlock(&mo->write_lock);
@@ -128,8 +137,10 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 
 DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid)
 {
+#ifdef DEBUG_MEM_ACCESS
     coremu_assert(cm_is_in_tc, "Must in TC execution");
     coremu_assert(objid < n_memobj, "objid out of range");
+#endif
 
     wait_object_version(objid);
 
@@ -148,8 +159,10 @@ DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
 void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, objid_t objid,
         DATA_TYPE val)
 {
+#ifdef DEBUG_MEM_ACCESS
     coremu_assert(cm_is_in_tc, "Must in TC execution");
     coremu_assert(objid < n_memobj, "objid out of range");
+#endif
 
     wait_object_version(objid);
     wait_memop(objid);
