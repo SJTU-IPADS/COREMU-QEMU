@@ -19,6 +19,12 @@
 extern __thread MappedLog acc_version_log;
 #endif
 
+#define RETRY_CNT
+#ifdef RETRY_CNT
+extern int stat_retry_cnt;
+extern __thread long retry_cnt;
+#endif
+
 /* Now we track memory as MEMOBJ_SIZE shared object, each object will have a
  * memobj_t tracking its ownership */
 #define MEMOBJ_SIZE 4096
