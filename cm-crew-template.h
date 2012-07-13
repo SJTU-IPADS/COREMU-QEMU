@@ -49,7 +49,7 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     val = *addr;
     tbb_end_read(&mo->rwlock);
 #else
-    __sync_synchronize();
+    //__sync_synchronize();
     do {
 repeat:
         version = mo->version;
@@ -113,6 +113,7 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 #elif defined(USE_RWLOCK)
     tbb_end_write(&mo->rwlock);
 #else
+    __sync_synchronize();
     coremu_spin_unlock(&mo->write_lock);
 #endif
 
