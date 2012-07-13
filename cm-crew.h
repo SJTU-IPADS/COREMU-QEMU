@@ -339,7 +339,7 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
 
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         mo->version++;
-        __sync_synchronized();
+        __sync_synchronize();
 
 #ifdef USE_RWLOCK
         tbb_end_write(&mo->rwlock);
