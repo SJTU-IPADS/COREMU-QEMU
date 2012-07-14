@@ -155,6 +155,54 @@ void cm_crew_record_writeq(uint64_t *addr, objid_t, uint64_t val);
 extern void *cm_crew_read_func[3][4];
 extern void *cm_crew_write_func[3][4];
 
+static inline version_t cm_crew_record_start_write(memobj_t *mo)
+{
+#ifndef CONFIG_MEM_ORDER
+    assert(0);
+#endif
+#ifdef DEBUG_MEM_ACCESS
+    coremu_assert(cm_is_in_tc, "Must in TC execution");
+#endif
+
+#ifdef NO_LOCK
+#elif defined(USE_RWLOCK)
+    tbb_start_write(&mo->rwlock);
+#else
+    coremu_spin_lock(&mo->write_lock);
+#endif
+
+    version_t version = mo->version;
+    barrier();
+    mo->version++;
+    return version;
+}
+
+static inline void cm_crew_record_end_write(memobj_t *mo, objid_t objid, version_t version)
+{
+    mo->version++;
+
+#ifdef NO_LOCK
+#elif defined(USE_RWLOCK)
+    /* rwlock uses atoimc instructions, so no extra barrier needed. */
+    tbb_end_write(&mo->rwlock);
+#else
+    __sync_synchronize();
+    coremu_spin_unlock(&mo->write_lock);
+#endif
+
+    last_memobj_t *last = &last_memobj[objid];
+    if (last->version != version) {
+        log_order(objid, version, last);
+    }
+
+    last->memop = memop;
+    last->version = version + 2;
+#ifdef DEBUG_MEMCNT
+    log_acc_version(version, objid);
+    print_acc_info(version, objid, "write");
+#endif
+}
+
 /**********************************************************************
  * Replay
  **********************************************************************/
@@ -313,16 +361,7 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
 
     switch (cm_run_mode) {
     case CM_RUNMODE_RECORD:
-#ifdef USE_RWLOCK
-        tbb_start_write(&mo->rwlock);
-#else
-        coremu_spin_lock(&mo->write_lock);
-#endif
-
-        version = mo->version;
-        barrier();
-        mo->version++;
-        barrier();
+        version = cm_crew_record_start_write(mo);
         break;
     case CM_RUNMODE_REPLAY:
         wait_object_version(objid);
@@ -339,27 +378,13 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
         version_t version, uint64_t val)
 {
     (void)val;
-    last_memobj_t *last = &last_memobj[objid];
 
 #ifdef DEBUG_MEMCNT
     print_acc_info(version, objid, "atomic");
 #endif
 
     if (cm_run_mode == CM_RUNMODE_RECORD) {
-        mo->version++;
-        __sync_synchronize();
-
-#ifdef USE_RWLOCK
-        tbb_end_write(&mo->rwlock);
-#else
-        coremu_spin_unlock(&mo->write_lock);
-#endif
-
-        if (last->version != version) {
-            log_order(objid, version, last);
-        }
-        last->memop = memop;
-        last->version = version + 2;
+        cm_crew_record_end_write(mo, objid, version);
 #ifdef DEBUG_MEMCNT
         log_acc_version(version, objid);
 #endif

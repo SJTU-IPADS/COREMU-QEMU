@@ -84,50 +84,16 @@ repeat:
 
 void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYPE val)
 {
-#ifndef CONFIG_MEM_ORDER
-    assert(0);
-#endif
-#ifdef DEBUG_MEM_ACCESS
-    coremu_assert(cm_is_in_tc, "Must in TC execution");
-#endif
-
-    version_t version;
     memobj_t *mo = &memobj[objid];
 
-#ifdef NO_LOCK
-#elif defined(USE_RWLOCK)
-    tbb_start_write(&mo->rwlock);
-#else
-    coremu_spin_lock(&mo->write_lock);
-#endif
+    version_t version = cm_crew_record_start_write(mo);
 
-    version = mo->version;
-    barrier();
-    mo->version++;
     barrier();
     *addr = val;
     barrier();
-    mo->version++;
 
-#ifdef NO_LOCK
-#elif defined(USE_RWLOCK)
-    tbb_end_write(&mo->rwlock);
-#else
-    __sync_synchronize();
-    coremu_spin_unlock(&mo->write_lock);
-#endif
+    cm_crew_record_end_write(mo, objid, version);
 
-    last_memobj_t *last = &last_memobj[objid];
-    if (last->version != version) {
-        log_order(objid, version, last);
-    }
-
-    last->memop = memop;
-    last->version = version + 2;
-#ifdef DEBUG_MEMCNT
-    log_acc_version(version, objid);
-    print_acc_info(version, objid, "write");
-#endif
     memop++;
 #ifdef DEBUG_MEM_ACCESS
     debug_mem_access(val, objid, "write");
