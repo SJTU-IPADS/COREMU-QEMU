@@ -5755,7 +5755,7 @@ void helper_time_backdoor(void)
 {
     static struct timeval tv[2];
 
-#ifdef REPLAY_CNT
+#ifdef STAT_RETRY_CNT
     stat_retry_cnt = 1;
 #endif
 

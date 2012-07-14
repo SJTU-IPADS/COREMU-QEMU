@@ -36,7 +36,7 @@ __thread MappedLog version_log;
 __thread MappedLog acc_version_log;
 #endif
 
-#ifdef RETRY_CNT
+#ifdef STAT_RETRY_CNT
 int stat_retry_cnt;
 __thread long retry_cnt;
 #endif

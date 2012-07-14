@@ -619,10 +619,14 @@ void cm_replay_assert_tlbfill(uint64_t addr)
 
 void cm_print_replay_info(void)
 {
-    coremu_debug("core_id = %u, eip = %lx, cm_tb_exec_cnt = %lu, memop = %u, retry_cnt = %ld",
+    coremu_debug("core_id = %u, eip = %lx, cm_tb_exec_cnt = %lu, memop = %u",
                  cm_coreid,
                  (uint64_t)cpu_single_env->ENVPC,
                  cm_tb_exec_cnt[cm_coreid],
-                 (int)memop ,retry_cnt);
+                 (int)memop);
+
+#ifdef STAT_RETRY_CNT
+    coremu_debug("retry_cnt = %ld", retry_cnt);
+#endif
 }
 

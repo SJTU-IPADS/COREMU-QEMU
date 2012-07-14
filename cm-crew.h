@@ -19,8 +19,8 @@
 extern __thread MappedLog acc_version_log;
 #endif
 
-#define RETRY_CNT
-#ifdef RETRY_CNT
+#define STAT_RETRY_CNT
+#ifdef STAT_RETRY_CNT
 extern int stat_retry_cnt;
 extern __thread long retry_cnt;
 #endif

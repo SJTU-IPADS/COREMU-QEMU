@@ -58,7 +58,7 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     tbb_end_read(&mo->rwlock);
 #else // NO_LOCK
     __sync_synchronize();
-#ifdef RETRY_CNT
+#ifdef STAT_RETRY_CNT
     int trycnt = 0;
 #endif
     do {
@@ -77,11 +77,11 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
 
         val = *addr;
         barrier();
-#ifdef RETRY_CNT
+#ifdef STAT_RETRY_CNT
         ++trycnt;
 #endif
     } while (version != mo->version);
-#ifdef RETRY_CNT
+#ifdef STAT_RETRY_CNT
     if (stat_retry_cnt)
         retry_cnt += trycnt - 1;
 #endif
