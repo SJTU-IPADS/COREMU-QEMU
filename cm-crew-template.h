@@ -40,6 +40,14 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     version_t version;
     memobj_t *mo = &memobj[objid];
 
+    /* If lock already hold, just do the write. */
+    if (mo->owner == cm_coreid) {
+        /* Update data in the same cache line, should be better than updating
+         * memop directly. */
+        mo->read_cnt++;
+        return *addr;
+    }
+
 #ifdef NO_LOCK
     version = mo->version;
     val = *addr;
@@ -94,26 +102,44 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
     version_t version;
     memobj_t *mo = &memobj[objid];
 
+    /* If lock already hold, just do the write. */
+    if (mo->owner == cm_coreid) {
+        *addr = val;
+        mo->write_cnt++;
+        return;
+    }
+
 #ifdef NO_LOCK
 #elif defined(USE_RWLOCK)
     tbb_start_write(&mo->rwlock);
 #else
-    coremu_spin_lock(&mo->write_lock);
+    // Release all acquired locks to avoid deadlock.
+    if (coremu_spin_trylock(&mo->write_lock) == BUSY) {
+        cm_release_acquired_locks();
+        coremu_spin_lock(&mo->write_lock);
+    }
+    // Add the locked memobj to the array for release later
+    assert(n_locked_memobj < MAX_LOCKED_MEMOBJ);
+    locked_memobj[n_locked_memobj++] = mo;
+    mo->owner = cm_coreid;
 #endif
 
     version = mo->version;
     barrier();
     mo->version++;
+    __sync_synchronize(); // XXX is this necessary?
     barrier();
     *addr = val;
     barrier();
-    mo->version++;
+    // Reader should not cut in.
+    //mo->version++;
 
 #ifdef NO_LOCK
 #elif defined(USE_RWLOCK)
-    tbb_end_write(&mo->rwlock);
+    //tbb_end_write(&mo->rwlock);
 #else
-    coremu_spin_unlock(&mo->write_lock);
+    //__sync_synchronize();
+    //coremu_spin_unlock(&mo->write_lock);
 #endif
 
     last_memobj_t *last = &last_memobj[objid];

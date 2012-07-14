@@ -28,11 +28,6 @@ typedef long memop_t;
 typedef long version_t;
 typedef int objid_t;
 
-/* Used in record mode where we only need memop of the current CPU. */
-extern __thread memop_t memop;
-/* Used in replay mode. */
-extern memop_t **memop_cnt;
-
 typedef struct {
     version_t version;
 #ifdef USE_RWLOCK
@@ -40,6 +35,9 @@ typedef struct {
 #else
     CMSpinLock write_lock;
 #endif
+    cpuid_t owner;
+    uint16_t write_cnt; /* Number of writes after acquiring the lock. */
+    uint16_t read_cnt; /* Number of writes after acquiring the lock. */
 } memobj_t;
 
 typedef struct {
@@ -48,15 +46,22 @@ typedef struct {
     memop_t memop;
 } last_memobj_t;
 
-extern int last_memobj_wrong_size[sizeof(last_memobj_t) == (sizeof(memop_t) +
-        sizeof(version_t)) ? 1 : -1];
+extern __thread int cm_is_in_tc;
+
+/* Used in record mode where we only need memop of the current CPU. */
+extern __thread memop_t memop;
+/* Used in replay mode. */
+extern memop_t **memop_cnt;
+
+/* Array holding locked memory object */
+extern __thread memobj_t **locked_memobj;
+extern __thread int n_locked_memobj;
+#define MAX_LOCKED_MEMOBJ 10
 
 extern memobj_t *memobj; /* Used during recording. */
 extern __thread last_memobj_t *last_memobj;
 
 extern version_t *obj_version; /* Used during replay. */
-
-extern __thread int cm_is_in_tc;
 
 void cm_crew_init(void);
 void cm_crew_core_init(void);
@@ -139,6 +144,8 @@ static inline void log_order(objid_t objid, version_t ver,
     log_wait_version(ver);
     log_other_wait_memop(objid, last);
 }
+
+void cm_release_acquired_locks(void);
 
 #ifdef DEBUG_MEMCNT
 static inline void log_acc_version(version_t ver, objid_t objid)
@@ -308,9 +315,11 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
 #ifdef USE_RWLOCK
         tbb_start_write(&mo->rwlock);
 #else
-        coremu_spin_lock(&mo->write_lock);
+        if (coremu_spin_trylock(&mo->write_lock) == BUSY) {
+            cm_release_acquired_locks();
+            coremu_spin_lock(&mo->write_lock);
+        }
 #endif
-
         version = mo->version;
         barrier();
         mo->version++;

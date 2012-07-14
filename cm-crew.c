@@ -14,11 +14,15 @@
 
 extern int smp_cpus;
 
+__thread int cm_is_in_tc;
+
 /* TODO Consider what will happen if there's overflow. */
 __thread memop_t memop;
 memop_t **memop_cnt;
 
-__thread int cm_is_in_tc;
+/* Array holding locked memory object */
+__thread memobj_t **locked_memobj;
+__thread int n_locked_memobj;
 
 static int n_memobj;
 memobj_t *memobj; /* Used during recording. */
@@ -37,12 +41,12 @@ __thread wait_version_t wait_version;
 wait_memop_log_t *wait_memop_log;
 __thread int *wait_memop_idx;
 
+#ifndef FAST_MEMOBJID
 /* Using hash table or even just using a 2 entry cache here will actually
  * make performance worse. */
 __thread unsigned long last_addr = 0;
 __thread objid_t last_id = 0;
 
-#ifndef FAST_MEMOBJID
 objid_t __memobj_id(unsigned long addr)
 {
     ram_addr_t r;
@@ -135,6 +139,9 @@ void cm_crew_core_init(void)
             // memop -1 means there's no previous memop
             last_memobj[i].memop = -1;
         }
+
+        locked_memobj = calloc_check(MAX_LOCKED_MEMOBJ, sizeof(*locked_memobj),
+                "Can't allocate locked_memobj");
     } else {
         if (open_mapped_log("version", cm_coreid, &version_log) != 0) {
             printf("core %d opening version log failed\n", cm_coreid);
@@ -172,6 +179,36 @@ void cm_crew_core_finish(void)
 
     rec_wait_memop_t *t = next_memop_log();
     t->objid = -1;
+}
+
+/* Call this when exiting TC or failed to acquire lock. */
+void cm_release_acquired_locks(void)
+{
+    int i = 0, objid = 0;
+    version_t version_inc = 0;
+    int write_cnt = 0, read_cnt = 0;
+    for (; i < n_locked_memobj; i++) {
+        read_cnt = locked_memobj[i]->read_cnt;
+        write_cnt = locked_memobj[i]->write_cnt;
+
+        version_inc = write_cnt * 2 + 1;
+        memop += write_cnt + read_cnt;
+
+        locked_memobj[i]->write_cnt = 0;
+        locked_memobj[i]->read_cnt = 0;
+
+        /* Update last memobj info. */
+
+        objid = locked_memobj[i] - memobj;
+        last_memobj[objid].memop = memop;
+        last_memobj[objid].version += version_inc;
+
+        /* Allow reader to continue. */
+        locked_memobj[i]->version += version_inc;
+        /* Allow writer to continue. */
+        coremu_spin_unlock(&locked_memobj[i]->write_lock);
+    }
+    n_locked_memobj = 0;
 }
 
 #include <assert.h>
