@@ -56,7 +56,7 @@ extern memop_t **memop_cnt;
 /* Array holding locked memory object */
 extern __thread memobj_t **locked_memobj;
 extern __thread int n_locked_memobj;
-#define MAX_LOCKED_MEMOBJ 10
+#define MAX_LOCKED_MEMOBJ 256
 
 extern memobj_t *memobj; /* Used during recording. */
 extern __thread last_memobj_t *last_memobj;
