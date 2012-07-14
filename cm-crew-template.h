@@ -59,11 +59,16 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
 #else
     __sync_synchronize();
     do {
-repeat:
         version = mo->version;
         if (unlikely(version & 1)) {
-            cpu_relax();
-            goto repeat;
+            // Release lock to avoid deadlock.
+            cm_release_acquired_locks();
+
+            version = mo->version;
+            while (unlikely(version & 1)) {
+                cpu_relax();
+                version = mo->version;
+            }
         }
         barrier();
 
