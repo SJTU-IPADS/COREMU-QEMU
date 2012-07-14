@@ -98,7 +98,9 @@ typedef struct {
 extern int wait_version_t_wrong_size[sizeof(wait_version_t) == (sizeof(memop_t) +
         sizeof(version_t)) ? 1 : -1];
 
-/* For recording */
+/**********************************************************************
+ * Recording
+ **********************************************************************/
 
 static inline wait_version_t *next_version_log(void)
 {
@@ -140,41 +142,6 @@ static inline void log_order(objid_t objid, version_t ver,
     log_other_wait_memop(objid, last);
 }
 
-#ifdef DEBUG_MEMCNT
-static inline void log_acc_version(version_t ver, objid_t objid)
-{
-    version_t *pv = (version_t *)next_log_entry(&acc_version_log, sizeof(version_t));
-    *pv = ver;
-}
-
-static inline version_t read_acc_version(void)
-{
-    version_t *pv = (version_t *)acc_version_log.buf;
-    version_t ver = *pv;
-    acc_version_log.buf = (char *)(pv + 1);
-    return ver;
-}
-
-static inline void print_acc_info(version_t version, objid_t objid, const char *acc)
-{
-    if (48 <= memop && memop <= 50) {
-        coremu_debug("core %d %s memop %ld obj %d @%ld", (int)cm_coreid, acc,
-                memop, objid, version);
-        //coremu_backtrace();
-    }
-}
-
-static inline void check_acc_version(objid_t objid, const char *acc)
-{
-    version_t ver = read_acc_version();
-    if (ver != obj_version[objid]) {
-        coremu_debug("core %d %s memop %ld obj %d recorded version = %ld, actual = %ld\n",
-                cm_coreid, acc, memop, objid, ver, obj_version[objid]);
-        pthread_exit(NULL);
-    }
-}
-#endif
-
 uint8_t  cm_crew_record_readb(const  uint8_t *addr, objid_t);
 uint16_t cm_crew_record_readw(const uint16_t *addr, objid_t);
 uint32_t cm_crew_record_readl(const uint32_t *addr, objid_t);
@@ -188,7 +155,9 @@ void cm_crew_record_writeq(uint64_t *addr, objid_t, uint64_t val);
 extern void *cm_crew_read_func[3][4];
 extern void *cm_crew_write_func[3][4];
 
-/* For replay */
+/**********************************************************************
+ * Replay
+ **********************************************************************/
 
 extern __thread wait_version_t wait_version;
 
@@ -277,7 +246,44 @@ void cm_crew_replay_writeq(uint64_t *addr, objid_t objid, uint64_t val);
 extern void *cm_crew_replay_read_func[4];
 extern void *cm_crew_replay_write_func[4];
 
-/* For debug. */
+/**********************************************************************
+ * Debug
+ **********************************************************************/
+
+#ifdef DEBUG_MEMCNT
+static inline void log_acc_version(version_t ver, objid_t objid)
+{
+    version_t *pv = (version_t *)next_log_entry(&acc_version_log, sizeof(version_t));
+    *pv = ver;
+}
+
+static inline version_t read_acc_version(void)
+{
+    version_t *pv = (version_t *)acc_version_log.buf;
+    version_t ver = *pv;
+    acc_version_log.buf = (char *)(pv + 1);
+    return ver;
+}
+
+static inline void print_acc_info(version_t version, objid_t objid, const char *acc)
+{
+    if (48 <= memop && memop <= 50) {
+        coremu_debug("core %d %s memop %ld obj %d @%ld", (int)cm_coreid, acc,
+                memop, objid, version);
+        //coremu_backtrace();
+    }
+}
+
+static inline void check_acc_version(objid_t objid, const char *acc)
+{
+    version_t ver = read_acc_version();
+    if (ver != obj_version[objid]) {
+        coremu_debug("core %d %s memop %ld obj %d recorded version = %ld, actual = %ld\n",
+                cm_coreid, acc, memop, objid, ver, obj_version[objid]);
+        pthread_exit(NULL);
+    }
+}
+#endif
 
 extern __thread uint32_t tlb_fill_cnt;
 
@@ -285,7 +291,9 @@ void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type);
 
 void cm_assert_not_in_tc(void);
 
-/* For atomic instructions */
+/**********************************************************************
+ * atomic instruction
+ **********************************************************************/
 
 #define CM_START_ATOMIC_INSN(addr) \
     objid_t __objid = memobj_id((void *)addr); \
