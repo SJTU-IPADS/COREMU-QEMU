@@ -155,7 +155,11 @@ void cm_crew_record_writeq(uint64_t *addr, objid_t, uint64_t val);
 extern void *cm_crew_read_func[3][4];
 extern void *cm_crew_write_func[3][4];
 
-static inline version_t cm_crew_record_start_write(memobj_t *mo)
+/* Inline function is slower than directly putting the code in. */
+//#define WRITE_RECORDING_AS_FUNC
+#ifdef WRITE_RECORDING_AS_FUNC
+#define __inline__ inline __attribute__((always_inline))
+static __inline__ version_t cm_crew_record_start_write(memobj_t *mo)
 {
 #ifndef CONFIG_MEM_ORDER
     assert(0);
@@ -177,7 +181,7 @@ static inline version_t cm_crew_record_start_write(memobj_t *mo)
     return version;
 }
 
-static inline void cm_crew_record_end_write(memobj_t *mo, objid_t objid, version_t version)
+static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid, version_t version)
 {
     mo->version++;
 
@@ -202,6 +206,27 @@ static inline void cm_crew_record_end_write(memobj_t *mo, objid_t objid, version
     print_acc_info(version, objid, "write");
 #endif
 }
+
+#else /* WRITE_RECORDING_AS_FUNC */
+
+#define cm_crew_record_start_write(mo, version) \
+    coremu_spin_lock(&mo->write_lock); \
+    version = mo->version; \
+    barrier(); \
+    mo->version++;
+
+#define cm_crew_record_end_write(mo, objid, version) \
+    mo->version++; \
+    __sync_synchronize(); \
+    coremu_spin_unlock(&mo->write_lock); \
+    last_memobj_t *last = &last_memobj[objid]; \
+    if (last->version != version) { \
+        log_order(objid, version, last); \
+    } \
+    last->memop = memop; \
+    last->version = version + 2;
+
+#endif
 
 /**********************************************************************
  * Replay
@@ -361,7 +386,11 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
 
     switch (cm_run_mode) {
     case CM_RUNMODE_RECORD:
+#ifdef WRITE_RECORDING_AS_FUNC
         version = cm_crew_record_start_write(mo);
+#else
+        cm_crew_record_start_write(mo, version);
+#endif
         break;
     case CM_RUNMODE_REPLAY:
         wait_object_version(objid);

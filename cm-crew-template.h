@@ -86,7 +86,12 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 {
     memobj_t *mo = &memobj[objid];
 
+#ifdef WRITE_RECORDING_AS_FUNC
     version_t version = cm_crew_record_start_write(mo);
+#else
+    version_t version;
+    cm_crew_record_end_write(mo, version;)
+#endif
 
     barrier();
     *addr = val;
