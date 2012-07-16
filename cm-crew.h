@@ -233,6 +233,8 @@ static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo)
     mo->version++;
     return version;
 }
+#define cm_crew_record_start_write(mo, version) \
+    version = __cm_crew_record_start_write(mo)
 
 static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid, version_t version)
 {
@@ -260,9 +262,6 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid, ver
     print_acc_info(version, objid, "write");
 #endif
 }
-
-#define cm_crew_record_start_write(mo, version) \
-    version = __cm_crew_record_start_write(mo)
 
 #else /* WRITE_RECORDING_AS_FUNC */
 
@@ -403,6 +402,8 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
 #ifdef LAZY_LOCK_RELEASE
         if (mo->owner == cm_coreid) {
             mo->write_cnt++;
+            // Use version -1 to mark as lock already hold.
+            version = -1;
             break;
         }
 #endif
@@ -412,7 +413,7 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
         wait_object_version(objid);
         wait_memop(objid);
 #ifdef DEBUG_MEMCNT
-        return obj_version[objid];
+        version = obj_version[objid];
 #endif
         break;
     }
@@ -425,7 +426,12 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
     (void)val;
 
     if (cm_run_mode == CM_RUNMODE_RECORD) {
+#ifdef LAZY_LOCK_RELEASE
+        if (version != -1)
+            cm_crew_record_end_write(mo, objid, version);
+#else
         cm_crew_record_end_write(mo, objid, version);
+#endif
     } else {
 #ifdef DEBUG_MEMCNT
         check_acc_version(objid, "atomic");
