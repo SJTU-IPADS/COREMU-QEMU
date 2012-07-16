@@ -52,7 +52,6 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     val = *addr;
     tbb_end_read(&mo->rwlock);
 #else
-    __sync_synchronize();
 #  ifdef STAT_RETRY_CNT
     int trycnt = 0;
 #  endif
@@ -116,6 +115,7 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 
     barrier();
     *addr = val;
+    __sync_synchronize();
     barrier();
 
     cm_crew_record_end_write(mo, objid, version);
