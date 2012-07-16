@@ -29,13 +29,6 @@
 
 DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid)
 {
-#ifndef CONFIG_MEM_ORDER
-    assert(0);
-#endif
-#ifdef DEBUG_MEM_ACCESS
-    coremu_assert(cm_is_in_tc, "Must in TC execution");
-#endif
-
     DATA_TYPE val;
     version_t version;
     memobj_t *mo = &memobj[objid];
@@ -49,7 +42,6 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     val = *addr;
     tbb_end_read(&mo->rwlock);
 #else
-    //__sync_synchronize();
     do {
 repeat:
         version = mo->version;
@@ -77,6 +69,7 @@ repeat:
 #endif
     memop++;
 #ifdef DEBUG_MEM_ACCESS
+    coremu_assert(cm_is_in_tc, "Must in TC execution");
     debug_mem_access(val, objid, "read");
 #endif
     return val;
@@ -109,11 +102,6 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 
 DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid)
 {
-#ifdef DEBUG_MEM_ACCESS
-    coremu_assert(cm_is_in_tc, "Must in TC execution");
-    coremu_assert(objid < n_memobj, "objid out of range");
-#endif
-
     wait_object_version(objid);
 
     DATA_TYPE val = *addr;
@@ -123,6 +111,8 @@ DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
 #endif
     memop++;
 #ifdef DEBUG_MEM_ACCESS
+    coremu_assert(cm_is_in_tc, "Must in TC execution");
+    coremu_assert(objid < n_memobj, "objid out of range");
     debug_mem_access(val, objid, "read");
 #endif
     return val;
@@ -131,11 +121,6 @@ DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
 void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, objid_t objid,
         DATA_TYPE val)
 {
-#ifdef DEBUG_MEM_ACCESS
-    coremu_assert(cm_is_in_tc, "Must in TC execution");
-    coremu_assert(objid < n_memobj, "objid out of range");
-#endif
-
     wait_object_version(objid);
     wait_memop(objid);
 
@@ -147,6 +132,8 @@ void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, objid_t objid,
     obj_version[objid] += 2;
     memop++;
 #ifdef DEBUG_MEM_ACCESS
+    coremu_assert(cm_is_in_tc, "Must in TC execution");
+    coremu_assert(objid < n_memobj, "objid out of range");
     debug_mem_access(val, objid, "write");
 #endif
 }

@@ -14,6 +14,8 @@
 #include "coremu-debug.h"
 
 //#define DEBUG_MEMCNT
+//#define WRITE_RECORDING_AS_FUNC
+#define FAST_MEMOBJID
 
 #ifdef DEBUG_MEMCNT
 extern __thread MappedLog acc_version_log;
@@ -64,8 +66,6 @@ void cm_crew_core_finish(void);
 
 extern __thread unsigned long last_addr;
 extern __thread objid_t last_id;
-
-#define FAST_MEMOBJID
 
 #ifdef FAST_MEMOBJID
 static inline objid_t memobj_id(const void *addr)
@@ -156,18 +156,10 @@ extern void *cm_crew_read_func[3][4];
 extern void *cm_crew_write_func[3][4];
 
 /* Inline function is slower than directly putting the code in. */
-//#define WRITE_RECORDING_AS_FUNC
 #ifdef WRITE_RECORDING_AS_FUNC
 #define __inline__ inline __attribute__((always_inline))
 static __inline__ version_t cm_crew_record_start_write(memobj_t *mo)
 {
-#ifndef CONFIG_MEM_ORDER
-    assert(0);
-#endif
-#ifdef DEBUG_MEM_ACCESS
-    coremu_assert(cm_is_in_tc, "Must in TC execution");
-#endif
-
 #ifdef NO_LOCK
 #elif defined(USE_RWLOCK)
     tbb_start_write(&mo->rwlock);
@@ -378,9 +370,6 @@ void cm_assert_not_in_tc(void);
 
 static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
 {
-#ifndef CONFIG_MEM_ORDER
-    assert(0);
-#endif
     assert(cm_is_in_tc);
     version_t version;
 
@@ -432,9 +421,6 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
 /* The atomic read insn function are for ARM target. */
 static inline version_t cm_start_atomic_read_insn(memobj_t *mo, objid_t objid)
 {
-#ifndef CONFIG_MEM_ORDER
-    assert(0);
-#endif
     version_t version = -1;
 
     switch (cm_run_mode) {
