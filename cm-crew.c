@@ -187,7 +187,7 @@ void cm_crew_core_finish(void)
 }
 
 /* Call this when exiting TC or failed to acquire lock. */
-void cm_release_acquired_locks(void)
+void __cm_release_acquired_locks(void)
 {
     int i = 0, objid = 0;
     version_t version_inc = 0;

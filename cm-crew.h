@@ -154,7 +154,12 @@ static inline void log_order(objid_t objid, version_t ver,
     log_other_wait_memop(objid, last);
 }
 
-void cm_release_acquired_locks(void);
+void __cm_release_acquired_locks(void);
+static inline void cm_release_acquired_locks(void)
+{
+    if (n_locked_memobj != 0)
+        __cm_release_acquired_locks();
+}
 
 #ifdef DEBUG_MEMCNT
 static inline void log_acc_version(version_t ver, objid_t objid)
