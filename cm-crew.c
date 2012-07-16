@@ -192,7 +192,7 @@ void cm_release_acquired_locks(void)
     int i = 0, objid = 0;
     version_t version_inc = 0;
     int write_cnt = 0, read_cnt = 0;
-    for (; i < n_locked_memobj; i++) {
+    for (i = 0; i < n_locked_memobj; i++) {
         read_cnt = locked_memobj[i]->read_cnt;
         write_cnt = locked_memobj[i]->write_cnt;
 
@@ -201,6 +201,9 @@ void cm_release_acquired_locks(void)
 
         locked_memobj[i]->write_cnt = 0;
         locked_memobj[i]->read_cnt = 0;
+
+        // TODO release the lock as soon as possible
+        locked_memobj[i]->owner = -1;
 
         /* Update last memobj info. */
 
