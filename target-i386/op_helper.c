@@ -5755,6 +5755,10 @@ void helper_time_backdoor(void)
 {
     static struct timeval tv[2];
 
+#ifdef STAT_RETRY_CNT
+    stat_retry_cnt = 1;
+#endif
+
     int i = cm_time_backdoor_cnt++ & 1;
     if (gettimeofday(&tv[i], NULL) != 0) {
         printf("Error in gettimeofday, in time backdoor!\n");

@@ -33,6 +33,16 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     version_t version;
     memobj_t *mo = &memobj[objid];
 
+#ifdef LAZY_LOCK_RELEASE
+    /* If lock already hold, just do the write. */
+    if (mo->owner == cm_coreid) {
+        /* Update data in the same cache line, should be better than updating
+         * memop directly. */
+        mo->read_cnt++;
+        return *addr;
+    }
+#endif
+
 #ifdef NO_LOCK
     version = mo->version;
     val = *addr;
@@ -42,19 +52,32 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     val = *addr;
     tbb_end_read(&mo->rwlock);
 #else
+    __sync_synchronize();
+#  ifdef STAT_RETRY_CNT
+    int trycnt = 0;
+#  endif
     do {
-repeat:
         version = mo->version;
-        if (unlikely(version & 1)) {
+        while (unlikely(version & 1)) {
+#  ifdef LAZY_LOCK_RELEASE
+            cm_release_acquired_locks();
+#  endif
             cpu_relax();
-            goto repeat;
+            version = mo->version;
         }
         barrier();
 
         val = *addr;
         barrier();
-    } while (version != mo->version);
+#ifdef STAT_RETRY_CNT
+        ++trycnt;
 #endif
+    } while (version != mo->version);
+#ifdef STAT_RETRY_CNT
+    if (stat_retry_cnt)
+        retry_cnt += trycnt - 1;
+#endif
+#endif // NO_LOCK
 
     last_memobj_t *last = &last_memobj[objid];
     if (last->version != version) {
@@ -79,12 +102,17 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 {
     memobj_t *mo = &memobj[objid];
 
-#ifdef WRITE_RECORDING_AS_FUNC
-    version_t version = cm_crew_record_start_write(mo);
-#else
-    version_t version;
-    cm_crew_record_end_write(mo, version;)
+#ifdef LAZY_LOCK_RELEASE
+    /* If lock already hold, just do the write. */
+    if (mo->owner == cm_coreid) {
+        *addr = val;
+        mo->write_cnt++;
+        return;
+    }
 #endif
+
+    version_t version;
+    cm_crew_record_start_write(mo, version);
 
     barrier();
     *addr = val;

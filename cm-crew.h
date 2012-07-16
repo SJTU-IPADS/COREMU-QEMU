@@ -16,9 +16,16 @@
 //#define DEBUG_MEMCNT
 //#define WRITE_RECORDING_AS_FUNC
 #define FAST_MEMOBJID
+#define LAZY_LOCK_RELEASE
 
 #ifdef DEBUG_MEMCNT
 extern __thread MappedLog acc_version_log;
+#endif
+
+#define STAT_RETRY_CNT
+#ifdef STAT_RETRY_CNT
+extern int stat_retry_cnt;
+extern __thread long retry_cnt;
 #endif
 
 /* Now we track memory as MEMOBJ_SIZE shared object, each object will have a
@@ -30,11 +37,6 @@ typedef long memop_t;
 typedef long version_t;
 typedef int objid_t;
 
-/* Used in record mode where we only need memop of the current CPU. */
-extern __thread memop_t memop;
-/* Used in replay mode. */
-extern memop_t **memop_cnt;
-
 typedef struct {
     version_t version;
 #ifdef USE_RWLOCK
@@ -42,6 +44,9 @@ typedef struct {
 #else
     CMSpinLock write_lock;
 #endif
+    cpuid_t owner;
+    uint16_t write_cnt; /* Number of writes after acquiring the lock. */
+    uint16_t read_cnt; /* Number of writes after acquiring the lock. */
 } memobj_t;
 
 typedef struct {
@@ -50,15 +55,22 @@ typedef struct {
     memop_t memop;
 } last_memobj_t;
 
-extern int last_memobj_wrong_size[sizeof(last_memobj_t) == (sizeof(memop_t) +
-        sizeof(version_t)) ? 1 : -1];
+extern __thread int cm_is_in_tc;
+
+/* Used in record mode where we only need memop of the current CPU. */
+extern __thread memop_t memop;
+/* Used in replay mode. */
+extern memop_t **memop_cnt;
+
+/* Array holding locked memory object */
+extern __thread memobj_t **locked_memobj;
+extern __thread int n_locked_memobj;
+#define MAX_LOCKED_MEMOBJ 256
 
 extern memobj_t *memobj; /* Used during recording. */
 extern __thread last_memobj_t *last_memobj;
 
 extern version_t *obj_version; /* Used during replay. */
-
-extern __thread int cm_is_in_tc;
 
 void cm_crew_init(void);
 void cm_crew_core_init(void);
@@ -142,6 +154,43 @@ static inline void log_order(objid_t objid, version_t ver,
     log_other_wait_memop(objid, last);
 }
 
+void cm_release_acquired_locks(void);
+
+#ifdef DEBUG_MEMCNT
+static inline void log_acc_version(version_t ver, objid_t objid)
+{
+    version_t *pv = (version_t *)next_log_entry(&acc_version_log, sizeof(version_t));
+    *pv = ver;
+}
+
+static inline version_t read_acc_version(void)
+{
+    version_t *pv = (version_t *)acc_version_log.buf;
+    version_t ver = *pv;
+    acc_version_log.buf = (char *)(pv + 1);
+    return ver;
+}
+
+static inline void print_acc_info(version_t version, objid_t objid, const char *acc)
+{
+    if (48 <= memop && memop <= 50) {
+        coremu_debug("core %d %s memop %ld obj %d @%ld", (int)cm_coreid, acc,
+                memop, objid, version);
+        //coremu_backtrace();
+    }
+}
+
+static inline void check_acc_version(objid_t objid, const char *acc)
+{
+    version_t ver = read_acc_version();
+    if (ver != obj_version[objid]) {
+        coremu_debug("core %d %s memop %ld obj %d recorded version = %ld, actual = %ld\n",
+                cm_coreid, acc, memop, objid, ver, obj_version[objid]);
+        pthread_exit(NULL);
+    }
+}
+#endif
+
 uint8_t  cm_crew_record_readb(const  uint8_t *addr, objid_t);
 uint16_t cm_crew_record_readw(const uint16_t *addr, objid_t);
 uint32_t cm_crew_record_readl(const uint32_t *addr, objid_t);
@@ -158,13 +207,25 @@ extern void *cm_crew_write_func[3][4];
 /* Inline function is slower than directly putting the code in. */
 #ifdef WRITE_RECORDING_AS_FUNC
 #define __inline__ inline __attribute__((always_inline))
-static __inline__ version_t cm_crew_record_start_write(memobj_t *mo)
+static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo)
 {
 #ifdef NO_LOCK
 #elif defined(USE_RWLOCK)
     tbb_start_write(&mo->rwlock);
 #else
+#  ifndef LAZY_LOCK_RELEASE
     coremu_spin_lock(&mo->write_lock);
+#  else // LAZY_LOCK_RELEASE
+    // Release all acquired locks to avoid deadlock.
+    if (coremu_spin_trylock(&mo->write_lock) == BUSY) {
+        cm_release_acquired_locks();
+        coremu_spin_lock(&mo->write_lock);
+    }
+    // Add the locked memobj to the array for release later
+    assert(n_locked_memobj < MAX_LOCKED_MEMOBJ);
+    locked_memobj[n_locked_memobj++] = mo;
+    mo->owner = cm_coreid;
+#  endif // LAZY_LOCK_RELEASE
 #endif
 
     version_t version = mo->version;
@@ -175,15 +236,16 @@ static __inline__ version_t cm_crew_record_start_write(memobj_t *mo)
 
 static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid, version_t version)
 {
-    mo->version++;
-
 #ifdef NO_LOCK
 #elif defined(USE_RWLOCK)
     /* rwlock uses atoimc instructions, so no extra barrier needed. */
     tbb_end_write(&mo->rwlock);
 #else
-    __sync_synchronize();
+#  ifndef LAZY_LOCK_RELEASE
+    mo->version++;
     coremu_spin_unlock(&mo->write_lock);
+#  else
+#  endif // LAZY_LOCK_RELEASE
 #endif
 
     last_memobj_t *last = &last_memobj[objid];
@@ -199,6 +261,9 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid, ver
 #endif
 }
 
+#define cm_crew_record_start_write(mo, version) \
+    version = __cm_crew_record_start_write(mo)
+
 #else /* WRITE_RECORDING_AS_FUNC */
 
 #define cm_crew_record_start_write(mo, version) \
@@ -209,7 +274,6 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid, ver
 
 #define cm_crew_record_end_write(mo, objid, version) \
     mo->version++; \
-    __sync_synchronize(); \
     coremu_spin_unlock(&mo->write_lock); \
     last_memobj_t *last = &last_memobj[objid]; \
     if (last->version != version) { \
@@ -311,45 +375,6 @@ void cm_crew_replay_writeq(uint64_t *addr, objid_t objid, uint64_t val);
 extern void *cm_crew_replay_read_func[4];
 extern void *cm_crew_replay_write_func[4];
 
-/**********************************************************************
- * Debug
- **********************************************************************/
-
-#ifdef DEBUG_MEMCNT
-static inline void log_acc_version(version_t ver, objid_t objid)
-{
-    version_t *pv = (version_t *)next_log_entry(&acc_version_log, sizeof(version_t));
-    *pv = ver;
-}
-
-static inline version_t read_acc_version(void)
-{
-    version_t *pv = (version_t *)acc_version_log.buf;
-    version_t ver = *pv;
-    acc_version_log.buf = (char *)(pv + 1);
-    return ver;
-}
-
-static inline void print_acc_info(version_t version, objid_t objid, const char *acc)
-{
-    if (48 <= memop && memop <= 50) {
-        coremu_debug("core %d %s memop %ld obj %d @%ld", (int)cm_coreid, acc,
-                memop, objid, version);
-        //coremu_backtrace();
-    }
-}
-
-static inline void check_acc_version(objid_t objid, const char *acc)
-{
-    version_t ver = read_acc_version();
-    if (ver != obj_version[objid]) {
-        coremu_debug("core %d %s memop %ld obj %d recorded version = %ld, actual = %ld\n",
-                cm_coreid, acc, memop, objid, ver, obj_version[objid]);
-        pthread_exit(NULL);
-    }
-}
-#endif
-
 extern __thread uint32_t tlb_fill_cnt;
 
 void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type);
@@ -375,11 +400,14 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
 
     switch (cm_run_mode) {
     case CM_RUNMODE_RECORD:
-#ifdef WRITE_RECORDING_AS_FUNC
-        version = cm_crew_record_start_write(mo);
-#else
-        cm_crew_record_start_write(mo, version);
+#ifdef LAZY_LOCK_RELEASE
+        if (mo->owner == cm_coreid) {
+            mo->write_cnt++;
+            break;
+        }
 #endif
+        cm_crew_record_start_write(mo, version);
+
         break;
     case CM_RUNMODE_REPLAY:
         wait_object_version(objid);
