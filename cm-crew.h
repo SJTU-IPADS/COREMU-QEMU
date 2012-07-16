@@ -407,7 +407,6 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
         }
 #endif
         cm_crew_record_start_write(mo, version);
-
         break;
     case CM_RUNMODE_REPLAY:
         wait_object_version(objid);
@@ -425,15 +424,8 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
 {
     (void)val;
 
-#ifdef DEBUG_MEMCNT
-    print_acc_info(version, objid, "atomic");
-#endif
-
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         cm_crew_record_end_write(mo, objid, version);
-#ifdef DEBUG_MEMCNT
-        log_acc_version(version, objid);
-#endif
     } else {
 #ifdef DEBUG_MEMCNT
         check_acc_version(objid, "atomic");
