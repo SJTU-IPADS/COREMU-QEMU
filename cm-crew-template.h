@@ -36,10 +36,8 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
 #ifdef LAZY_LOCK_RELEASE
     /* If lock already hold, just do the read. */
     if (mo->owner == cm_coreid) {
-        assert(n_locked_memobj);
-        /* Update data in the same cache line, should be better than updating
-         * memop directly. */
-        mo->read_cnt++;
+        assert(has_locked_memobj);
+        memop++;
         return *addr;
     }
 #endif
@@ -60,7 +58,7 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
         version = mo->version;
         while (unlikely(version & 1)) {
 #  ifdef LAZY_LOCK_RELEASE
-            cm_release_acquired_locks();
+            cm_release_all_locks();
 #  endif
             cpu_relax();
             version = mo->version;
@@ -105,9 +103,10 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 #ifdef LAZY_LOCK_RELEASE
     /* If lock already hold, just do the write. */
     if (mo->owner == cm_coreid) {
-        assert(n_locked_memobj);
+        assert(has_locked_memobj);
         *addr = val;
-        mo->write_cnt++;
+        memop++;
+        mo->version += 2;
         return;
     }
 #endif
@@ -121,8 +120,6 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
     barrier();
 
     cm_crew_record_end_write(mo, objid, version);
-
-    memop++;
 #ifdef DEBUG_MEM_ACCESS
     debug_mem_access(val, objid, "write");
 #endif

@@ -9,12 +9,13 @@
 #include "rwlock.h"
 
 #include <pthread.h>
+#include <stdbool.h>
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
 
 //#define DEBUG_MEMCNT
-//#define WRITE_RECORDING_AS_FUNC
+#define WRITE_RECORDING_AS_FUNC
 #define FAST_MEMOBJID
 #define LAZY_LOCK_RELEASE
 
@@ -45,8 +46,6 @@ typedef struct {
     CMSpinLock write_lock;
 #endif
     cpuid_t owner;
-    uint16_t write_cnt; /* Number of writes after acquiring the lock. */
-    uint16_t read_cnt; /* Number of writes after acquiring the lock. */
 } memobj_t;
 
 typedef struct {
@@ -64,8 +63,10 @@ extern memop_t **memop_cnt;
 
 /* Array holding locked memory object */
 extern __thread memobj_t **locked_memobj;
-extern __thread int n_locked_memobj;
+extern __thread int idx_locked_memobj;
+extern __thread bool has_locked_memobj;
 #define MAX_LOCKED_MEMOBJ 256
+#define LOCKED_MEMOBJ_IDX_MASK (MAX_LOCKED_MEMOBJ - 1)
 
 extern memobj_t *memobj; /* Used during recording. */
 extern __thread last_memobj_t *last_memobj;
@@ -154,11 +155,27 @@ static inline void log_order(objid_t objid, version_t ver,
     log_other_wait_memop(objid, last);
 }
 
-void __cm_release_acquired_locks(void);
-static inline void cm_release_acquired_locks(void)
+void __cm_release_all_locks(void);
+static inline void cm_release_all_locks(void)
 {
-    if (n_locked_memobj != 0)
-        __cm_release_acquired_locks();
+    if (has_locked_memobj)
+        __cm_release_all_locks();
+}
+
+static inline void cm_release_lock(memobj_t *mo)
+{
+    if (mo->owner != cm_coreid)
+        return;
+
+    /* Allow reader to continue. */
+    version_t version = ++mo->version;
+    /* Allow writer to continue. */
+    mo->owner = -1;
+    coremu_spin_unlock(&mo->write_lock);
+
+    objid_t objid = mo - memobj;
+    last_memobj[objid].memop = memop;
+    last_memobj[objid].version = version;
 }
 
 #ifdef DEBUG_MEMCNT
@@ -223,12 +240,18 @@ static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo)
 #  else // LAZY_LOCK_RELEASE
     // Release all acquired locks to avoid deadlock.
     if (coremu_spin_trylock(&mo->write_lock) == BUSY) {
-        cm_release_acquired_locks();
+        cm_release_all_locks();
         coremu_spin_lock(&mo->write_lock);
     }
     // Add the locked memobj to the array for release later
-    assert(n_locked_memobj < MAX_LOCKED_MEMOBJ);
-    locked_memobj[n_locked_memobj++] = mo;
+    idx_locked_memobj = (idx_locked_memobj + 1) & LOCKED_MEMOBJ_IDX_MASK;
+    int idx = idx_locked_memobj;
+    has_locked_memobj = true;
+    if (locked_memobj[idx]) {
+        // Release previously acquired lock
+        cm_release_lock(locked_memobj[idx]);
+    }
+    locked_memobj[idx] = mo;
     mo->owner = cm_coreid;
 #  endif // LAZY_LOCK_RELEASE
 #endif
@@ -262,6 +285,7 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid, ver
 
     last->memop = memop;
     last->version = version + 2;
+    memop++;
 #ifdef DEBUG_MEMCNT
     log_acc_version(version, objid);
     print_acc_info(version, objid, "write");
@@ -405,10 +429,11 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
     case CM_RUNMODE_RECORD:
 #ifdef LAZY_LOCK_RELEASE
         if (mo->owner == cm_coreid) {
-            assert(n_locked_memobj);
-            mo->write_cnt++;
+            assert(has_locked_memobj);
             // Use version -1 to mark as lock already hold.
             version = -1;
+            memop++;
+            mo->version += 2;
             break;
         }
 #endif
@@ -434,8 +459,6 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
 #ifdef LAZY_LOCK_RELEASE
         if (version != -1) {
             cm_crew_record_end_write(mo, objid, version);
-        } else {
-            assert(n_locked_memobj);
         }
 #else
         cm_crew_record_end_write(mo, objid, version);
@@ -445,8 +468,8 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
         check_acc_version(objid, "atomic");
 #endif
         obj_version[objid] += 2;
+        memop++;
     }
-    memop++;
 #ifdef DEBUG_MEM_ACCESS
     debug_mem_access(val, objid, "atomic_write");
 #endif

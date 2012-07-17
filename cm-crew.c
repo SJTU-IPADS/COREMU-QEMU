@@ -22,7 +22,8 @@ memop_t **memop_cnt;
 
 /* Array holding locked memory object */
 __thread memobj_t **locked_memobj;
-__thread int n_locked_memobj;
+__thread int idx_locked_memobj;
+__thread bool has_locked_memobj;
 
 static int n_memobj;
 memobj_t *memobj; /* Used during recording. */
@@ -193,36 +194,16 @@ void cm_crew_core_finish(void)
 }
 
 /* Call this when exiting TC or failed to acquire lock. */
-void __cm_release_acquired_locks(void)
+void __cm_release_all_locks(void)
 {
-    int i = 0, objid = 0;
-    version_t version_inc = 0;
-    int write_cnt = 0, read_cnt = 0;
-    for (i = 0; i < n_locked_memobj; i++) {
-        read_cnt = locked_memobj[i]->read_cnt;
-        write_cnt = locked_memobj[i]->write_cnt;
-
-        version_inc = write_cnt * 2 + 1;
-        memop += write_cnt + read_cnt;
-
-        locked_memobj[i]->write_cnt = 0;
-        locked_memobj[i]->read_cnt = 0;
-
-        // TODO release the lock as soon as possible
-        locked_memobj[i]->owner = -1;
-
-        /* Update last memobj info. */
-
-        objid = locked_memobj[i] - memobj;
-        last_memobj[objid].memop = memop;
-        last_memobj[objid].version += version_inc;
-
-        /* Allow reader to continue. */
-        locked_memobj[i]->version += version_inc;
-        /* Allow writer to continue. */
-        coremu_spin_unlock(&locked_memobj[i]->write_lock);
+    int i = 0;
+    for (i = 0; i < MAX_LOCKED_MEMOBJ; i++) {
+        if (locked_memobj[i]) {
+            cm_release_lock(locked_memobj[i]);
+            locked_memobj[i] = NULL;
+        }
     }
-    n_locked_memobj = 0;
+    has_locked_memobj = false;
 }
 
 #include <assert.h>
