@@ -399,13 +399,13 @@ void cm_assert_not_in_tc(void);
 
 static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
 {
-    assert(cm_is_in_tc);
     version_t version;
 
     switch (cm_run_mode) {
     case CM_RUNMODE_RECORD:
 #ifdef LAZY_LOCK_RELEASE
         if (mo->owner == cm_coreid) {
+            assert(n_locked_memobj);
             mo->write_cnt++;
             // Use version -1 to mark as lock already hold.
             version = -1;
@@ -432,8 +432,11 @@ static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
 
     if (cm_run_mode == CM_RUNMODE_RECORD) {
 #ifdef LAZY_LOCK_RELEASE
-        if (version != -1)
+        if (version != -1) {
             cm_crew_record_end_write(mo, objid, version);
+        } else {
+            assert(n_locked_memobj);
+        }
 #else
         cm_crew_record_end_write(mo, objid, version);
 #endif

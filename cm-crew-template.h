@@ -34,8 +34,9 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     memobj_t *mo = &memobj[objid];
 
 #ifdef LAZY_LOCK_RELEASE
-    /* If lock already hold, just do the write. */
+    /* If lock already hold, just do the read. */
     if (mo->owner == cm_coreid) {
+        assert(n_locked_memobj);
         /* Update data in the same cache line, should be better than updating
          * memop directly. */
         mo->read_cnt++;
@@ -104,6 +105,7 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 #ifdef LAZY_LOCK_RELEASE
     /* If lock already hold, just do the write. */
     if (mo->owner == cm_coreid) {
+        assert(n_locked_memobj);
         *addr = val;
         mo->write_cnt++;
         return;
