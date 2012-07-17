@@ -122,6 +122,12 @@ void cm_crew_init(void)
 
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         memobj = calloc_check(n_memobj, sizeof(*memobj), "Can't allocate memobj");
+#ifdef LAZY_LOCK_RELEASE
+        int i;
+        for (i = 0; i < n_memobj; ++i) {
+            memobj[i].owner = -1;
+        }
+#endif
     } else {
         memop_cnt = calloc_check(smp_cpus, sizeof(*memop_cnt), "Can't allocate memop count\n");
         obj_version = calloc_check(n_memobj, sizeof(*obj_version), "Can't allocate obj_version\n");
