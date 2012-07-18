@@ -80,7 +80,7 @@ void cpu_loop_exit(void)
 #ifdef CHECK_MEMOP_CNT
     prev_memcnt = memop_cnt[cm_coreid];
 #endif
-    cm_release_all_locks();
+    cm_release_contending_memobj();
     cm_is_in_tc = 0;
 #endif
     longjmp(env->jmp_env, 1);
@@ -122,7 +122,7 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
 #ifdef CHECK_MEMOP_CNT
     prev_memcnt = memop_cnt[cm_coreid];
 #endif
-    cm_release_all_locks();
+    cm_release_contending_memobj();
     cm_is_in_tc = 0;
 #endif
     longjmp(env->jmp_env, 1);
@@ -157,7 +157,7 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
 #ifdef CHECK_MEMOP_CNT
     prev_memcnt = memop_cnt[cm_coreid];
 #endif
-    cm_release_all_locks();
+    cm_release_contending_memobj();
     cm_is_in_tc = 0;
 #else
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
@@ -371,7 +371,7 @@ int cpu_exec(CPUState *env1)
         if (setjmp(env->jmp_env) == 0) {
 #ifdef CONFIG_COREMU
 #ifdef CONFIG_REPLAY
-                cm_release_all_locks();
+                cm_release_all_memobj();
                 cm_is_in_tc = 0;
 #endif
                 cm_receive_intr();
@@ -782,7 +782,7 @@ int cpu_exec(CPUState *env1)
                     }
 #  endif
                     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
-                    cm_release_all_locks();
+                    cm_release_contending_memobj();
                     cm_is_in_tc = 0;
 #  ifdef CHECK_MEMOP_CNT
                     prev_memcnt = memop_cnt[cm_coreid];

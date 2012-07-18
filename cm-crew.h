@@ -11,19 +11,19 @@
 #include <pthread.h>
 #include <stdbool.h>
 
-#define DEBUG_COREMU
+//#define DEBUG_COREMU
 #include "coremu-debug.h"
 
 //#define DEBUG_MEMCNT
 #define WRITE_RECORDING_AS_FUNC
 #define FAST_MEMOBJID
 #define LAZY_LOCK_RELEASE
+//#define STAT_RETRY_CNT
 
 #ifdef DEBUG_MEMCNT
 extern __thread MappedLog acc_version_log;
 #endif
 
-#define STAT_RETRY_CNT
 #ifdef STAT_RETRY_CNT
 extern int stat_retry_cnt;
 extern __thread long retry_cnt;
@@ -45,7 +45,13 @@ typedef struct {
 #else
     CMSpinLock write_lock;
 #endif
+#ifdef LAZY_LOCK_RELEASE
     cpuid_t owner;
+    /* Avoiding adding the same obj to contending array too much times. There
+     * may still have duplicates, but it does not harm correctness. */
+    /* TODO do this optimization later */
+    //bool contending_added;
+#endif
 } memobj_t;
 
 typedef struct {
@@ -61,13 +67,6 @@ extern __thread memop_t memop;
 /* Used in replay mode. */
 extern memop_t **memop_cnt;
 
-/* Array holding locked memory object */
-extern __thread memobj_t **locked_memobj;
-extern __thread int idx_locked_memobj;
-extern __thread bool has_locked_memobj;
-#define MAX_LOCKED_MEMOBJ 256
-#define LOCKED_MEMOBJ_IDX_MASK (MAX_LOCKED_MEMOBJ - 1)
-
 extern memobj_t *memobj; /* Used during recording. */
 extern __thread last_memobj_t *last_memobj;
 
@@ -77,15 +76,15 @@ void cm_crew_init(void);
 void cm_crew_core_init(void);
 void cm_crew_core_finish(void);
 
-extern __thread unsigned long last_addr;
-extern __thread objid_t last_id;
-
 #ifdef FAST_MEMOBJID
 static inline objid_t memobj_id(const void *addr)
 {
     return ((long)addr >> 12) & 0xfffff;
 }
 #else
+extern __thread unsigned long last_addr;
+extern __thread objid_t last_id;
+
 objid_t __memobj_id(unsigned long addr);
 static inline objid_t memobj_id(const void *addr)
 {
@@ -155,29 +154,6 @@ static inline void log_order(objid_t objid, version_t ver,
     log_other_wait_memop(objid, last);
 }
 
-void __cm_release_all_locks(void);
-static inline void cm_release_all_locks(void)
-{
-    if (has_locked_memobj)
-        __cm_release_all_locks();
-}
-
-static inline void cm_release_lock(memobj_t *mo)
-{
-    if (mo->owner != cm_coreid)
-        return;
-
-    /* Allow reader to continue. */
-    version_t version = ++mo->version;
-    /* Allow writer to continue. */
-    mo->owner = -1;
-    coremu_spin_unlock(&mo->write_lock);
-
-    objid_t objid = mo - memobj;
-    last_memobj[objid].memop = memop;
-    last_memobj[objid].version = version;
-}
-
 #ifdef DEBUG_MEMCNT
 static inline void log_acc_version(version_t ver, objid_t objid)
 {
@@ -226,6 +202,130 @@ void cm_crew_record_writeq(uint64_t *addr, objid_t, uint64_t val);
 extern void *cm_crew_read_func[3][4];
 extern void *cm_crew_write_func[3][4];
 
+#ifdef LAZY_LOCK_RELEASE
+
+/* Using size of 2's power, we can get the index by simply & to get the lowest
+ * bits. */
+/* XXX size of maximum holding lock may impact performance. Holding too much
+ * no longer unused memobj's locks will decrease performance of other vCPUs. */
+#define MAX_LOCKED_MEMOBJ 128
+#define LOCKED_MEMOBJ_IDX_MASK (MAX_LOCKED_MEMOBJ - 1)
+
+#define MAX_CONTENDING_CORE 128
+#define CONTENDING_CORE_IDX_MASK (MAX_CONTENDING_CORE - 1)
+
+struct crew_state_t {
+    /* Circular array holding locked memory object */
+    memobj_t *locked_memobj[MAX_LOCKED_MEMOBJ];
+    uint8_t locked_memobj_idx;
+
+    /* Array holding the core id which is contending memobj.
+     *
+     * Multiple producer, one consumer. So producer should use xadd to get the
+     * avaiable slot.
+     *
+     * Producer will wait until the item in the array is processed (as it's a
+     * lock), this means each producer will have at most 1 item in the array. So
+     * there will be at most #cpus items in the array. This property makes parallel
+     * access to the array easier to implement:
+     *
+     * 1. As item number is bounded, so producer don't need to check if the array is full
+     * */
+    struct {
+        cpuid_t core[MAX_CONTENDING_CORE];
+        /* The start index of contending_core for releasing contending memobj the next
+         * time. */
+        uint8_t core_start_idx;
+        uint8_t core_idx; /* Next available contending core idx. */
+
+        /* Array with length #core, each core stores the its contending memobj in it's
+         * own slot. */
+        memobj_t **memobj;
+    } contending;
+};
+extern __thread struct crew_state_t crew;
+
+/* global state */
+struct crew_gstate_t {
+    struct {
+        cpuid_t **core;
+        /* Array contain the contending_core_idx's address */
+        uint8_t **core_idx;
+        memobj_t ***memobj;
+    } contending;
+};
+extern struct crew_gstate_t crew_g;
+
+static inline void cm_add_contending_memobj(memobj_t *mo)
+{
+    cpuid_t owner = mo->owner;
+    /* It's possible the memobj is released. */
+    if (owner == -1) {
+        return;
+    }
+
+    /* First check if the previous added memobj is handled. */
+    if (crew_g.contending.memobj[owner][cm_coreid]) {
+        /* It's possible the previous memobj is released but the slot is not
+         * cleared, so mo is different with previous mo.
+         * In that case, we simply return, the contending memobj will be added
+         * when the slot is cleared.  */
+        return;
+    }
+
+    /* Producer first add memobj, then add core id to array.
+     * Consumer first read core id stored in the array, then find memobj and
+     * release it.
+     * This ensures
+     * 1. when the consumer finds a contending core, the contending memobj has
+     *    been written.
+     * 2. when the producer sees the contending memobj for its slot is NULL, it
+     *    can be sure that the previous contending memobj has been released at
+     *    least once.
+     */
+    /* Add memobj to the slot in the owner's contending_memobj array. */
+    crew_g.contending.memobj[owner][cm_coreid] = mo;
+    /* Add self to the owner's contending core array. */
+    uint8_t idx = __sync_fetch_and_add(crew_g.contending.core_idx[owner], 1) &
+        CONTENDING_CORE_IDX_MASK;
+    crew_g.contending.core[owner][idx] = cm_coreid;
+
+    coremu_debug("core %d add contending memobj %ld %p owned by %d with idx %d", cm_coreid,
+            mo -  memobj, mo, owner, idx);
+}
+
+static inline void cm_release_memobj(memobj_t *mo)
+{
+    if (mo->owner != cm_coreid)
+        return;
+
+    /* Allow reader to continue. */
+    version_t version = ++mo->version;
+    /* Allow writer to continue. */
+    mo->owner = -1;
+    coremu_spin_unlock(&mo->write_lock);
+
+    objid_t objid = mo - memobj;
+    last_memobj[objid].memop = memop;
+    last_memobj[objid].version = version;
+}
+
+void cm_release_all_memobj(void);
+
+static inline bool cm_has_contending_memobj(void)
+{
+    return crew.contending.core_start_idx != crew.contending.core_idx;
+}
+
+void __cm_release_contending_memobj(void);
+static inline void cm_release_contending_memobj(void)
+{
+    if (cm_has_contending_memobj()) {
+        __cm_release_contending_memobj();
+    }
+}
+#endif
+
 /* Inline function is slower than directly putting the code in. */
 #ifdef WRITE_RECORDING_AS_FUNC
 #define __inline__ inline __attribute__((always_inline))
@@ -235,24 +335,29 @@ static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo)
 #elif defined(USE_RWLOCK)
     tbb_start_write(&mo->rwlock);
 #else
-#  ifndef LAZY_LOCK_RELEASE
-    coremu_spin_lock(&mo->write_lock);
-#  else // LAZY_LOCK_RELEASE
-    // Release all acquired locks to avoid deadlock.
-    if (coremu_spin_trylock(&mo->write_lock) == BUSY) {
-        cm_release_all_locks();
-        coremu_spin_lock(&mo->write_lock);
+#  ifdef LAZY_LOCK_RELEASE
+    while (coremu_spin_trylock(&mo->write_lock) == BUSY) {
+        /* When failed to get the spinlock, the owner may have changed, so we
+         * need to add the memobj to the owner's contending array again. */
+        cm_release_contending_memobj();
+        cm_add_contending_memobj(mo);
     }
-    // Add the locked memobj to the array for release later
-    idx_locked_memobj = (idx_locked_memobj + 1) & LOCKED_MEMOBJ_IDX_MASK;
-    int idx = idx_locked_memobj;
-    has_locked_memobj = true;
-    if (locked_memobj[idx]) {
+
+    /* Add the locked memobj to the array for release later */
+    crew.locked_memobj_idx = (crew.locked_memobj_idx + 1) & LOCKED_MEMOBJ_IDX_MASK;
+    uint8_t idx = crew.locked_memobj_idx;
+    if (crew.locked_memobj[idx]) {
         // Release previously acquired lock
-        cm_release_lock(locked_memobj[idx]);
+        /*
+         *coremu_debug("core %d releasing memobj %ld %p due to no capacity",
+         *        cm_coreid, mo - memobj, mo);
+         */
+        cm_release_memobj(crew.locked_memobj[idx]);
     }
-    locked_memobj[idx] = mo;
+    crew.locked_memobj[idx] = mo;
     mo->owner = cm_coreid;
+#  else // LAZY_LOCK_RELEASE
+    coremu_spin_lock(&mo->write_lock);
 #  endif // LAZY_LOCK_RELEASE
 #endif
 
@@ -271,10 +376,11 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid, ver
     /* rwlock uses atoimc instructions, so no extra barrier needed. */
     tbb_end_write(&mo->rwlock);
 #else
-#  ifndef LAZY_LOCK_RELEASE
+#  ifdef LAZY_LOCK_RELEASE
+    cm_release_contending_memobj();
+#  else
     mo->version++;
     coremu_spin_unlock(&mo->write_lock);
-#  else
 #  endif // LAZY_LOCK_RELEASE
 #endif
 
@@ -429,7 +535,6 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
     case CM_RUNMODE_RECORD:
 #ifdef LAZY_LOCK_RELEASE
         if (mo->owner == cm_coreid) {
-            assert(has_locked_memobj);
             // Use version -1 to mark as lock already hold.
             version = -1;
             memop++;

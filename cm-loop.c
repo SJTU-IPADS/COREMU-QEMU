@@ -38,6 +38,7 @@
 #include "cm-init.h"
 #include "cm-intr.h"
 #include "cm-replay.h"
+#include "cm-crew.h"
 
 #define DEBUG_COREMU
 #include "coremu-debug.h"
@@ -61,6 +62,10 @@ static bool cm_tcg_cpu_exec(void)
             ret = cpu_exec(env);
         else if (env->stop)
             break;
+
+#ifdef LAZY_LOCK_RELEASE
+        cm_release_contending_memobj();
+#endif
 
         if (!cm_vm_can_run())
             break;

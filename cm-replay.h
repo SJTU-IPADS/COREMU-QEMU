@@ -33,7 +33,7 @@ extern int cm_run_mode;
 int cm_get_run_mode(void);
 extern uint64_t *cm_tb_exec_cnt;
 
-typedef uint8_t cpuid_t;
+typedef int8_t cpuid_t;
 extern __thread cpuid_t cm_coreid;
 
 void cm_replay_init(void);

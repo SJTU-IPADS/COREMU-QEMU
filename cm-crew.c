@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
 #include <pthread.h>
 
@@ -20,15 +21,15 @@ __thread int cm_is_in_tc;
 __thread memop_t memop;
 memop_t **memop_cnt;
 
-/* Array holding locked memory object */
-__thread memobj_t **locked_memobj;
-__thread int idx_locked_memobj;
-__thread bool has_locked_memobj;
-
 static int n_memobj;
 memobj_t *memobj; /* Used during recording. */
 __thread last_memobj_t *last_memobj;
 version_t *obj_version; /* Used during replay. */
+
+#ifdef LAZY_LOCK_RELEASE
+__thread struct crew_state_t crew;
+struct crew_gstate_t crew_g;
+#endif
 
 __thread MappedLog memop_log;
 __thread MappedLog version_log;
@@ -128,6 +129,12 @@ void cm_crew_init(void)
         for (i = 0; i < n_memobj; ++i) {
             memobj[i].owner = -1;
         }
+        crew_g.contending.memobj = calloc_check(smp_cpus, sizeof(*crew_g.contending.memobj),
+                "Can't allocated contend_memobj");
+        crew_g.contending.core_idx = calloc_check(smp_cpus, sizeof(*crew_g.contending.core_idx),
+                "Can't allocated contend_idx_arr");
+        crew_g.contending.core = calloc_check(smp_cpus, sizeof(*crew_g.contending.core),
+                "Can't allocate contend_core_arr");
 #endif
     } else {
         memop_cnt = calloc_check(smp_cpus, sizeof(*memop_cnt), "Can't allocate memop count\n");
@@ -151,9 +158,15 @@ void cm_crew_core_init(void)
             // memop -1 means there's no previous memop
             last_memobj[i].memop = -1;
         }
+#ifdef LAZY_LOCK_RELEASE
+        memset(crew.contending.core, -1, sizeof(crew.contending.core));
+        crew.contending.memobj = calloc_check(smp_cpus,
+                sizeof(*crew.contending.memobj), "Can't allocate contending_memobj");
 
-        locked_memobj = calloc_check(MAX_LOCKED_MEMOBJ, sizeof(*locked_memobj),
-                "Can't allocate locked_memobj");
+        crew_g.contending.memobj[cm_coreid] = crew.contending.memobj;
+        crew_g.contending.core_idx[cm_coreid] = &crew.contending.core_idx;
+        crew_g.contending.core[cm_coreid] = crew.contending.core;
+#endif
     } else {
         if (open_mapped_log("version", cm_coreid, &version_log) != 0) {
             printf("core %d opening version log failed\n", cm_coreid);
@@ -193,18 +206,43 @@ void cm_crew_core_finish(void)
     t->objid = -1;
 }
 
+#ifdef LAZY_LOCK_RELEASE
 /* Call this when exiting TC or failed to acquire lock. */
-void __cm_release_all_locks(void)
+void cm_release_all_memobj(void)
 {
     int i = 0;
     for (i = 0; i < MAX_LOCKED_MEMOBJ; i++) {
-        if (locked_memobj[i]) {
-            cm_release_lock(locked_memobj[i]);
-            locked_memobj[i] = NULL;
+        if (crew.locked_memobj[i]) {
+            cm_release_memobj(crew.locked_memobj[i]);
+            crew.locked_memobj[i] = NULL;
         }
     }
-    has_locked_memobj = false;
 }
+
+void __cm_release_contending_memobj(void)
+{
+    uint8_t idx = crew.contending.core_start_idx;
+    cpuid_t coreid;
+    memobj_t *mo;
+
+    coremu_debug("core %d releasing memobj starts at idx %d", cm_coreid, idx);
+    while ((coreid = crew.contending.core[idx]) != -1) {
+        mo = crew.contending.memobj[coreid];
+        coremu_debug("core %d releasing contending memobj %ld %p for core %d idx %d",
+                cm_coreid, mo - memobj, mo, coreid, idx);
+        coremu_assert(mo, "core %d memobj shouldn't be null", cm_coreid);
+        cm_release_memobj(mo);
+
+        crew.contending.core[idx] = -1;
+        /* Clear the slot after it's actually released. */
+        crew.contending.memobj[coreid] = NULL;
+
+        idx = (idx + 1) & CONTENDING_CORE_IDX_MASK;
+    }
+    coremu_debug("core %d released memobj end at idx %d", cm_coreid, idx);
+    crew.contending.core_start_idx = idx;
+}
+#endif
 
 #include <assert.h>
 #include "cpu.h"
