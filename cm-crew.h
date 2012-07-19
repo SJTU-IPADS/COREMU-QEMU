@@ -300,14 +300,15 @@ static inline void cm_release_memobj(memobj_t *mo)
         return;
 
     /* Allow reader to continue. */
-    version_t version = ++mo->version;
+    ++mo->version;
+    //version_t version = ++mo->version;
     /* Allow writer to continue. */
     mo->owner = -1;
     coremu_spin_unlock(&mo->write_lock);
 
-    objid_t objid = mo - memobj;
-    last_memobj[objid].memop = memop;
-    last_memobj[objid].version = version;
+    //objid_t objid = mo - memobj;
+    //last_memobj[objid].memop = memop;
+    //last_memobj[objid].version = version;
 }
 
 void cm_release_all_memobj(void);
@@ -342,20 +343,6 @@ static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo)
         cm_release_contending_memobj();
         cm_add_contending_memobj(mo);
     }
-
-    /* Add the locked memobj to the array for release later */
-    crew.locked_memobj_idx = (crew.locked_memobj_idx + 1) & LOCKED_MEMOBJ_IDX_MASK;
-    uint8_t idx = crew.locked_memobj_idx;
-    if (crew.locked_memobj[idx]) {
-        // Release previously acquired lock
-        /*
-         *coremu_debug("core %d releasing memobj %ld %p due to no capacity",
-         *        cm_coreid, mo - memobj, mo);
-         */
-        cm_release_memobj(crew.locked_memobj[idx]);
-    }
-    crew.locked_memobj[idx] = mo;
-    mo->owner = cm_coreid;
 #  else // LAZY_LOCK_RELEASE
     coremu_spin_lock(&mo->write_lock);
 #  endif // LAZY_LOCK_RELEASE
@@ -378,6 +365,14 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid, ver
 #else
 #  ifdef LAZY_LOCK_RELEASE
     cm_release_contending_memobj();
+    /* Add the locked memobj to the array for release later */
+    crew.locked_memobj_idx = (crew.locked_memobj_idx + 1) & LOCKED_MEMOBJ_IDX_MASK;
+    uint8_t idx = crew.locked_memobj_idx;
+    if (crew.locked_memobj[idx]) {
+        cm_release_memobj(crew.locked_memobj[idx]);
+    }
+    crew.locked_memobj[idx] = mo;
+    mo->owner = cm_coreid;
 #  else
     mo->version++;
     coremu_spin_unlock(&mo->write_lock);

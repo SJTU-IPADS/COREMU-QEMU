@@ -34,10 +34,13 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     memobj_t *mo = &memobj[objid];
 
 #ifdef LAZY_LOCK_RELEASE
-    // XXX call this at basic block boundary later
+    /* XXX Call this at basic block boundary later. This is necessary to avoid
+     * deadlock. */
     cm_release_contending_memobj();
     /* If lock already hold, just do the read. */
     if (mo->owner == cm_coreid) {
+        /* Version will not change here. */
+        last_memobj[objid].memop = memop;
         memop++;
         return *addr;
     }
@@ -107,6 +110,8 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 #ifdef LAZY_LOCK_RELEASE
     /* If lock already hold, just do the write. */
     if (mo->owner == cm_coreid) {
+        last_memobj[objid].memop = memop;
+        last_memobj[objid].version = mo->version;
         mo->version += 2;
         memop++;
         *addr = val;
