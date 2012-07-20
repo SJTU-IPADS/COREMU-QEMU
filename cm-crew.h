@@ -300,15 +300,14 @@ static inline void cm_release_memobj(memobj_t *mo)
         return;
 
     /* Allow reader to continue. */
-    ++mo->version;
-    //version_t version = ++mo->version;
+    version_t version = ++mo->version;
+    assert((mo->version & 1) == 0);
     /* Allow writer to continue. */
     mo->owner = -1;
     coremu_spin_unlock(&mo->write_lock);
 
-    //objid_t objid = mo - memobj;
-    //last_memobj[objid].memop = memop;
-    //last_memobj[objid].version = version;
+    objid_t objid = mo - memobj;
+    last_memobj[objid].version = version;
 }
 
 void cm_release_all_memobj(void);
