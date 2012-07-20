@@ -63,7 +63,7 @@ static bool cm_tcg_cpu_exec(void)
         else if (env->stop)
             break;
 
-#ifdef LAZY_LOCK_RELEASE
+#ifdef CONFIG_MEM_ORDER
         cm_release_contending_memobj();
 #endif
 
