@@ -433,7 +433,7 @@ static inline void read_next_version_log(void)
 
 static inline void wait_object_version(objid_t objid)
 {
-    if (*memop_cnt[cm_coreid] == wait_version.memop) {
+    if (memop == wait_version.memop) {
         while (obj_version[objid] < wait_version.version) {
             cpu_relax();
         }
