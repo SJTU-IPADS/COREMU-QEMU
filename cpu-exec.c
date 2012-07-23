@@ -80,7 +80,7 @@ void cpu_loop_exit(void)
 #ifdef CHECK_MEMOP_CNT
     prev_memcnt = memop_cnt[cm_coreid];
 #endif
-#ifdef CONFIG_MEM_ORDER
+#if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
     cm_release_contending_memobj();
 #endif
     cm_is_in_tc = 0;
@@ -124,7 +124,7 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
 #ifdef CHECK_MEMOP_CNT
     prev_memcnt = memop_cnt[cm_coreid];
 #endif
-#ifdef CONFIG_MEM_ORDER
+#if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
     cm_release_contending_memobj();
 #endif
     cm_is_in_tc = 0;
@@ -161,7 +161,7 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
 #ifdef CHECK_MEMOP_CNT
     prev_memcnt = memop_cnt[cm_coreid];
 #endif
-#ifdef CONFIG_MEM_ORDER
+#if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
     cm_release_contending_memobj();
 #endif
     cm_is_in_tc = 0;
@@ -376,7 +376,7 @@ int cpu_exec(CPUState *env1)
     for(;;) {
         if (setjmp(env->jmp_env) == 0) {
 #ifdef CONFIG_COREMU
-#ifdef CONFIG_REPLAY
+#if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
                 cm_release_all_memobj();
                 cm_is_in_tc = 0;
 #endif
@@ -788,7 +788,7 @@ int cpu_exec(CPUState *env1)
                     }
 #  endif
                     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
-#ifdef CONFIG_MEM_ORDER
+#if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
                     cm_release_contending_memobj();
 #endif
                     cm_is_in_tc = 0;
