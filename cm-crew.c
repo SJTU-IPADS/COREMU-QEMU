@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -80,34 +81,45 @@ static inline void *calloc_check(size_t nmemb, size_t size, const char *err_msg)
 
 static void load_wait_memop_log(void) {
     MappedLog memop_log, index_log;
+    int no_memop_log = false;
     if (open_mapped_log_path(LOGDIR"memop", &memop_log) != 0) {
-        printf("Error opening memop log\n");
-        exit(1);
+        perror("opening memop log\n");
+        no_memop_log = true;
     }
     if (open_mapped_log_path(LOGDIR"memop-index", &index_log) != 0) {
-        printf("Error opening memop index log\n");
-        exit(1);
+        perror("opening memop index log\n");
+        no_memop_log = true;
     }
 
     wait_memop_log = calloc_check(n_memobj, sizeof(*wait_memop_log), "Can't allocate wait_memop");
 
-    /* Each entry in index log contains start and log entry count, both are int. */
-    int *index = (int *)index_log.buf;
-    wait_memop_t *log_start = (wait_memop_t *)memop_log.buf;
-    int i = 0;
-    for (; i < n_memobj; i++) {
-        if (*index == -1) {
+    if (no_memop_log) {
+        // For single core record, it's possible that there's no memop log
+        int i;
+        for (i = 0; i < n_memobj; i++) {
+            wait_memop_log[i].size = -1;
             wait_memop_log[i].log = NULL;
             wait_memop_log[i].n = 0;
-            wait_memop_log[i].size = -1;
-            index += 2;
-            continue;
         }
-        wait_memop_log[i].log = &log_start[*index++];
-        wait_memop_log[i].n = 0;
-        wait_memop_log[i].size = *index++;
+    } else {
+        /* Each entry in index log contains start and log entry count, both are int. */
+        int *index = (int *)index_log.buf;
+        wait_memop_t *log_start = (wait_memop_t *)memop_log.buf;
+        int i = 0;
+        for (; i < n_memobj; i++) {
+            if (*index == -1) {
+                wait_memop_log[i].log = NULL;
+                wait_memop_log[i].n = 0;
+                wait_memop_log[i].size = -1;
+                index += 2;
+                continue;
+            }
+            wait_memop_log[i].log = &log_start[*index++];
+            wait_memop_log[i].n = 0;
+            wait_memop_log[i].size = *index++;
+        }
+        unmap_log(&index_log);
     }
-    unmap_log(&index_log);
 }
 
 void cm_crew_init(void)
