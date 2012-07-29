@@ -394,10 +394,16 @@ extern uint64_t cm_mmio_read_cnt;
 #define PC_LOG_FMT "%08lx %ld\n"
 #endif
 
+typedef struct {
+    uint64_t eip;
+    memop_t memop;
+} pc_log_t;
+
 void cm_replay_assert_pc(uint64_t eip)
 {
     uint64_t next_eip;
     memop_t recorded_memop;
+    pc_log_t l;
 
     assert(cm_is_in_tc);
 
@@ -409,12 +415,14 @@ void cm_replay_assert_pc(uint64_t eip)
     int error = 0;
     switch (cm_run_mode) {
     case CM_RUNMODE_REPLAY:
-        if (fscanf(cm_log[PC], PC_LOG_FMT, &next_eip, &recorded_memop) == EOF) {
+        if (fread(&l, sizeof(l), 1, cm_log[PC]) == EOF) {
             coremu_debug("no more pc log, cm_coreid = %u, cm_tb_exec_cnt = %lu", cm_coreid,
                    cm_tb_exec_cnt[cm_coreid]);
             cm_print_replay_info();
             pthread_exit(NULL);
         }
+        recorded_memop = l.memop;
+        next_eip = l.eip;
         if (eip != next_eip) {
             coremu_debug("core %d ERROR in execution path!", cm_coreid);
             error = 1;
@@ -442,7 +450,9 @@ void cm_replay_assert_pc(uint64_t eip)
         }
         break;
     case CM_RUNMODE_RECORD:
-        fprintf(cm_log[PC], PC_LOG_FMT, eip, memop);
+        l.eip = eip;
+        l.memop = memop;
+        fwrite(&l, sizeof(l), 1, cm_log[PC]);
         break;
     }
 }
