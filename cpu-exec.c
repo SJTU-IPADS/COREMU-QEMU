@@ -59,7 +59,7 @@
 COREMU_THREAD int tb_invalidated_flag;
 
 #ifdef CHECK_MEMOP_CNT
-static __thread uint32_t prev_memcnt = 0;
+static __thread memop_t prev_memcnt = 0;
 #endif
 
 // For debug
@@ -78,7 +78,7 @@ void cpu_loop_exit(void)
     env->current_tb = NULL;
 #ifdef CONFIG_REPLAY
 #ifdef CHECK_MEMOP_CNT
-    prev_memcnt = memop_cnt[cm_coreid];
+    prev_memcnt = memop;
 #endif
 #if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
     cm_release_contending_memobj();
@@ -122,7 +122,7 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
     env->exception_index = -1;
 #ifdef CONFIG_REPLAY
 #ifdef CHECK_MEMOP_CNT
-    prev_memcnt = memop_cnt[cm_coreid];
+    prev_memcnt = memop;
 #endif
 #if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
     cm_release_contending_memobj();
@@ -150,16 +150,16 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
     /* execute the generated code */
 #ifdef CONFIG_REPLAY
 #ifdef CHECK_MEMOP_CNT
-    if (memop_cnt[cm_coreid] != prev_memcnt) {
-        coremu_debug("prev_memcnt: %u memop_cnt[%u] = %u",
-                     prev_memcnt, cm_coreid, memop_cnt[cm_coreid]);
+    if (memop != prev_memcnt) {
+        coremu_debug("prev_memcnt: %ld memop = %ld",
+                     prev_memcnt, cm_coreid, memop);
         exit(1);
     }
 #endif
     cm_is_in_tc = 1;
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
 #ifdef CHECK_MEMOP_CNT
-    prev_memcnt = memop_cnt[cm_coreid];
+    prev_memcnt = memop;
 #endif
 #if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
     cm_release_contending_memobj();
@@ -694,6 +694,10 @@ int cpu_exec(CPUState *env1)
                     case CM_CPU_SIPI:
                         cm_do_cpu_sipi();
                         break;
+                    case CM_CPU_EXIT:
+                        printf("core %d exits\n", cm_coreid);
+                        pthread_exit(NULL);
+                        break;
 #endif
                     default:
 #ifdef ASSERT_REPLAY_PC
@@ -781,9 +785,9 @@ int cpu_exec(CPUState *env1)
 #ifdef CONFIG_REPLAY
                     cm_is_in_tc = 1;
 #  ifdef CHECK_MEMOP_CNT
-                    if (*memop != prev_memcnt) {
-                        coremu_debug("prev_memcnt: %u memop_cnt[%u] = %u",
-                                     prev_memcnt, cm_coreid, *memop);
+                    if (memop != prev_memcnt) {
+                        coremu_debug("prev_memcnt: %ld memop = %ld",
+                                     prev_memcnt, cm_coreid, memop);
                         exit(1);
                     }
 #  endif
@@ -793,7 +797,7 @@ int cpu_exec(CPUState *env1)
 #endif
                     cm_is_in_tc = 0;
 #  ifdef CHECK_MEMOP_CNT
-                    prev_memcnt = memop_cnt[cm_coreid];
+                    prev_memcnt = memop;
 #  endif
 #  ifdef RANDOM_TLBFLUSH
                     if ((rand() % 10 == 0))

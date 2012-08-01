@@ -27,7 +27,8 @@ extern __thread volatile int cm_ipi_intr_handler_cnt;
 #define CM_REPLAY_INT 0x80000000
 #define CM_CPU_INIT 0xfffffffe
 #define CM_CPU_SIPI 0xfffffffd
-#define CM_CPU_TLBFLUSH 0xfffffffc
+#define CM_CPU_EXIT 0xfffffffc
+//#define CM_CPU_TLBFLUSH 0xfffffffc
 
 extern int cm_run_mode;
 int cm_get_run_mode(void);

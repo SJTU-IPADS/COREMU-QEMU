@@ -79,6 +79,7 @@ static void cm_exit_intr_handler(void *opaque)
 #ifdef CONFIG_REPLAY
     cm_print_replay_info();
 #endif
+    cm_record_intr(CM_CPU_EXIT, -1L);
     pthread_exit(NULL);
 }
 
