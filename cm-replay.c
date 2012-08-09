@@ -189,18 +189,19 @@ int cm_replay_##name(type *arg) \
     GEN_REPLAY_FUNC(name, type, log, fmt)
 
 /* Page fault recording */
-__thread int64_t next_pgflt_memop = -1L;
+__thread cm_pgflt_t next_pgflt = { .memop = -1L, .addr = -1L };
 
-void cm_record_pgflt(memop_t arg)
+void cm_record_pgflt(unsigned long addr)
 {
-    if (fwrite(&arg, sizeof(arg), 1, cm_log[PGFLT]) != 1) {
+    cm_pgflt_t pgflt = { .memop = memop, .addr = addr };
+    if (fwrite(&pgflt, sizeof(pgflt), 1, cm_log[PGFLT]) != 1) {
         fprintf(stderr, "core %d write log error", cm_coreid);
     }
 }
 // Should not exit when no more log
 int cm_replay_pgflt(void)
 {
-    if (fread(&next_pgflt_memop, sizeof(next_pgflt_memop), 1, cm_log[PGFLT]) != 1) {
+    if (fread(&next_pgflt, sizeof(next_pgflt), 1, cm_log[PGFLT]) != 1) {
         return 0;
     }
     return 1;

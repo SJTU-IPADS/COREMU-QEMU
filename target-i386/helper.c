@@ -537,9 +537,9 @@ int cpu_x86_handle_mmu_fault(CPUX86State *env, target_ulong addr,
 # endif
 
 #ifdef CONFIG_REPLAY
-static inline int should_inject_pgflt(void)
+static inline int should_inject_pgflt(target_ulong addr)
 {
-    return memop == next_pgflt_memop;
+    return memop == next_pgflt.memop && addr == next_pgflt.addr;
 }
 #endif
 
@@ -569,7 +569,8 @@ int cpu_x86_handle_mmu_fault(CPUX86State *env, target_ulong addr,
     int retrying = 0;
     static __thread char no_more_pgflt = 0;
     // Inject page fault at the correct place.
-    if (should_inject_pgflt()) {
+    if (should_inject_pgflt(addr)) {
+        /*coremu_debug("core %d injecting pgflt tb_cnt %ld tb_cnt", cm_coreid, cm_tb_cnt);*/
         error_code = 0;
         goto do_fault;
     }
@@ -846,20 +847,23 @@ retry:
 #ifdef CONFIG_REPLAY
         if (no_more_pgflt) {
             printf("core %d no more pgflt log\n", cm_coreid);
-            pthread_exit(NULL);
+            fflush(stdout);
+            /*pthread_exit(NULL);*/
         }
         if (cm_run_mode == CM_RUNMODE_RECORD) {
-            cm_record_pgflt(memop);
+            cm_record_pgflt(addr);
         } else if (retrying) {
             goto retry;
         } else { // Replay
-            if (should_inject_pgflt()) {
+            if (should_inject_pgflt(addr)) {
                 // read next pgflt memory cnt
                 if (! cm_replay_pgflt()) {
                    no_more_pgflt = 1;
                 }
             } else {
                 retrying = 1;
+                coremu_debug("core %d retry eip %lx tb_cnt %ld memop %ld", cm_coreid,
+                        env->eip, cm_tb_cnt, memop);
                 goto retry;
             }
         }

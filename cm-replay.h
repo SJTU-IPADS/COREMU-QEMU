@@ -61,9 +61,17 @@ GEN_HEADER(in, uint32_t);
 GEN_HEADER(mmio, uint32_t);
 GEN_HEADER(rdtsc, uint64_t);
 
-void cm_record_pgflt(int64_t);
+// Recording only memop is not enough, during code translation, multiple address
+// are being accessed, if it goes cross a page, then maybe only the second page
+// causes a page fault
+typedef struct {
+    unsigned long addr;
+    long memop;
+} cm_pgflt_t;
+
+void cm_record_pgflt(unsigned long addr);
 int cm_replay_pgflt(void);
-extern __thread int64_t next_pgflt_memop; // when to inject next interrupt
+extern __thread cm_pgflt_t next_pgflt; // when to inject next interrupt
 
 extern volatile uint64_t cm_dma_cnt;
 void cm_record_disk_dma(void);

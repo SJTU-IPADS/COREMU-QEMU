@@ -151,8 +151,8 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
 #ifdef CONFIG_REPLAY
 #ifdef CHECK_MEMOP_CNT
     if (memop != prev_memcnt) {
-        coremu_debug("prev_memcnt: %ld memop = %ld",
-                     prev_memcnt, cm_coreid, memop);
+        coremu_debug("core %d prev_memcnt: %ld memop = %ld",
+                     cm_coreid, prev_memcnt, memop);
         exit(1);
     }
 #endif
@@ -786,8 +786,8 @@ int cpu_exec(CPUState *env1)
                     cm_is_in_tc = 1;
 #  ifdef CHECK_MEMOP_CNT
                     if (memop != prev_memcnt) {
-                        coremu_debug("prev_memcnt: %ld memop = %ld",
-                                     prev_memcnt, cm_coreid, memop);
+                        coremu_debug("core %d prev_memcnt %ld memop %ld",
+                                     cm_coreid, prev_memcnt, memop);
                         exit(1);
                     }
 #  endif
