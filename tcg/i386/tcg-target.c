@@ -1502,7 +1502,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
 
 /*
  *static void cm_tb_break_link(void) {
- *    if (cm_tb_exec_cnt[cm_coreid] == cm_inject_exec_cnt)
+ *    if (cm_tb_cnt == cm_inject_exec_cnt)
  *        coremu_debug("Break link for interrupt");
  *}
  */
@@ -1510,11 +1510,11 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
 /*
  *static void cm_tb_cont_link(void) {
  *    [>printf("cont link\n");<]
- *    coremu_assert(cm_tb_exec_cnt[cm_coreid] != cm_inject_exec_cnt,
+ *    coremu_assert(cm_tb_cnt != cm_inject_exec_cnt,
  *                  "eip = %p, "
  *                  "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, ",
  *                  (void *)(long)cpu_single_env->eip,
- *                  cm_tb_exec_cnt[cm_coreid],
+ *                  cm_tb_cnt,
  *                  cm_inject_exec_cnt);
  *}
  */
@@ -1547,7 +1547,7 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
                 exit_label = gen_new_label();
                 /* Check if we need to exit by comparing recorded and current TB exec count. */
                 tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RAX,
-                             (tcg_target_long)&cm_tb_exec_cnt[cm_coreid]);
+                             (tcg_target_long)&cm_tb_cnt);
                 tcg_out_ld(s, TCG_TYPE_I64, TCG_REG_RAX, TCG_REG_RAX, 0);
 
                 tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RBX,

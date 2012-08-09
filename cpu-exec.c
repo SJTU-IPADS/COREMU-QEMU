@@ -318,9 +318,9 @@ int cpu_exec(CPUState *env1)
          * interrupt. This will cause problem if the WFIed core is waken up by
          * hardware interrupt (like timer interrupt) which will not be generated
          * during replay. */
-        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_tb_exec_cnt[cm_coreid] + 2 >= cm_inject_intr.exec_cnt) {
+        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_tb_cnt + 2 >= cm_inject_intr.exec_cnt) {
 #else
-        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_tb_exec_cnt[cm_coreid] == cm_inject_intr.exec_cnt) {
+        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_tb_cnt == cm_inject_intr.exec_cnt) {
 #endif
             /* Continue to execute. */
         } else
@@ -704,9 +704,9 @@ int cpu_exec(CPUState *env1)
                         /* The assertion only works when the eip is correct. It
                          * need to be updated in cm_replay_assert_pc. */
                         coremu_assert(env->ENVPC == inject_eip,
-                                      "abort: cm_coreid = %u, eip = %p, inject_eip = %p, cm_tb_exec_cnt = %lu",
+                                      "abort: cm_coreid = %u, eip = %p, inject_eip = %p, cm_tb_cnt = %lu",
                                       cm_coreid, (void *)(long)env->ENVPC,
-                                      (void *)cm_inject_intr.eip, cm_tb_exec_cnt[cm_coreid]);
+                                      (void *)cm_inject_intr.eip, cm_tb_cnt);
 #endif
 #ifdef TARGET_I386
                         do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);

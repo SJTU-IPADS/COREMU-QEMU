@@ -52,14 +52,16 @@ int cm_run_mode;
 /* Use this to get cpu specific info. */
 __thread cpuid_t cm_coreid;
 
-/* Array containing tb execution count for each cpu. */
-uint64_t *cm_tb_exec_cnt;
+/* tb execution count */
+__thread uint64_t cm_tb_cnt;
+/* Array containing address of tb execution count for each cpu. */
+uint64_t **cm_tb_cnt_arr;
 /* How many times the ipi interrupt handler is called. */
 __thread volatile int cm_ipi_intr_handler_cnt;
 
 /* Replaying interrupt. */
 
-/* Inject interrupt when cm_tb_exec_cnt reaches exec_cnt */
+/* Inject interrupt when cm_tb_cnt reaches exec_cnt */
 __thread IntrLog cm_inject_intr;
 
 #define LOG_INTR_FMT "%x %lu %p\n"
@@ -78,15 +80,15 @@ void cm_record_intr(int intno, long eip)
     }
 #ifdef DEBUG_REPLAY
     fprintf(cm_log[INTR], LOG_INTR_FMT, intno,
-            cm_tb_exec_cnt[cm_coreid], (void *)(long)eip);
+            cm_tb_cnt, (void *)(long)eip);
 #elif defined(REPLAY_LOGBUF)
     IntrLog *log = coremu_logbuf_next_entry(&(cm_log_buf[cm_coreid][INTR]), sizeof(*log));
     log->intno = intno;
-    log->exec_cnt = cm_tb_exec_cnt[cm_coreid];
+    log->exec_cnt = cm_tb_cnt;
 #else
     IntrLog log;
     log.intno = intno;
-    log.exec_cnt = cm_tb_exec_cnt[cm_coreid];
+    log.exec_cnt = cm_tb_cnt;
     if (fwrite(&log, sizeof(log), 1, cm_log[INTR]) != 1) {
         coremu_print("intr log record error");
     }
@@ -115,7 +117,7 @@ int cm_replay_intr(void)
     int intno;
 
     /* We should only wait when it needs to inject an interrupt. */
-    if (cm_tb_exec_cnt[cm_coreid] == cm_inject_intr.exec_cnt) {
+    if (cm_tb_cnt == cm_inject_intr.exec_cnt) {
 #ifdef TARGET_I386
         /* Wait the init and sipi interrupt handler to be called. */
         if (cm_inject_intr.intno == CM_CPU_INIT || cm_inject_intr.intno == CM_CPU_SIPI) {
@@ -132,7 +134,7 @@ int cm_replay_intr(void)
         /*
          *coremu_debug("coreid %hu injecting interrupt %d at cm_tb_exec_cnt = %lu with "
          *             "cm_inject_intr_handler_cnt = %lu",
-         *             cm_coreid, cm_inject_intno, cm_tb_exec_cnt[cm_coreid], cm_inject_intr_handler_cnt);
+         *             cm_coreid, cm_inject_intno, cm_tb_cnt, cm_inject_intr_handler_cnt);
          */
         intno = cm_inject_intr.intno;
         cm_read_intr_log(); /* Read next log entry. */
@@ -276,14 +278,14 @@ static void cm_wait_disk_dma(void)
     /* We only need to wait for DMA operation to complete if current executed tb
      * is more then when DMA is done during recording. */
     /*
-     *if (cm_tb_exec_cnt[cm_coreid] < cm_dma_done_exec_cnt)
+     *if (cm_tb_cnt < cm_dma_done_exec_cnt)
      *    return;
      */
 
     /*
      *coremu_debug("CPU %d waiting DMA cnt to be %lu, cm_tb_exec_cnt = %lu "
      *             "cm_dma_done_exec_cnt = %lu", cm_coreid,
-     *             cm_next_dma_cnt, cm_tb_exec_cnt[cm_coreid], cm_dma_done_exec_cnt);
+     *             cm_next_dma_cnt, cm_tb_cnt, cm_dma_done_exec_cnt);
      */
     cm_read_dma_log();
     /*
@@ -294,7 +296,7 @@ static void cm_wait_disk_dma(void)
         /* Waiting for DMA operation to complete. */
         pthread_yield();
     }
-    /*coremu_debug("DMA done, cm_tb_exec_cnt = %lu", cm_tb_exec_cnt[cm_coreid]);*/
+    /*coremu_debug("DMA done, cm_tb_exec_cnt = %lu", cm_tb_cnt);*/
     /*cm_next_dma_cnt = cm_dma_cnt + 1;*/
 }
 #endif
@@ -305,7 +307,7 @@ void cm_replay_init(void)
 {
     cm_log_init();
     /* Setup CPU local variable */
-    cm_tb_exec_cnt = calloc(smp_cpus, sizeof(uint64_t));
+    cm_tb_cnt_arr = calloc(smp_cpus, sizeof(*cm_tb_cnt_arr));
 
     /* For hardware thread, set cm_coreid to -1. */
     cm_coreid = -1;
@@ -320,6 +322,8 @@ void cm_replay_core_init(void)
     cm_log_init_core();
     if (cm_run_mode == CM_RUNMODE_NORMAL)
         return;
+
+    cm_tb_cnt_arr[cm_coreid] = &cm_tb_cnt;
 
     if (cm_run_mode == CM_RUNMODE_REPLAY) {
         cm_read_intr_log();
@@ -341,7 +345,7 @@ void cm_record_all_exec_cnt(void)
     for (i = 0; i < smp_cpus; i++) {
         if (i != cm_coreid) {
             fprintf(cm_log_allpc[cm_coreid], LOG_ALL_EXEC_CNT_FMT, i,
-                    cm_tb_exec_cnt[i]);
+                    *cm_tb_cnt_arr[i]);
         }
     }
 }
@@ -356,7 +360,7 @@ void cm_replay_all_exec_cnt(void)
             continue;
         if (fscanf(cm_log_allpc[cm_coreid], LOG_ALL_EXEC_CNT_FMT, &coreid,
                    &wait_exec_cnt) != EOF) {
-            while (cm_tb_exec_cnt[coreid] < wait_exec_cnt)
+            while (*cm_tb_cnt_arr[coreid] < wait_exec_cnt)
                 sched_yield();
             /*
              *coremu_debug("waited for %hu reach tb_exec_cnt %lu", coreid,
@@ -417,7 +421,7 @@ void cm_replay_assert_pc(uint64_t eip)
     case CM_RUNMODE_REPLAY:
         if (fread(&l, sizeof(l), 1, cm_log[PC]) == EOF) {
             coremu_debug("no more pc log, cm_coreid = %u, cm_tb_exec_cnt = %lu", cm_coreid,
-                   cm_tb_exec_cnt[cm_coreid]);
+                   cm_tb_cnt);
             cm_print_replay_info();
             pthread_exit(NULL);
         }
@@ -442,7 +446,7 @@ void cm_replay_assert_pc(uint64_t eip)
                     (long)eip,
                     (long)next_eip,
                     memop, recorded_memop,
-                    cm_tb_exec_cnt[cm_coreid],
+                    cm_tb_cnt,
                     cm_inject_intr.exec_cnt,
                     cm_ioport_read_cnt,
                     cm_mmio_read_cnt);
@@ -476,7 +480,7 @@ void cm_replay_assert_##name(type cur) \
                       "cm_mmio_read_cnt = %lu", \
                       (long)cur, \
                       (long)recorded, \
-                      cm_tb_exec_cnt[cm_coreid], \
+                      cm_tb_cnt, \
                       cm_inject_intr.exec_cnt, \
                       cm_ioport_read_cnt, \
                       cm_mmio_read_cnt); \
@@ -557,15 +561,15 @@ void cm_replay_assert_gencode(uint64_t eip)
         if (fscanf(cm_log[GENCODE], GENCODE_LOG_FMT, &recorded_exec_cnt,
                    &recorded_eip) == EOF) {
             coremu_debug("no more gencode log, cm_coreid = %u, cm_tb_exec_cnt = %lu", cm_coreid,
-                   cm_tb_exec_cnt[cm_coreid]);
+                   cm_tb_cnt);
             cm_print_replay_info();
             pthread_exit(NULL);
         }
         /*
-         *if ((recorded_exec_cnt != cm_tb_exec_cnt[cm_coreid])
+         *if ((recorded_exec_cnt != cm_tb_cnt)
          *        || (recorded_eip != eip)) {
          */
-        if (recorded_exec_cnt != cm_tb_exec_cnt[cm_coreid]) {
+        if (recorded_exec_cnt != cm_tb_cnt) {
             coremu_debug("diff in gencode");
             coremu_debug(
                       "cm_coreid = %u, eip = %0lx, recorded eip = %0lx, "
@@ -574,7 +578,7 @@ void cm_replay_assert_gencode(uint64_t eip)
                       cm_coreid,
                       (long)eip,
                       (long)recorded_eip,
-                      cm_tb_exec_cnt[cm_coreid],
+                      cm_tb_cnt,
                       recorded_exec_cnt,
                       *memop_cnt);
             /*pthread_exit(NULL);*/
@@ -582,7 +586,7 @@ void cm_replay_assert_gencode(uint64_t eip)
         break;
     case CM_RUNMODE_RECORD:
         fprintf(cm_log[GENCODE], GENCODE_LOG_FMT,
-                cm_tb_exec_cnt[cm_coreid], eip);
+                cm_tb_cnt, eip);
         break;
     }
 }
@@ -600,11 +604,11 @@ void cm_replay_assert_tlbfill(uint64_t addr)
         if (fscanf(cm_log[TLBFILL], TLBFILL_LOG_FMT, &recorded_exec_cnt,
                    &recorded_addr, &recorded_memop) == EOF) {
             coremu_debug("no more tlbfill log, cm_coreid = %u, cm_tb_exec_cnt = %lu", cm_coreid,
-                   cm_tb_exec_cnt[cm_coreid]);
+                   cm_tb_cnt);
             cm_print_replay_info();
             pthread_exit(NULL);
         }
-        if ((recorded_exec_cnt != cm_tb_exec_cnt[cm_coreid])
+        if ((recorded_exec_cnt != cm_tb_cnt)
                 || (recorded_memop != *memop)) {
             coremu_debug("diff in tlbfill");
             coremu_debug(
@@ -612,7 +616,7 @@ void cm_replay_assert_tlbfill(uint64_t addr)
                       "cm_tb_exec_cnt = %lu, recorded_exec_cnt = %lu, "
                       "memop = %u, recorded_memop = %u",
                       cm_coreid,
-                      cm_tb_exec_cnt[cm_coreid],
+                      cm_tb_cnt,
                       recorded_exec_cnt,
                       *memop_cnt,
                       recorded_memop);
@@ -621,7 +625,7 @@ void cm_replay_assert_tlbfill(uint64_t addr)
         break;
     case CM_RUNMODE_RECORD:
         fprintf(cm_log[TLBFILL], TLBFILL_LOG_FMT,
-                cm_tb_exec_cnt[cm_coreid], addr, *memop);
+                cm_tb_cnt, addr, *memop);
         break;
     }
 }
@@ -632,7 +636,7 @@ void cm_print_replay_info(void)
     coremu_debug("core_id = %u, eip = %lx, cm_tb_exec_cnt = %lu, memop = %u",
                  cm_coreid,
                  (uint64_t)cpu_single_env->ENVPC,
-                 cm_tb_exec_cnt[cm_coreid],
+                 cm_tb_cnt,
                  (int)memop);
 
 #ifdef STAT_RETRY_CNT
