@@ -15,6 +15,7 @@ enum {
     RDTSC,
     MMIO,
     DISK_DMA,
+    PGFLT,
 #ifdef ASSERT_REPLAY_PC
     PC,
 #endif

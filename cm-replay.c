@@ -155,7 +155,7 @@ void cm_record_##name(type arg) \
 int cm_replay_##name(type *arg) \
 { \
     if (fscanf(log, fmt, arg) == EOF) { \
-        coremu_debug("no more log"); \
+        coremu_debug("core %d no more "#name"log", cm_coreid); \
         cm_print_replay_info(); \
         exit(0); \
     } \
@@ -168,7 +168,7 @@ int cm_replay_##name(type *arg) \
 void cm_record_##name(type arg) \
 { \
     if (fwrite(&arg, sizeof(type), 1, log) != 1) { \
-        fprintf(stderr, "write log error"); \
+        fprintf(stderr, "core %d write log error", cm_coreid); \
     } \
 }
 
@@ -176,7 +176,7 @@ void cm_record_##name(type arg) \
 int cm_replay_##name(type *arg) \
 { \
     if (fread(arg, sizeof(type), 1, log) != 1) { \
-        coremu_debug("no more log"); \
+        coremu_debug("core %d no more "#name"log", cm_coreid); \
         cm_print_replay_info(); \
         exit(0); \
     }\
@@ -187,6 +187,24 @@ int cm_replay_##name(type *arg) \
 #define GEN_FUNC(name, type, log, fmt) \
     GEN_RECORD_FUNC(name, type, log, fmt) \
     GEN_REPLAY_FUNC(name, type, log, fmt)
+
+/* Page fault recording */
+__thread int64_t next_pgflt_memop = -1L;
+
+void cm_record_pgflt(memop_t arg)
+{
+    if (fwrite(&arg, sizeof(arg), 1, cm_log[PGFLT]) != 1) {
+        fprintf(stderr, "core %d write log error", cm_coreid);
+    }
+}
+// Should not exit when no more log
+int cm_replay_pgflt(void)
+{
+    if (fread(&next_pgflt_memop, sizeof(next_pgflt_memop), 1, cm_log[PGFLT]) != 1) {
+        return 0;
+    }
+    return 1;
+}
 
 /* IPI hander cnt */
 #define IPI_LOG_FMT "%x\n"
@@ -327,6 +345,7 @@ void cm_replay_core_init(void)
 
     if (cm_run_mode == CM_RUNMODE_REPLAY) {
         cm_read_intr_log();
+        cm_replay_pgflt();
     }
 
 #ifdef CONFIG_MEM_ORDER

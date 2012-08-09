@@ -14,6 +14,7 @@ static const char *cm_log_name[] = {
     "rdtsc",
     "mmio",
     "dma",
+    "pgflt",
 #ifdef ASSERT_REPLAY_PC
     "pc",
 #endif

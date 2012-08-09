@@ -61,6 +61,10 @@ GEN_HEADER(in, uint32_t);
 GEN_HEADER(mmio, uint32_t);
 GEN_HEADER(rdtsc, uint64_t);
 
+void cm_record_pgflt(int64_t);
+int cm_replay_pgflt(void);
+extern __thread int64_t next_pgflt_memop; // when to inject next interrupt
+
 extern volatile uint64_t cm_dma_cnt;
 void cm_record_disk_dma(void);
 

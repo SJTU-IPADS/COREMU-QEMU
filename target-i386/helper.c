@@ -22,6 +22,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include <signal.h>
+#include <pthread.h>
 
 #include "cpu.h"
 #include "exec-all.h"
@@ -535,6 +536,13 @@ int cpu_x86_handle_mmu_fault(CPUX86State *env, target_ulong addr,
 # define PHYS_ADDR_MASK 0xffffff000LL
 # endif
 
+#ifdef CONFIG_REPLAY
+static inline int should_inject_pgflt(void)
+{
+    return memop == next_pgflt_memop;
+}
+#endif
+
 /* return value:
    -1 = cannot handle fault
    0  = nothing more to do
@@ -557,6 +565,17 @@ int cpu_x86_handle_mmu_fault(CPUX86State *env, target_ulong addr,
 #endif
     is_write = is_write1 & 1;
 
+#ifdef CONFIG_REPLAY
+    int retrying = 0;
+    static __thread char no_more_pgflt = 0;
+    // Inject page fault at the correct place.
+    if (should_inject_pgflt()) {
+        error_code = 0;
+        goto do_fault;
+    }
+#endif
+
+retry:
     if (!(env->cr[0] & CR0_PG_MASK)) {
         pte = addr;
         virt_addr = addr & TARGET_PAGE_MASK;
@@ -824,6 +843,27 @@ int cpu_x86_handle_mmu_fault(CPUX86State *env, target_ulong addr,
                  addr);
     } else {
         env->cr[2] = addr;
+#ifdef CONFIG_REPLAY
+        if (no_more_pgflt) {
+            printf("core %d no more pgflt log\n", cm_coreid);
+            pthread_exit(NULL);
+        }
+        if (cm_run_mode == CM_RUNMODE_RECORD) {
+            cm_record_pgflt(memop);
+        } else if (retrying) {
+            goto retry;
+        } else { // Replay
+            if (should_inject_pgflt()) {
+                // read next pgflt memory cnt
+                if (! cm_replay_pgflt()) {
+                   no_more_pgflt = 1;
+                }
+            } else {
+                retrying = 1;
+                goto retry;
+            }
+        }
+#endif
     }
     env->error_code = error_code;
     env->exception_index = EXCP0E_PAGE;
