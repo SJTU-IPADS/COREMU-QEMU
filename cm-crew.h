@@ -11,9 +11,6 @@
 #include <pthread.h>
 #include <stdbool.h>
 
-//#define DEBUG_COREMU
-#include "coremu-debug.h"
-
 //#define DEBUG_MEMCNT
 #define WRITE_RECORDING_AS_FUNC
 #define FAST_MEMOBJID
@@ -172,7 +169,7 @@ static inline version_t read_acc_version(void)
 static inline void print_acc_info(version_t version, objid_t objid, const char *acc)
 {
     if (48 <= memop && memop <= 50) {
-        coremu_debug("core %d %s memop %ld obj %d @%ld", (int)cm_coreid, acc,
+        printf("core %d %s memop %ld obj %d @%ld\n", (int)cm_coreid, acc,
                 memop, objid, version);
         //coremu_backtrace();
     }
@@ -182,7 +179,7 @@ static inline void check_acc_version(objid_t objid, const char *acc)
 {
     version_t ver = read_acc_version();
     if (ver != obj_version[objid]) {
-        coremu_debug("core %d %s memop %ld obj %d recorded version = %ld, actual = %ld\n",
+        printf("core %d %s memop %ld obj %d recorded version = %ld, actual = %ld\n",
                 cm_coreid, acc, memop, objid, ver, obj_version[objid]);
         pthread_exit(NULL);
     }
@@ -290,7 +287,7 @@ static inline void cm_add_contending_memobj(memobj_t *mo)
         CONTENDING_CORE_IDX_MASK;
     crew_g.contending.core[owner][idx] = cm_coreid;
 
-    coremu_debug("core %d add contending memobj %ld %p owned by %d with idx %d", cm_coreid,
+    printf("core %d add contending memobj %ld %p owned by %d with idx %d\n", cm_coreid,
             mo -  memobj, mo, owner, idx);
 }
 
@@ -439,7 +436,7 @@ static inline void wait_object_version(objid_t objid)
         }
 
         if (obj_version[objid] != wait_version.version) {
-            coremu_debug("core %d memop %ld obj %d wait @%ld actual @%ld", (int)cm_coreid,
+            printf("core %d memop %ld obj %d wait @%ld actual @%ld\n", (int)cm_coreid,
                     memop, objid, wait_version.version, obj_version[objid]);
             assert(0);
         }

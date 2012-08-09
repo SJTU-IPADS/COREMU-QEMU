@@ -14,6 +14,9 @@
 #include "cm-crew.h"
 #include "cm-replay.h"
 
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 extern int smp_cpus;
 
 __thread int cm_is_in_tc;
@@ -348,7 +351,7 @@ void cm_assert_not_in_tc(void)
              "memop = %u",
              cm_coreid,
              (long)cpu_single_env->ENVPC,
-             cm_tb_exec_cnt[cm_coreid],
+             cm_tb_cnt,
              (int)memop);
         pthread_exit(NULL);
     }
