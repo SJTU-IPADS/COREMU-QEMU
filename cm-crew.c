@@ -172,6 +172,10 @@ void cm_crew_core_init(void)
         for (; i < n_memobj; ++i) {
             // memop -1 means there's no previous memop
             last_memobj[i].memop = -1;
+#ifdef LAZY_LOCK_RELEASE
+            // defaults to should lazy release
+            last_memobj[i].contend_memop = -LAZY_RELEASE_MEMOP_DIFF;
+#endif
         }
 #ifdef LAZY_LOCK_RELEASE
         memset(crew.contending.core, -1, sizeof(crew.contending.core));

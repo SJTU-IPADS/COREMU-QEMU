@@ -49,6 +49,7 @@ typedef struct {
     /* field order is important */
     version_t version;
     memop_t memop;
+    memop_t contend_memop;
 } last_memobj_t;
 
 extern __thread int cm_is_in_tc;
@@ -330,19 +331,26 @@ static inline void cm_add_locked_memobj(memobj_t *mo)
     mo->owner = cm_coreid;
 }
 
-static inline void cm_handle_contention(memobj_t *mo)
+static inline void cm_handle_contention(memobj_t *mo, last_memobj_t *last)
 {
+    last->contend_memop = memop;
     cm_release_contending_memobj();
     /* It's possible the owner changes between successive calls,
      * cm_add_contending_memobj will add the memobj if it's not added. */
     cm_add_contending_memobj(mo);
 }
-#endif
+
+#define LAZY_RELEASE_MEMOP_DIFF 5
+static inline int should_lazy_release(last_memobj_t *last)
+{
+    return (memop - last->contend_memop) >= LAZY_RELEASE_MEMOP_DIFF;
+}
+#endif // LAZY_LOCK_RELEASE
 
 /* Inline function is slower than directly putting the code in. */
 #ifdef WRITE_RECORDING_AS_FUNC
 #define __inline__ inline __attribute__((always_inline))
-static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo)
+static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo, last_memobj_t *last)
 {
 #ifdef NO_LOCK
 #elif defined(USE_RWLOCK)
@@ -352,7 +360,7 @@ static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo)
     while (coremu_spin_trylock(&mo->write_lock) == BUSY) {
         /* When failed to get the spinlock, the owner may have changed, so we
          * need to add the memobj to the owner's contending array again. */
-        cm_handle_contention(mo);
+        cm_handle_contention(mo, last);
     }
 #  else // LAZY_LOCK_RELEASE
     coremu_spin_lock(&mo->write_lock);
@@ -364,26 +372,33 @@ static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo)
     mo->version++;
     return version;
 }
-#define cm_crew_record_start_write(mo, version) \
-    version = __cm_crew_record_start_write(mo)
+#define cm_crew_record_start_write(mo, last, version) \
+    version = __cm_crew_record_start_write(mo, last)
 
-static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid, version_t version)
+static __inline__ void cm_crew_record_end_write(memobj_t *mo, last_memobj_t *last,
+        objid_t objid, version_t version)
 {
 #ifdef NO_LOCK
+    // do nothing
 #elif defined(USE_RWLOCK)
     /* rwlock uses atoimc instructions, so no extra barrier needed. */
     tbb_end_write(&mo->rwlock);
 #else
 #  ifdef LAZY_LOCK_RELEASE
-    cm_release_contending_memobj();
-    cm_add_locked_memobj(mo);
+    if (should_lazy_release(last)) {
+        cm_release_contending_memobj();
+        cm_add_locked_memobj(mo);
+    } else {
+        // release lock as usual
+        mo->version++;
+        coremu_spin_unlock(&mo->write_lock);
+    }
 #  else
     mo->version++;
     coremu_spin_unlock(&mo->write_lock);
 #  endif // LAZY_LOCK_RELEASE
 #endif
 
-    last_memobj_t *last = &last_memobj[objid];
     if (last->version != version) {
         log_order(objid, version, last);
     }
@@ -522,12 +537,14 @@ void cm_assert_not_in_tc(void);
 #define CM_START_ATOMIC_INSN(addr) \
     objid_t __objid = memobj_id((void *)addr); \
     memobj_t *__mo = &memobj[__objid]; \
-    version_t __version = cm_start_atomic_insn(__mo, __objid)
+    last_memobj_t *__last = &last_memobj[__objid]; \
+    version_t __version = cm_start_atomic_insn(__mo, __last, __objid)
 
 #define CM_END_ATOMIC_INSN(value) \
-    cm_end_atomic_insn(__mo, __objid, __version, value)
+    cm_end_atomic_insn(__mo, __last, __objid, __version, value)
 
-static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
+static inline version_t cm_start_atomic_insn(memobj_t *mo, last_memobj_t *last,
+        objid_t objid)
 {
     version_t version;
 
@@ -542,7 +559,7 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
             break;
         }
 #endif
-        cm_crew_record_start_write(mo, version);
+        cm_crew_record_start_write(mo, last, version);
         break;
     case CM_RUNMODE_REPLAY:
         wait_object_version(objid);
@@ -555,18 +572,18 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, objid_t objid)
     return version;
 }
 
-static inline void cm_end_atomic_insn(memobj_t *mo, objid_t objid,
-        version_t version, uint64_t val)
+static inline void cm_end_atomic_insn(memobj_t *mo, last_memobj_t *last,
+        objid_t objid, version_t version, uint64_t val)
 {
     (void)val;
 
     if (cm_run_mode == CM_RUNMODE_RECORD) {
 #ifdef LAZY_LOCK_RELEASE
         if (version != -1) {
-            cm_crew_record_end_write(mo, objid, version);
+            cm_crew_record_end_write(mo, last, objid, version);
         }
 #else
-        cm_crew_record_end_write(mo, objid, version);
+        cm_crew_record_end_write(mo, last, objid, version);
 #endif
     } else {
 #ifdef DEBUG_MEMCNT
