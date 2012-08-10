@@ -1168,6 +1168,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 
     /* TLB Hit.  */
 #ifdef CONFIG_MEM_ORDER
+    (void)tcg_out_qemu_ld_direct;
     /* rdi contains the address */
     tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
 
@@ -1388,6 +1389,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
 #ifdef CONFIG_MEM_ORDER
     /* Host address is in rdi after calling tcg_out_tlb_load, we need also
      * pass the write value, put it in the 3rd arg register. */
+    (void)tcg_out_qemu_st_direct;
     tcg_out_mov(s, (opc == 3 ? TCG_TYPE_I64 : TCG_TYPE_I32),
             tcg_target_call_iarg_regs[2], data_reg);
     tcg_out_calli(s, (tcg_target_long)cm_crew_write_func[cm_run_mode][s_bits & 3]);
@@ -1546,6 +1548,12 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
                  * next tb. */
                 tcg_out_brcond64(s, TCG_COND_EQ, TCG_REG_RAX, TCG_REG_RBX, 0, exit_label, 1);
             }
+#if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
+            else { // record
+                // release contending before jumping to next tb memobj to avoid dead lock
+                tcg_out_calli(s, (tcg_target_long)cm_release_contending_memobj);
+            }
+#endif // CONFIG_MEM_ORDER && LAZY_LOCK_RELEASE
 #endif
             /*tcg_out_calli(s, (tcg_target_long)cm_tb_cont_link);*/
             /* direct jump method */

@@ -34,9 +34,9 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     memobj_t *mo = &memobj[objid];
 
 #ifdef LAZY_LOCK_RELEASE
-    /* XXX Call this at basic block boundary later. This is necessary to avoid
-     * deadlock. */
-    cm_release_contending_memobj();
+    // release contending memobj at basic block boundary to avoid fast path
+    // overhead
+    //cm_release_contending_memobj();
     /* If lock already hold, just do the read. */
     if (mo->owner == cm_coreid) {
         assert(mo->write_lock);
