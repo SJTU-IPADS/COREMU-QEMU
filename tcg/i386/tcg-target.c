@@ -1552,22 +1552,26 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
             else { // record
                 // XXX release contending before jumping to next tb memobj to avoid dead lock
                 // may be should first check, then call actual releasing function
-                exit_label = gen_new_label();
+
                 // Check if we need to release contending memory obj
+                // load core_start_idx into rax
                 tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RAX,
                              (tcg_target_long)&crew.contending.core_start_idx);
                 tcg_out_ld(s, TCG_TYPE_I64, TCG_REG_RAX, TCG_REG_RAX, 0);
 
+                // load core_idx address into rax
                 tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RBX,
                              (tcg_target_long)&crew.contending.core_idx);
-                tcg_out_ld(s, TCG_TYPE_I64, TCG_REG_RBX, TCG_REG_RBX, 0);
+                // cmp 0(rbx), rax
+                tcg_out_modrm_offset(s, OPC_CMP_GvEv + rexw, TCG_REG_RAX, TCG_REG_RBX, 0);
 
-                // if eqaul, does not call function
-                tcg_out_brcond64(s, TCG_COND_EQ, TCG_REG_RAX, TCG_REG_RBX, 0, exit_label, 1);
+                // jump if equal
+                tcg_out8(s, OPC_JCC_short + JCC_JE);
+                uint8_t *label_ptr = s->code_ptr;
+                s->code_ptr++;
 
                 tcg_out_calli(s, (tcg_target_long)__cm_release_contending_memobj);
-
-                tcg_out_label(s, exit_label, (long)s->code_ptr);
+                *label_ptr = s->code_ptr - label_ptr - 1;
             }
 #endif // CONFIG_MEM_ORDER && LAZY_LOCK_RELEASE
 #endif
