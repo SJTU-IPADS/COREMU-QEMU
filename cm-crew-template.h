@@ -34,8 +34,8 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     memobj_t *mo = &memobj[objid];
 
 #ifdef LAZY_LOCK_RELEASE
-    // release contending memobj at basic block boundary to avoid fast path
-    // overhead
+    // XXX Release contending memobj at basic block boundary to avoid fast path
+    // overhead. But this may make high contention application perform worse.
     //cm_release_contending_memobj();
     /* If lock already hold, just do the read. */
     if (mo->owner == cm_coreid) {

@@ -73,6 +73,7 @@ void cm_receive_intr(void)
 
 static void cm_exit_intr_handler(void *opaque)
 {
+    assert(!cm_is_in_tc);
     coremu_debug("exiting");
     cm_replay_flush_log(cm_coreid);
     cm_crew_core_finish();
