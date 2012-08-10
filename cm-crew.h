@@ -414,6 +414,33 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, last_memobj_t *las
 
 #else /* WRITE_RECORDING_AS_FUNC */
 
+#  ifdef LAZY_LOCK_RELEASE
+
+#define cm_crew_record_start_write(mo, last, version) \
+    while (coremu_spin_trylock(&mo->write_lock) == BUSY) { \
+        cm_handle_contention(mo, last); \
+    } \
+    version = mo->version; \
+    barrier(); \
+    mo->version++;
+
+#define cm_crew_record_end_write(mo, last, objid, version) \
+    if (should_lazy_release(last)) { \
+        cm_release_contending_memobj(); \
+        cm_add_locked_memobj(mo); \
+    } else { \
+        mo->version++; \
+        coremu_spin_unlock(&mo->write_lock); \
+    } \
+    if (last->version != version) { \
+        log_order(objid, version, last); \
+    } \
+    last->memop = memop; \
+    last->version = version + 2; \
+    memop++;
+
+#  else // LAZY_LOCK_RELEASE
+
 #define cm_crew_record_start_write(mo, version) \
     coremu_spin_lock(&mo->write_lock); \
     version = mo->version; \
@@ -431,7 +458,9 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, last_memobj_t *las
     last->version = version + 2; \
     memop++;
 
-#endif
+#  endif // LAZY_LOCK_RELEASE
+
+#endif // WRITE_RECORDING_AS_FUNC
 
 /**********************************************************************
  * Replay
