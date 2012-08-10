@@ -12,7 +12,7 @@
 #include <stdbool.h>
 
 //#define DEBUG_MEMCNT
-#define WRITE_RECORDING_AS_FUNC
+//#define WRITE_RECORDING_AS_FUNC
 #define FAST_MEMOBJID
 //#define LAZY_LOCK_RELEASE
 //#define STAT_RETRY_CNT
@@ -405,7 +405,8 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid, ver
         log_order(objid, version, last); \
     } \
     last->memop = memop; \
-    last->version = version + 2;
+    last->version = version + 2; \
+    memop++;
 
 #endif
 
