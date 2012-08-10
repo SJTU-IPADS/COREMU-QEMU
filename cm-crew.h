@@ -317,6 +317,18 @@ static inline void cm_release_contending_memobj(void)
         __cm_release_contending_memobj();
     }
 }
+
+static inline void cm_add_locked_memobj(memobj_t *mo)
+{
+    /* Add the locked memobj to the array for release later */
+    crew.locked_memobj_idx = (crew.locked_memobj_idx + 1) & LOCKED_MEMOBJ_IDX_MASK;
+    uint8_t idx = crew.locked_memobj_idx;
+    if (crew.locked_memobj[idx]) {
+        cm_release_memobj(crew.locked_memobj[idx]);
+    }
+    crew.locked_memobj[idx] = mo;
+    mo->owner = cm_coreid;
+}
 #endif
 
 /* Inline function is slower than directly putting the code in. */
@@ -357,14 +369,7 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid, ver
 #else
 #  ifdef LAZY_LOCK_RELEASE
     cm_release_contending_memobj();
-    /* Add the locked memobj to the array for release later */
-    crew.locked_memobj_idx = (crew.locked_memobj_idx + 1) & LOCKED_MEMOBJ_IDX_MASK;
-    uint8_t idx = crew.locked_memobj_idx;
-    if (crew.locked_memobj[idx]) {
-        cm_release_memobj(crew.locked_memobj[idx]);
-    }
-    crew.locked_memobj[idx] = mo;
-    mo->owner = cm_coreid;
+    cm_add_locked_memobj(mo);
 #  else
     mo->version++;
     coremu_spin_unlock(&mo->write_lock);
