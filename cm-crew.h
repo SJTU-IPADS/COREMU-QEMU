@@ -200,7 +200,7 @@ extern void *cm_crew_write_func[3][4];
  * bits. */
 /* XXX size of maximum holding lock may impact performance. Holding too much
  * no longer unused memobj's locks will decrease performance of other vCPUs. */
-#define MAX_LOCKED_MEMOBJ 128
+#define MAX_LOCKED_MEMOBJ 32
 #define LOCKED_MEMOBJ_IDX_MASK (MAX_LOCKED_MEMOBJ - 1)
 
 #define MAX_CONTENDING_CORE 128
