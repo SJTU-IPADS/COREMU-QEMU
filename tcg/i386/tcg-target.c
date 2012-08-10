@@ -1053,13 +1053,11 @@ static inline void tcg_out_tlb_load(TCGContext *s, int addrlo_idx,
     tcg_out_modrm_offset(s, OPC_ADD_GvEv + P_REXW, r0, r1,
                          offsetof(CPUTLBEntry, addend) - which);
 #ifdef CONFIG_MEM_ORDER
-    if (cm_run_mode != CM_RUNMODE_NORMAL) {
-        /* Put the objid into the 2nd argument.
-         * Note r1 and tcg_target_call_iarg_regs[1] are the same, so this must
-         * come after the previous tcg_out. */
-        tcg_out_modrm_offset(s, OPC_MOVL_GvEv + P_REXW, tcg_target_call_iarg_regs[1], r1,
-                             offsetof(CPUTLBEntry, objid) - which);
-    }
+    /* Put the objid into the 2nd argument.
+     * Note r1 and tcg_target_call_iarg_regs[1] are the same, so this must
+     * come after the previous tcg_out. */
+    tcg_out_modrm_offset(s, OPC_MOVL_GvEv + P_REXW, tcg_target_call_iarg_regs[1], r1,
+            offsetof(CPUTLBEntry, objid) - which);
 #endif
 }
 #endif
@@ -1171,14 +1169,10 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     /* TLB Hit.  */
 #ifdef CONFIG_MEM_ORDER
     /* rdi contains the address */
-    if (cm_run_mode == CM_RUNMODE_NORMAL) {
-        tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
-                               tcg_target_call_iarg_regs[0], 0, opc);
-    } else {
-        tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
+    tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
 
-        /* Duplicate with the code below. */
-        switch(opc) {
+    /* Duplicate with the code below. */
+    switch(opc) {
         case 0 | 4:
             tcg_out_ext8s(s, data_reg, TCG_REG_EAX, P_REXW);
             break;
@@ -1213,7 +1207,6 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
             break;
         default:
             tcg_abort();
-        }
     }
 #else
     tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
@@ -1393,16 +1386,11 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
 
     /* TLB Hit.  */
 #ifdef CONFIG_MEM_ORDER
-    if (cm_run_mode == CM_RUNMODE_NORMAL) {
-        tcg_out_qemu_st_direct(s, data_reg, data_reg2,
-                               tcg_target_call_iarg_regs[0], 0, opc);
-    } else {
-        /* Host address is in rdi after calling tcg_out_tlb_load, we need also
-         * pass the write value, put it in the 3rd arg register. */
-        tcg_out_mov(s, (opc == 3 ? TCG_TYPE_I64 : TCG_TYPE_I32),
-                    tcg_target_call_iarg_regs[2], data_reg);
-        tcg_out_calli(s, (tcg_target_long)cm_crew_write_func[cm_run_mode][s_bits & 3]);
-    }
+    /* Host address is in rdi after calling tcg_out_tlb_load, we need also
+     * pass the write value, put it in the 3rd arg register. */
+    tcg_out_mov(s, (opc == 3 ? TCG_TYPE_I64 : TCG_TYPE_I32),
+            tcg_target_call_iarg_regs[2], data_reg);
+    tcg_out_calli(s, (tcg_target_long)cm_crew_write_func[cm_run_mode][s_bits & 3]);
 #else
     tcg_out_qemu_st_direct(s, data_reg, data_reg2,
                            tcg_target_call_iarg_regs[0], 0, opc);
