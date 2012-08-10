@@ -56,9 +56,6 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     val = *addr;
     tbb_end_read(&mo->rwlock);
 #else
-#  ifdef STAT_RETRY_CNT
-    int trycnt = 0;
-#  endif
     do {
         version = mo->version;
         while (unlikely(version & 1)) {
@@ -75,14 +72,7 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
 
         val = *addr;
         barrier();
-#ifdef STAT_RETRY_CNT
-        ++trycnt;
-#endif
     } while (version != mo->version);
-#ifdef STAT_RETRY_CNT
-    if (stat_retry_cnt)
-        retry_cnt += trycnt - 1;
-#endif
 #endif // NO_LOCK
 
     last_memobj_t *last = &last_memobj[objid];

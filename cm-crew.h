@@ -15,15 +15,9 @@
 #define WRITE_RECORDING_AS_FUNC
 #define FAST_MEMOBJID
 #define LAZY_LOCK_RELEASE
-//#define STAT_RETRY_CNT
 
 #ifdef DEBUG_MEMCNT
 extern __thread MappedLog acc_version_log;
-#endif
-
-#ifdef STAT_RETRY_CNT
-extern int stat_retry_cnt;
-extern __thread long retry_cnt;
 #endif
 
 /* Now we track memory as MEMOBJ_SIZE shared object, each object will have a
