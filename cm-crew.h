@@ -12,9 +12,9 @@
 #include <stdbool.h>
 
 //#define DEBUG_MEMCNT
-//#define WRITE_RECORDING_AS_FUNC
+#define WRITE_RECORDING_AS_FUNC
 #define FAST_MEMOBJID
-//#define LAZY_LOCK_RELEASE
+#define LAZY_LOCK_RELEASE
 //#define STAT_RETRY_CNT
 
 #ifdef DEBUG_MEMCNT
@@ -287,8 +287,10 @@ static inline void cm_add_contending_memobj(memobj_t *mo)
         CONTENDING_CORE_IDX_MASK;
     crew_g.contending.core[owner][idx] = cm_coreid;
 
-    printf("core %d add contending memobj %ld %p owned by %d with idx %d\n", cm_coreid,
-            mo -  memobj, mo, owner, idx);
+    /*
+     *printf("core %d add contending memobj %ld %p owned by %d with idx %d\n", cm_coreid,
+     *        mo -  memobj, mo, owner, idx);
+     */
 }
 
 static inline void cm_release_memobj(memobj_t *mo)

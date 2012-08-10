@@ -240,11 +240,13 @@ void __cm_release_contending_memobj(void)
     cpuid_t coreid;
     memobj_t *mo;
 
-    coremu_debug("core %d releasing memobj starts at idx %d", cm_coreid, idx);
+    /*coremu_debug("core %d releasing memobj starts at idx %d", cm_coreid, idx);*/
     while ((coreid = crew.contending.core[idx]) != -1) {
         mo = crew.contending.memobj[coreid];
-        coremu_debug("core %d releasing contending memobj %ld %p for core %d idx %d",
-                cm_coreid, mo - memobj, mo, coreid, idx);
+        /*
+         *coremu_debug("core %d releasing contending memobj %ld %p for core %d idx %d",
+         *        cm_coreid, mo - memobj, mo, coreid, idx);
+         */
         coremu_assert(mo, "core %d memobj shouldn't be null", cm_coreid);
         cm_release_memobj(mo);
 
@@ -254,7 +256,7 @@ void __cm_release_contending_memobj(void)
 
         idx = (idx + 1) & CONTENDING_CORE_IDX_MASK;
     }
-    coremu_debug("core %d released memobj end at idx %d", cm_coreid, idx);
+    /*coremu_debug("core %d released memobj end at idx %d", cm_coreid, idx);*/
     crew.contending.core_start_idx = idx;
 }
 #endif
