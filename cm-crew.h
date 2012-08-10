@@ -329,6 +329,14 @@ static inline void cm_add_locked_memobj(memobj_t *mo)
     crew.locked_memobj[idx] = mo;
     mo->owner = cm_coreid;
 }
+
+static inline void cm_handle_contention(memobj_t *mo)
+{
+    cm_release_contending_memobj();
+    /* It's possible the owner changes between successive calls,
+     * cm_add_contending_memobj will add the memobj if it's not added. */
+    cm_add_contending_memobj(mo);
+}
 #endif
 
 /* Inline function is slower than directly putting the code in. */
@@ -344,8 +352,7 @@ static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo)
     while (coremu_spin_trylock(&mo->write_lock) == BUSY) {
         /* When failed to get the spinlock, the owner may have changed, so we
          * need to add the memobj to the owner's contending array again. */
-        cm_release_contending_memobj();
-        cm_add_contending_memobj(mo);
+        cm_handle_contention(mo);
     }
 #  else // LAZY_LOCK_RELEASE
     coremu_spin_lock(&mo->write_lock);

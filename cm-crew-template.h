@@ -60,10 +60,7 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
         version = mo->version;
         while (unlikely(version & 1)) {
 #  ifdef LAZY_LOCK_RELEASE
-            cm_release_contending_memobj();
-            /* It's possible the owner changes between iteration,
-             * cm_add_contending_memobj will add the memobj if it's not added. */
-            cm_add_contending_memobj(mo);
+            cm_handle_contention(mo);
 #  endif
             cpu_relax();
             version = mo->version;
