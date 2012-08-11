@@ -1181,18 +1181,18 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 #ifdef LAZY_LOCK_RELEASE
     uint8_t *mem_label[2];
     if (cm_run_mode == CM_RUNMODE_RECORD) {
-        // mov memobj, %rax
-        tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RAX, (tcg_target_long)memobj);
+        // mov memobj, %rdx
+        tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDX, (tcg_target_long)memobj);
         // shl $4, %esi, objid is 32bit
         tcg_out_shifti(s, SHIFT_SHL, TCG_REG_RSI, MEMOBJ_STRUCT_BITS);
-        // add %rsi, %rax, now %rax = &memobj[objid]
-        tgen_arithr(s, ARITH_ADD + P_REXW, TCG_REG_RAX, TCG_REG_RSI);
+        // add %rsi, %rdx, now %rdx = &memobj[objid]
+        tgen_arithr(s, ARITH_ADD + P_REXW, TCG_REG_RDX, TCG_REG_RSI);
 
-        // load cm_coreid into %rdx
-        tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDX, (tcg_target_long)cm_coreid);
+        // load cm_coreid into %rax
+        tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RAX, (tcg_target_long)cm_coreid);
 
-        // cmp owner_offset(%rax), %rdx
-        tcg_out_modrm_offset(s, OPC_CMP_GvEv, TCG_REG_RDX, TCG_REG_RAX,
+        // cmp owner_offset(%rdx), %rax
+        tcg_out_modrm_offset(s, OPC_CMP_GvEv, TCG_REG_RAX, TCG_REG_RDX,
                 offsetof(memobj_t, owner));
 
         // if not equal, we are not owner, jump to call record func
@@ -1201,7 +1201,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         mem_label[0] = s->code_ptr;
         s->code_ptr++;
 
-        // XXX check data_reg and data_reg2 not conflict
+        // data_reg is ebp, used to hold the loaded result
         tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
                 tcg_target_call_iarg_regs[0], 0, opc);
         // after ld_direct, host mem address is not needed, so rdi is free to use
@@ -1232,7 +1232,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 
         // shr $4, %esi, restore original objid
         tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_STRUCT_BITS);
-        // XXX call function that does no owner checking
+        // %rdx contains &memobj[objid], passed as the 3nd argument
         tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
     } else {
         tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
