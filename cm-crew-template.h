@@ -121,6 +121,42 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
 #endif
 }
 
+#ifdef LAZY_LOCK_RELEASE
+
+// This next 2 function is called directly from tcg. When called, the memobj is
+// not owned by self.
+
+DATA_TYPE glue(cm_crew_record_lazy_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid,
+        memobj_t *mo)
+{
+    DATA_TYPE val;
+    version_t version;
+
+    do {
+        version = mo->version;
+        while (unlikely(version & 1)) {
+            cm_handle_contention(mo, objid);
+            cpu_relax();
+            version = mo->version;
+        }
+        barrier();
+
+        val = *addr;
+        barrier();
+    } while (version != mo->version);
+
+    last_memobj_t *last = &last_memobj[objid];
+    if (last->version != version) {
+        log_order(objid, version, last);
+        last->version = version;
+    }
+
+    last->memop = memop;
+    memop++;
+    return val;
+}
+
+#endif // LAZY_LOCK_RELEASE
 /* Replay read/write functino. */
 
 DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid)

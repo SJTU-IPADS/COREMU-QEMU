@@ -200,6 +200,13 @@ extern void *cm_crew_write_func[3][4];
 
 #ifdef LAZY_LOCK_RELEASE
 
+uint8_t  cm_crew_record_lazy_readb(const  uint8_t *addr, objid_t, memobj_t *);
+uint16_t cm_crew_record_lazy_readw(const uint16_t *addr, objid_t, memobj_t *);
+uint32_t cm_crew_record_lazy_readl(const uint32_t *addr, objid_t, memobj_t *);
+uint64_t cm_crew_record_lazy_readq(const uint64_t *addr, objid_t, memobj_t *);
+
+extern void *cm_crew_read_lazy_func[4];
+
 /* Using size of 2's power, we can get the index by simply & to get the lowest
  * bits. */
 /* XXX size of maximum holding lock may impact performance. Holding too much

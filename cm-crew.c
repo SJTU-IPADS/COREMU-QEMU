@@ -265,7 +265,15 @@ void __cm_release_contending_memobj(void)
     /*coremu_debug("core %d released memobj end at idx %d", cm_coreid, idx);*/
     crew.contending.core_start_idx = idx;
 }
-#endif
+
+void *cm_crew_read_lazy_func[4] = {
+    cm_crew_record_lazy_readb,
+    cm_crew_record_lazy_readw,
+    cm_crew_record_lazy_readl,
+    cm_crew_record_lazy_readq,
+};
+
+#endif // LAZY_LOCK_RELEASE
 
 #include <assert.h>
 #include "cpu.h"

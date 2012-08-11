@@ -1233,7 +1233,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         // shr $4, %esi, restore original objid
         tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_STRUCT_BITS);
         // %rdx contains &memobj[objid], passed as the 3nd argument
-        tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
+        tcg_out_calli(s, (tcg_target_long)cm_crew_read_lazy_func[s_bits]);
     } else {
         tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
     }
