@@ -103,4 +103,5 @@ void *cm_cpu_loop(void *args)
     cm_stop_local_timer();
     coremu_core_exit(NULL);
     assert(0);
+    return NULL;
 }

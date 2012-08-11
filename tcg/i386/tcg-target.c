@@ -1179,7 +1179,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 #ifdef CONFIG_MEM_ORDER
     /* rdi contains the address, rsi contains objid */
 #ifdef LAZY_LOCK_RELEASE
-    uint8_t *mem_label[2];
+    uint8_t *mem_label[2] = { 0, 0 };
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         // mov memobj, %rdx
         tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDX, (tcg_target_long)memobj);
