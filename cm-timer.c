@@ -51,7 +51,8 @@ void cm_init_pit_freq(void)
 {
     double v_num = coremu_get_targetcpu();
     double p_num = coremu_get_hostcpu();
-    double p_root = sqrt(p_num) / 4;
+    /*double p_root = sqrt(p_num) / 4; // on r900*/
+    double p_root = sqrt(p_num) / 6; // on r910
     double suggest = p_root * pow(v_num / p_num, p_root);
     int pit_freq_suggest = ceil(suggest);
     cm_pit_freq = 1193182 / pit_freq_suggest;
