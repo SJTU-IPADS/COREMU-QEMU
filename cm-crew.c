@@ -172,15 +172,17 @@ void cm_crew_core_init(void)
         for (; i < n_memobj; ++i) {
             // memop -1 means there's no previous memop
             last_memobj[i].memop = -1;
-#ifdef LAZY_LOCK_RELEASE
-            // defaults to should lazy release
-            last_memobj[i].contend_memop = -LAZY_RELEASE_MEMOP_DIFF;
-#endif
         }
 #ifdef LAZY_LOCK_RELEASE
         memset(crew.contending.core, -1, sizeof(crew.contending.core));
         crew.contending.memobj = calloc_check(smp_cpus,
-                sizeof(*crew.contending.memobj), "Can't allocate contending_memobj");
+                sizeof(*crew.contending.memobj), "Can't allocate contending.memobj");
+
+        crew.contending.memop = calloc_check(n_memobj,
+                sizeof(*crew.contending.memop), "Can't allocate contending.memop");
+        for (i = 0; i < n_memobj; ++i) {
+            crew.contending.memop[i] = -LAZY_RELEASE_MEMOP_DIFF;
+        }
 
         crew_g.contending.memobj[cm_coreid] = crew.contending.memobj;
         crew_g.contending.core_idx[cm_coreid] = &crew.contending.core_idx;

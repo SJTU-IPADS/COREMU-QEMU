@@ -47,7 +47,6 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     }
 #endif
 
-    last_memobj_t *last = &last_memobj[objid];
 #ifdef NO_LOCK
     version = mo->version;
     val = *addr;
@@ -61,7 +60,7 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
         version = mo->version;
         while (unlikely(version & 1)) {
 #  ifdef LAZY_LOCK_RELEASE
-            cm_handle_contention(mo, last);
+            cm_handle_contention(mo, objid);
 #  endif
             cpu_relax();
             version = mo->version;
@@ -73,6 +72,7 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     } while (version != mo->version);
 #endif // NO_LOCK
 
+    last_memobj_t *last = &last_memobj[objid];
     if (last->version != version) {
         log_order(objid, version, last);
         last->version = version;
@@ -107,16 +107,15 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYP
     }
 #endif
 
-    last_memobj_t *last = &last_memobj[objid];
     version_t version;
-    cm_crew_record_start_write(mo, last, version);
+    cm_crew_record_start_write(mo, objid, version);
 
     barrier();
     *addr = val;
     __sync_synchronize();
     barrier();
 
-    cm_crew_record_end_write(mo, last, objid, version);
+    cm_crew_record_end_write(mo, objid, version);
 #ifdef DEBUG_MEM_ACCESS
     debug_mem_access(val, objid, "write");
 #endif
