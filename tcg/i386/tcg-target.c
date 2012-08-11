@@ -1062,6 +1062,15 @@ static inline void tcg_out_tlb_load(TCGContext *s, int addrlo_idx,
 }
 #endif
 
+#ifdef CONFIG_REPLAY
+static inline void cm_tcg_gen_incq_rax(TCGContext *s)
+{
+    tcg_out8(s, 0x48); /* insn. prefix REX.W */
+    tcg_out8(s, 0xff); /* inc */
+    tcg_out8(s, 0x00); /* modrm byte */
+}
+
+#endif
 static void tcg_out_qemu_ld_direct(TCGContext *s, int datalo, int datahi,
                                    int base, tcg_target_long ofs, int sizeop)
 {
@@ -1168,9 +1177,69 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 
     /* TLB Hit.  */
 #ifdef CONFIG_MEM_ORDER
-    (void)tcg_out_qemu_ld_direct;
-    /* rdi contains the address */
+    /* rdi contains the address, rsi contains objid */
+#ifdef LAZY_LOCK_RELEASE
+    uint8_t *mem_label[2];
+    if (cm_run_mode == CM_RUNMODE_RECORD) {
+        // mov memobj, %rax
+        tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RAX, (tcg_target_long)memobj);
+        // shl $4, %esi, objid is 32bit
+        tcg_out_shifti(s, SHIFT_SHL, TCG_REG_RSI, MEMOBJ_STRUCT_BITS);
+        // add %rsi, %rax, now %rax = &memobj[objid]
+        tgen_arithr(s, ARITH_ADD + P_REXW, TCG_REG_RAX, TCG_REG_RSI);
+
+        // load cm_coreid into %rdx
+        tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDX, (tcg_target_long)cm_coreid);
+
+        // cmp owner_offset(%rax), %rdx
+        tcg_out_modrm_offset(s, OPC_CMP_GvEv, TCG_REG_RDX, TCG_REG_RAX,
+                offsetof(memobj_t, owner));
+
+        // if not equal, we are not owner, jump to call record func
+        tcg_out8(s, OPC_JCC_short + JCC_JNE);
+        // label: call read record func
+        mem_label[0] = s->code_ptr;
+        s->code_ptr++;
+
+        // XXX check data_reg and data_reg2 not conflict
+        tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
+                tcg_target_call_iarg_regs[0], 0, opc);
+        // after ld_direct, host mem address is not needed, so rdi is free to use
+
+        // update last_memobj[objid].memop
+        // %rdx = last_memobj
+        tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDI, (tcg_target_long)last_memobj);
+        // %rdx = &last_memobj[objid]
+        tgen_arithr(s, ARITH_ADD + P_REXW, TCG_REG_RDI, TCG_REG_RSI);
+
+        // %rax = &memop
+        tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_RAX, (long)&memop);
+        // %rsi = (%rax)
+        tcg_out_ld(s, TCG_TYPE_I64, TCG_REG_RSI, TCG_REG_RAX, 0);
+        // mov memop to last_memobj[objid].memop
+        tcg_out_modrm_offset(s, OPC_MOVL_EvGv + P_REXW, TCG_REG_RSI, TCG_REG_RDI,
+                offsetof(last_memobj_t, memop));
+
+        // update memop
+        cm_tcg_gen_incq_rax(s);
+
+        // after loading data, jump over record read func
+        tcg_out8(s, OPC_JMP_short);
+        mem_label[1] = s->code_ptr;
+        s->code_ptr++;
+
+        *mem_label[0] = s->code_ptr - mem_label[0] - 1;
+
+        // shr $4, %esi, restore original objid
+        tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_STRUCT_BITS);
+        // XXX call function that does no owner checking
+        tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
+    } else {
+        tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
+    }
+#else
     tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
+#endif // LAZY_LOCK_RELEASE
 
     /* Duplicate with the code below. */
     switch(opc) {
@@ -1209,6 +1278,14 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         default:
             tcg_abort();
     }
+
+#  ifdef LAZY_LOCK_RELEASE
+    if (cm_run_mode == CM_RUNMODE_RECORD) {
+        // label: after record func
+        *mem_label[1] = s->code_ptr - mem_label[1] - 1;
+    }
+#  endif // LAZY_LOCK_RELEASE
+
 #else
     tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
                            tcg_target_call_iarg_regs[0], 0, opc);

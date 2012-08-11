@@ -45,11 +45,16 @@ typedef struct {
 #endif
 } memobj_t;
 
+#define MEMOBJ_STRUCT_BITS 4
+extern int memobj_t_wrong_size[sizeof(memobj_t) == (1 << MEMOBJ_STRUCT_BITS) ? 1 : -1];
+
 typedef struct {
     /* field order is important */
     version_t version;
     memop_t memop;
 } last_memobj_t;
+extern int last_memobj_t_wrong_size[sizeof(last_memobj_t) ==
+    (1 << MEMOBJ_STRUCT_BITS) ? 1 : -1];
 
 extern __thread int cm_is_in_tc;
 
