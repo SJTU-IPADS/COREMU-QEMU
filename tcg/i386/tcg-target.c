@@ -1181,8 +1181,19 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     /* rdi contains host address
      * rbx contains guest virtual address
      * rsi contains objid if shared object is page sized */
-#ifndef PAGE_AS_SHARED_OBJECT
-    // Calculate object id using host address which is in rdi
+#if !defined(PAGE_AS_SHARED_OBJECT) && defined(LAZY_LOCK_RELEASE)
+    if (cm_run_mode == CM_RUNMODE_RECORD) {
+        // We can calculate object id using host address in %rdi and put it into %rsi
+        // but actually rsi needs to hold offset to memobj to get &memobj[objid],
+        tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
+        tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT - MEMOBJ_STRUCT_BITS);
+        tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK << MEMOBJ_STRUCT_BITS, 0);
+    } else {
+        tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
+        tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT);
+        tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK, 0);
+    }
+#else
     tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
     tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT);
     tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK, 0);
@@ -1192,8 +1203,10 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         // mov memobj, %rdx
         tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDX, (tcg_target_long)memobj);
+#ifdef PAGE_AS_SHARED_OBJECT
         // shl $4, %esi, objid is 32bit
         tcg_out_shifti(s, SHIFT_SHL, TCG_REG_RSI, MEMOBJ_STRUCT_BITS);
+#endif
         // add %rsi, %rdx, now %rdx = &memobj[objid]
         tgen_arithr(s, ARITH_ADD + P_REXW, TCG_REG_RDX, TCG_REG_RSI);
 

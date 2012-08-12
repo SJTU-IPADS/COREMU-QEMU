@@ -27,7 +27,7 @@ extern __thread MappedLog acc_version_log;
 #ifdef PAGE_AS_SHARED_OBJECT
 #  define MEMOBJ_SHIFT 12
 #else
-#  define MEMOBJ_SHIFT 12
+#  define MEMOBJ_SHIFT 10
 #endif // PAGE_AS_SHARED_OBJECT
 
 #define MEMOBJ_SIZE (1 << MEMOBJ_SHIFT)
