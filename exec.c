@@ -2429,10 +2429,7 @@ void tlb_set_page(CPUState *env, target_ulong vaddr,
     te = &env->tlb_table[mmu_idx][index];
     te->addend = addend - vaddr;
 #ifdef CONFIG_REPLAY
-    /* There are some memory access which don't go through TLB. And we have to
-     * lookup from host address to guest physical addr. So use ram addr here as
-     * this can give use same result as qemu_ram_addr_from_host. */
-    te->objid = pd >> MEMOBJ_SHIFT;
+    te->objid = memobj_id((const void *)addend);
 #endif
     if (prot & PAGE_READ) {
         te->addr_read = address;

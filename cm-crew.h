@@ -13,7 +13,6 @@
 
 //#define DEBUG_MEMCNT
 #define WRITE_RECORDING_AS_FUNC
-#define FAST_MEMOBJID
 #define LAZY_LOCK_RELEASE
 
 #ifdef DEBUG_MEMCNT
@@ -72,26 +71,10 @@ void cm_crew_init(void);
 void cm_crew_core_init(void);
 void cm_crew_core_finish(void);
 
-#ifdef FAST_MEMOBJID
 static inline objid_t memobj_id(const void *addr)
 {
     return ((long)addr >> 12) & 0xfffff;
 }
-#else
-extern __thread unsigned long last_addr;
-extern __thread objid_t last_id;
-
-objid_t __memobj_id(unsigned long addr);
-static inline objid_t memobj_id(const void *addr)
-{
-    unsigned long page_addr = (unsigned long)addr & ~0xFFF;
-    if (last_addr != page_addr) {
-        last_id = __memobj_id(page_addr);
-        last_addr = page_addr;
-    }
-    return last_id;
-}
-#endif
 
 /* Log */
 
