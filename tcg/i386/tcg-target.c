@@ -1052,13 +1052,6 @@ static inline void tcg_out_tlb_load(TCGContext *s, int addrlo_idx,
     /* add addend(r1), r0 */
     tcg_out_modrm_offset(s, OPC_ADD_GvEv + P_REXW, r0, r1,
                          offsetof(CPUTLBEntry, addend) - which);
-#if defined(CONFIG_MEM_ORDER) && defined(PAGE_AS_SHARED_OBJECT)
-    /* Put the objid into the 2nd argument.
-     * Note r1 and tcg_target_call_iarg_regs[1] are the same, so this must
-     * come after the previous tcg_out. */
-    tcg_out_modrm_offset(s, OPC_MOVL_GvEv + P_REXW, tcg_target_call_iarg_regs[1], r1,
-            offsetof(CPUTLBEntry, objid) - which);
-#endif
 }
 #endif
 
@@ -1178,9 +1171,9 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     /* TLB Hit.  */
 #ifdef CONFIG_MEM_ORDER
     (void)tcg_out_qemu_ld_direct;
-    /* rdi contains host address
-     * rbx contains guest virtual address
-     * rsi contains objid if shared object is page sized */
+    /* %rdi contains host address
+     * %rbx contains guest virtual address
+     * %rsi contains tlb entry */
 #ifdef LAZY_LOCK_RELEASE
     /* With lazy lock release, if object is owned by self, can do direct read. */
     uint8_t *mem_label[2] = { 0, 0 };
@@ -1188,6 +1181,9 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         // mov memobj, %rdx
         tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDX, (tcg_target_long)memobj);
 #ifdef PAGE_AS_SHARED_OBJECT
+        /* Get objid from TLB entry in %rsi */
+        tcg_out_modrm_offset(s, OPC_MOVL_GvEv + P_REXW, TCG_REG_RSI, TCG_REG_RSI,
+            offsetof(CPUTLBEntry, objid) - offsetof(CPUTLBEntry, addr_read));
         // shl $4, %esi, objid is 32bit
         tcg_out_shifti(s, SHIFT_SHL, TCG_REG_RSI, MEMOBJ_STRUCT_BITS);
 #else
@@ -1196,7 +1192,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
         tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT - MEMOBJ_STRUCT_BITS);
         tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK << MEMOBJ_STRUCT_BITS, 0);
-#endif
+#endif // PAGE_AS_SHARED_OBJECT
         // add %rsi, %rdx, now %rdx = &memobj[objid]
         tgen_arithr(s, ARITH_ADD + P_REXW, TCG_REG_RDX, TCG_REG_RSI);
 
@@ -1247,17 +1243,30 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         // %rdx contains &memobj[objid], passed as the 3nd argument
         tcg_out_calli(s, (tcg_target_long)cm_crew_read_lazy_func[s_bits]);
     } else {
+#ifdef PAGE_AS_SHARED_OBJECT
+        /* Get objid from TLB entry in %rsi */
+        tcg_out_modrm_offset(s, OPC_MOVL_GvEv + P_REXW, TCG_REG_RSI, TCG_REG_RSI,
+            offsetof(CPUTLBEntry, objid) - offsetof(CPUTLBEntry, addr_read));
+#else
         tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
         tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT);
         tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK, 0);
+#endif // PAGE_AS_SHARED_OBJECT
 
         tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
     }
 #else // ! LAZY_LOCK_RELEASE
+
+#ifdef PAGE_AS_SHARED_OBJECT
+    /* Get objid from TLB entry in %rsi */
+    tcg_out_modrm_offset(s, OPC_MOVL_GvEv + P_REXW, TCG_REG_RSI, TCG_REG_RSI,
+            offsetof(CPUTLBEntry, objid) - offsetof(CPUTLBEntry, addr_read));
+#else
     // calculate objid using host address in rdi
     tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
     tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT);
     tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK, 0);
+#endif // PAGE_AS_SHARED_OBJECT
 
     tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
 #endif // LAZY_LOCK_RELEASE
@@ -1486,12 +1495,16 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     /* TLB Hit.  */
 #ifdef CONFIG_MEM_ORDER
     (void)tcg_out_qemu_st_direct;
-#ifndef PAGE_AS_SHARED_OBJECT
+#ifdef PAGE_AS_SHARED_OBJECT
+    /* Get objid from TLB entry in %rsi */
+    tcg_out_modrm_offset(s, OPC_MOVL_GvEv + P_REXW, TCG_REG_RSI, TCG_REG_RSI,
+            offsetof(CPUTLBEntry, objid) - offsetof(CPUTLBEntry, addr_write));
+#else
     // Calculate object id using host address which is in rdi
     tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
     tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT);
     tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK, 0);
-#endif
+#endif // PAGE_AS_SHARED_OBJECT
     /* Host address is in rdi after calling tcg_out_tlb_load, we need also
      * pass the write value, put it in the 3rd arg register. */
     tcg_out_mov(s, (opc == 3 ? TCG_TYPE_I64 : TCG_TYPE_I32),
@@ -1663,7 +1676,7 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
                              (tcg_target_long)&crew.contending.core_start_idx);
                 tcg_out_ld(s, TCG_TYPE_I64, TCG_REG_RAX, TCG_REG_RAX, 0);
 
-                // load core_idx address into rax
+                // load core_idx address into rbx
                 tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RBX,
                              (tcg_target_long)&crew.contending.core_idx);
                 // cmp 0(rbx), rax
