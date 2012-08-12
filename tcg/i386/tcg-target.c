@@ -1243,6 +1243,9 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         // %rdx contains &memobj[objid], passed as the 3nd argument
         tcg_out_calli(s, (tcg_target_long)cm_crew_read_lazy_func[s_bits]);
     } else {
+#endif // LAZY_LOCK_RELEASE
+
+        // Here is the code for no LAZY_LOCK_RELEASE
 #ifdef PAGE_AS_SHARED_OBJECT
         /* Get objid from TLB entry in %rsi */
         tcg_out_modrm_offset(s, OPC_MOVL_GvEv + P_REXW, TCG_REG_RSI, TCG_REG_RSI,
@@ -1254,22 +1257,10 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 #endif // PAGE_AS_SHARED_OBJECT
 
         tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
+
+#ifdef LAZY_LOCK_RELEASE
     }
-#else // ! LAZY_LOCK_RELEASE
-
-#ifdef PAGE_AS_SHARED_OBJECT
-    /* Get objid from TLB entry in %rsi */
-    tcg_out_modrm_offset(s, OPC_MOVL_GvEv + P_REXW, TCG_REG_RSI, TCG_REG_RSI,
-            offsetof(CPUTLBEntry, objid) - offsetof(CPUTLBEntry, addr_read));
-#else
-    // calculate objid using host address in rdi
-    tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
-    tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT);
-    tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK, 0);
-#endif // PAGE_AS_SHARED_OBJECT
-
-    tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
-#endif // LAZY_LOCK_RELEASE
+#endif
 
     /* Duplicate with the code below. */
     switch(opc) {
@@ -1319,7 +1310,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 #else
     tcg_out_qemu_ld_direct(s, data_reg, data_reg2,
                            tcg_target_call_iarg_regs[0], 0, opc);
-#endif
+#endif // CONFIG_MEM_ORDER
 
     /* jmp label2 */
     tcg_out8(s, OPC_JMP_short);
