@@ -108,7 +108,7 @@ static void load_wait_memop_log(void) {
 
 void cm_crew_init(void)
 {
-    n_memobj = 1 << 20;
+    n_memobj = OBJID_CNT;
 
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         memobj = calloc_check(n_memobj, sizeof(*memobj), "Can't allocate memobj");

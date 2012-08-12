@@ -11,18 +11,31 @@
 #include <pthread.h>
 #include <stdbool.h>
 
+#define __inline__ inline __attribute__((always_inline))
+
 //#define DEBUG_MEMCNT
 #define WRITE_RECORDING_AS_FUNC
 #define LAZY_LOCK_RELEASE
+//#define PAGE_AS_SHARED_OBJECT
 
 #ifdef DEBUG_MEMCNT
 extern __thread MappedLog acc_version_log;
 #endif
 
 /* Now we track memory as MEMOBJ_SIZE shared object, each object will have a
- * memobj_t tracking its ownership */
-#define MEMOBJ_SIZE 4096
-#define MEMOBJ_SHIFT 12
+ * memobj_t tracking its ownership and seqlock. */
+#ifdef PAGE_AS_SHARED_OBJECT
+#  define MEMOBJ_SHIFT 12
+#else
+#  define MEMOBJ_SHIFT 12
+#endif // PAGE_AS_SHARED_OBJECT
+
+#define MEMOBJ_SIZE (1 << MEMOBJ_SHIFT)
+
+// XXX should I increase the object mask bits? thus having more different memobj
+#define OBJID_BITS 20
+#define OBJID_CNT (1 << OBJID_BITS)
+#define OBJID_MASK (OBJID_CNT - 1)
 
 typedef long memop_t;
 typedef long version_t;
@@ -71,9 +84,9 @@ void cm_crew_init(void);
 void cm_crew_core_init(void);
 void cm_crew_core_finish(void);
 
-static inline objid_t memobj_id(const void *addr)
+static __inline__ objid_t memobj_id(const void *addr)
 {
-    return ((long)addr >> 12) & 0xfffff;
+    return ((long)addr >> MEMOBJ_SHIFT) & OBJID_MASK;
 }
 
 /* Log */
@@ -93,12 +106,12 @@ extern int wait_version_t_wrong_size[sizeof(wait_version_t) == (sizeof(memop_t) 
  * Recording
  **********************************************************************/
 
-static inline wait_version_t *next_version_log(void)
+static __inline__ wait_version_t *next_version_log(void)
 {
     return (wait_version_t *)next_log_entry(&version_log, sizeof(wait_version_t));
 }
 
-static inline void log_wait_version(version_t ver)
+static __inline__ void log_wait_version(version_t ver)
 {
     wait_version_t *wv = next_version_log();
     wv->memop = memop;
@@ -112,12 +125,12 @@ typedef struct {
     memop_t memop;
 } rec_wait_memop_t;
 
-static inline rec_wait_memop_t *next_memop_log(void)
+static __inline__ rec_wait_memop_t *next_memop_log(void)
 {
     return (rec_wait_memop_t *)next_log_entry(&memop_log, sizeof(rec_wait_memop_t));
 }
 
-static inline void log_other_wait_memop(objid_t objid, last_memobj_t *last)
+static __inline__ void log_other_wait_memop(objid_t objid, last_memobj_t *last)
 {
     rec_wait_memop_t *wm = next_memop_log();
 
@@ -126,7 +139,7 @@ static inline void log_other_wait_memop(objid_t objid, last_memobj_t *last)
     wm->memop = last->memop;
 }
 
-static inline void log_order(objid_t objid, version_t ver,
+static __inline__ void log_order(objid_t objid, version_t ver,
         last_memobj_t *last)
 {
     log_wait_version(ver);
@@ -134,13 +147,13 @@ static inline void log_order(objid_t objid, version_t ver,
 }
 
 #ifdef DEBUG_MEMCNT
-static inline void log_acc_version(version_t ver, objid_t objid)
+static __inline__ void log_acc_version(version_t ver, objid_t objid)
 {
     version_t *pv = (version_t *)next_log_entry(&acc_version_log, sizeof(version_t));
     *pv = ver;
 }
 
-static inline version_t read_acc_version(void)
+static __inline__ version_t read_acc_version(void)
 {
     version_t *pv = (version_t *)acc_version_log.buf;
     version_t ver = *pv;
@@ -148,7 +161,7 @@ static inline version_t read_acc_version(void)
     return ver;
 }
 
-static inline void print_acc_info(version_t version, objid_t objid, const char *acc)
+static __inline__ void print_acc_info(version_t version, objid_t objid, const char *acc)
 {
     if (48 <= memop && memop <= 50) {
         printf("core %d %s memop %ld obj %d @%ld\n", (int)cm_coreid, acc,
@@ -157,7 +170,7 @@ static inline void print_acc_info(version_t version, objid_t objid, const char *
     }
 }
 
-static inline void check_acc_version(objid_t objid, const char *acc)
+static __inline__ void check_acc_version(objid_t objid, const char *acc)
 {
     version_t ver = read_acc_version();
     if (ver != obj_version[objid]) {
@@ -245,7 +258,7 @@ struct crew_gstate_t {
 };
 extern struct crew_gstate_t crew_g;
 
-static inline void cm_add_contending_memobj(memobj_t *mo)
+static __inline__ void cm_add_contending_memobj(memobj_t *mo)
 {
     cpuid_t owner = mo->owner;
     /* It's possible the memobj is released. */
@@ -285,7 +298,7 @@ static inline void cm_add_contending_memobj(memobj_t *mo)
      */
 }
 
-static inline void cm_release_memobj(memobj_t *mo)
+static __inline__ void cm_release_memobj(memobj_t *mo)
 {
     if (mo->owner != cm_coreid)
         return;
@@ -303,20 +316,20 @@ static inline void cm_release_memobj(memobj_t *mo)
 
 void cm_release_all_memobj(void);
 
-static inline bool cm_has_contending_memobj(void)
+static __inline__ bool cm_has_contending_memobj(void)
 {
     return crew.contending.core_start_idx != crew.contending.core_idx;
 }
 
 void __cm_release_contending_memobj(void);
-static inline void cm_release_contending_memobj(void)
+static __inline__ void cm_release_contending_memobj(void)
 {
     if (cm_has_contending_memobj()) {
         __cm_release_contending_memobj();
     }
 }
 
-static inline void cm_add_locked_memobj(memobj_t *mo)
+static __inline__ void cm_add_locked_memobj(memobj_t *mo)
 {
     /* Add the locked memobj to the array for release later */
     crew.locked_memobj_idx = (crew.locked_memobj_idx + 1) & LOCKED_MEMOBJ_IDX_MASK;
@@ -328,7 +341,7 @@ static inline void cm_add_locked_memobj(memobj_t *mo)
     mo->owner = cm_coreid;
 }
 
-static inline void cm_handle_contention(memobj_t *mo, objid_t objid)
+static __inline__ void cm_handle_contention(memobj_t *mo, objid_t objid)
 {
     crew.contending.memop[objid] = memop;
     cm_release_contending_memobj();
@@ -338,15 +351,14 @@ static inline void cm_handle_contention(memobj_t *mo, objid_t objid)
 }
 
 #define LAZY_RELEASE_MEMOP_DIFF 5
-static inline int should_lazy_release(objid_t objid)
+static __inline__ int should_lazy_release(objid_t objid)
 {
     return (memop - crew.contending.memop[objid]) >= LAZY_RELEASE_MEMOP_DIFF;
 }
 #endif // LAZY_LOCK_RELEASE
 
-/* Inline function is slower than directly putting the code in. */
+/* Inline function seems slower than directly putting the code in. */
 #ifdef WRITE_RECORDING_AS_FUNC
-#define __inline__ inline __attribute__((always_inline))
 static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo, objid_t objid)
 {
 #ifdef NO_LOCK
@@ -467,7 +479,7 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid,
 
 extern __thread wait_version_t wait_version;
 
-static inline void read_next_version_log(void)
+static __inline__ void read_next_version_log(void)
 {
     wait_version_t *wv = (wait_version_t *)version_log.buf;
     if (wv->memop == -1) {
@@ -480,7 +492,7 @@ static inline void read_next_version_log(void)
     version_log.buf = (char *)(wv + 1);
 }
 
-static inline void wait_object_version(objid_t objid)
+static __inline__ void wait_object_version(objid_t objid)
 {
     if (memop == wait_version.memop) {
         while (obj_version[objid] < wait_version.version) {
@@ -513,7 +525,7 @@ typedef struct {
 extern wait_memop_log_t *wait_memop_log;
 extern __thread int *wait_memop_idx;
 
-static inline wait_memop_t *next_wait_memop(objid_t objid) {
+static __inline__ wait_memop_t *next_wait_memop(objid_t objid) {
     int i;
     wait_memop_t *log = wait_memop_log[objid].log;
     version_t version = obj_version[objid];
@@ -529,7 +541,7 @@ static inline wait_memop_t *next_wait_memop(objid_t objid) {
     return NULL;
 }
 
-static inline void wait_memop(objid_t objid)
+static __inline__ void wait_memop(objid_t objid)
 {
     wait_memop_t *log;
     while ((log = next_wait_memop(objid)) != NULL) {
@@ -571,7 +583,7 @@ void cm_assert_not_in_tc(void);
 #define CM_END_ATOMIC_INSN(value) \
     cm_end_atomic_insn(__mo, __last, __objid, __version, value)
 
-static inline version_t cm_start_atomic_insn(memobj_t *mo, last_memobj_t *last,
+static __inline__ version_t cm_start_atomic_insn(memobj_t *mo, last_memobj_t *last,
         objid_t objid)
 {
     version_t version;
@@ -600,7 +612,7 @@ static inline version_t cm_start_atomic_insn(memobj_t *mo, last_memobj_t *last,
     return version;
 }
 
-static inline void cm_end_atomic_insn(memobj_t *mo, last_memobj_t *last,
+static __inline__ void cm_end_atomic_insn(memobj_t *mo, last_memobj_t *last,
         objid_t objid, version_t version, uint64_t val)
 {
     (void)val;
@@ -611,7 +623,7 @@ static inline void cm_end_atomic_insn(memobj_t *mo, last_memobj_t *last,
             cm_crew_record_end_write(mo, objid, version);
         }
 #else
-        cm_crew_record_end_write(mo, last, objid, version);
+        cm_crew_record_end_write(mo, objid, version);
 #endif
     } else {
 #ifdef DEBUG_MEMCNT
@@ -626,7 +638,7 @@ static inline void cm_end_atomic_insn(memobj_t *mo, last_memobj_t *last,
 }
 
 /* The atomic read insn function are for ARM target. */
-static inline version_t cm_start_atomic_read_insn(memobj_t *mo, objid_t objid)
+static __inline__ version_t cm_start_atomic_read_insn(memobj_t *mo, objid_t objid)
 {
     version_t version = -1;
 
@@ -642,7 +654,7 @@ static inline version_t cm_start_atomic_read_insn(memobj_t *mo, objid_t objid)
     return version;
 }
 
-static inline void cm_end_atomic_read_insn(memobj_t *mo, objid_t objid, uint64_t val)
+static __inline__ void cm_end_atomic_read_insn(memobj_t *mo, objid_t objid, uint64_t val)
 {
     (void)val;
     memop++;

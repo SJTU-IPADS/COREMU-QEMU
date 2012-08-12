@@ -137,7 +137,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
 #ifdef CREW_MMU
-            READ_WITH_ID(res, addr+addend, env->tlb_table[mmu_idx][index].objid, DATA_TYPE);
+            READ_WITH_ID(res, addr+addend, env->tlb_table[mmu_idx][index], DATA_TYPE);
 #else
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
 #endif
@@ -196,8 +196,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* unaligned/aligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
 #ifdef CREW_MMU
-            READ_WITH_ID(res, addr+addend, env->tlb_table[mmu_idx][index].objid,
-                         DATA_TYPE);
+            READ_WITH_ID(res, addr+addend, env->tlb_table[mmu_idx][index], DATA_TYPE);
 #else
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
 #endif
@@ -291,7 +290,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
 #ifdef CREW_MMU
-            WRITE_WITH_ID(addr+addend, env->tlb_table[mmu_idx][index].objid, val);
+            WRITE_WITH_ID(addr+addend, env->tlb_table[mmu_idx][index], val);
 #else
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
 #endif
@@ -347,7 +346,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* aligned/unaligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
 #ifdef CREW_MMU
-            WRITE_WITH_ID(addr+addend, env->tlb_table[mmu_idx][index].objid, val);
+            WRITE_WITH_ID(addr+addend, env->tlb_table[mmu_idx][index], val);
 #else
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
 #endif

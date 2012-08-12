@@ -31,6 +31,9 @@
 #include "qemu-queue.h"
 #include "targphys.h"
 
+#include "coremu-config.h"
+#include "cm-crew.h"
+
 #ifndef TARGET_LONG_BITS
 #error TARGET_LONG_BITS must be defined before including this header
 #endif
@@ -99,14 +102,14 @@ typedef struct CPUTLBEntry {
     /* Addend to virtual address to get host address.  IO accesses
        use the corresponding iotlb value.  */
     unsigned long addend;
-#ifdef CONFIG_REPLAY
+#if defined(CONFIG_MEM_ORDER) && defined(PAGE_AS_SHARED_OBJECT)
     int objid;
 #endif
     /* padding to get a power of two size */
     uint8_t dummy[(1 << CPU_TLB_ENTRY_BITS) - 
                   (sizeof(target_ulong) * 3 + 
                    ((-sizeof(target_ulong) * 3) & (sizeof(unsigned long) - 1)) + 
-#ifdef CONFIG_REPLAY
+#if defined(CONFIG_MEM_ORDER) && defined(PAGE_AS_SHARED_OBJECT)
                    sizeof(int) +
 #endif
                    sizeof(unsigned long))];

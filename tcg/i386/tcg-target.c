@@ -1052,7 +1052,7 @@ static inline void tcg_out_tlb_load(TCGContext *s, int addrlo_idx,
     /* add addend(r1), r0 */
     tcg_out_modrm_offset(s, OPC_ADD_GvEv + P_REXW, r0, r1,
                          offsetof(CPUTLBEntry, addend) - which);
-#ifdef CONFIG_MEM_ORDER
+#if defined(CONFIG_MEM_ORDER) && defined(PAGE_AS_SHARED_OBJECT)
     /* Put the objid into the 2nd argument.
      * Note r1 and tcg_target_call_iarg_regs[1] are the same, so this must
      * come after the previous tcg_out. */
@@ -1177,7 +1177,16 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 
     /* TLB Hit.  */
 #ifdef CONFIG_MEM_ORDER
-    /* rdi contains the address, rsi contains objid */
+    (void)tcg_out_qemu_ld_direct;
+    /* rdi contains host address
+     * rbx contains guest virtual address
+     * rsi contains objid if shared object is page sized */
+#ifndef PAGE_AS_SHARED_OBJECT
+    // Calculate object id using host address which is in rdi
+    tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
+    tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT);
+    tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK, 0);
+#endif
 #ifdef LAZY_LOCK_RELEASE
     uint8_t *mem_label[2] = { 0, 0 };
     if (cm_run_mode == CM_RUNMODE_RECORD) {
@@ -1464,9 +1473,15 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
 
     /* TLB Hit.  */
 #ifdef CONFIG_MEM_ORDER
+    (void)tcg_out_qemu_st_direct;
+#ifndef PAGE_AS_SHARED_OBJECT
+    // Calculate object id using host address which is in rdi
+    tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
+    tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT);
+    tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK, 0);
+#endif
     /* Host address is in rdi after calling tcg_out_tlb_load, we need also
      * pass the write value, put it in the 3rd arg register. */
-    (void)tcg_out_qemu_st_direct;
     tcg_out_mov(s, (opc == 3 ? TCG_TYPE_I64 : TCG_TYPE_I32),
             tcg_target_call_iarg_regs[2], data_reg);
     tcg_out_calli(s, (tcg_target_long)cm_crew_write_func[cm_run_mode][s_bits & 3]);

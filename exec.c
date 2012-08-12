@@ -2428,7 +2428,7 @@ void tlb_set_page(CPUState *env, target_ulong vaddr,
     env->iotlb[mmu_idx][index] = iotlb - vaddr;
     te = &env->tlb_table[mmu_idx][index];
     te->addend = addend - vaddr;
-#ifdef CONFIG_REPLAY
+#if defined(CONFIG_MEM_ORDER) && defined(PAGE_AS_SHARED_OBJECT)
     te->objid = memobj_id((const void *)addend);
 #endif
     if (prot & PAGE_READ) {
@@ -3085,6 +3085,7 @@ ram_addr_t qemu_ram_alloc_from_ptr(DeviceState *dev, const char *name,
                 coremu_debug("mmap allocate memory failed");
                 exit(1);
             }
+            coremu_debug("%s: %p len %ld", name, new_block->host, size);
             emu_mem_start += size;
 #  else
             new_block->host = qemu_vmalloc(size);
