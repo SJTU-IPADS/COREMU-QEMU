@@ -711,6 +711,10 @@ int cpu_exec(CPUState *env1)
 #ifdef TARGET_I386
                         do_interrupt(inject_intno | CM_REPLAY_INT, 0, 0, 0, 1);
 #elif defined(TARGET_ARM)
+                        if (inject_intno == CM_CPU_EXIT) {
+                            printf("core %d exits\n", cm_coreid);
+                            pthread_exit(NULL);
+                        }
                         env->exception_index = inject_intno | CM_REPLAY_INT;
                         do_interrupt(env);
 #endif

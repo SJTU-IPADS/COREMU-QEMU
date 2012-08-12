@@ -637,30 +637,4 @@ static __inline__ void cm_end_atomic_insn(memobj_t *mo, last_memobj_t *last,
 #endif
 }
 
-/* The atomic read insn function are for ARM target. */
-static __inline__ version_t cm_start_atomic_read_insn(memobj_t *mo, objid_t objid)
-{
-    version_t version = -1;
-
-    switch (cm_run_mode) {
-    case CM_RUNMODE_RECORD:
-        printf("not implemented\n");
-        assert(0);
-        break;
-    case CM_RUNMODE_REPLAY:
-        wait_object_version(objid);
-        break;
-    }
-    return version;
-}
-
-static __inline__ void cm_end_atomic_read_insn(memobj_t *mo, objid_t objid, uint64_t val)
-{
-    (void)val;
-    memop++;
-#ifdef DEBUG_MEM_ACCESS
-    debug_mem_access(val, objid, "atomic_read");
-#endif
-}
-
 #endif /* _CM_CREW_H */
