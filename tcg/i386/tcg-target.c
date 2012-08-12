@@ -1181,24 +1181,8 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     /* rdi contains host address
      * rbx contains guest virtual address
      * rsi contains objid if shared object is page sized */
-#if !defined(PAGE_AS_SHARED_OBJECT) && defined(LAZY_LOCK_RELEASE)
-    if (cm_run_mode == CM_RUNMODE_RECORD) {
-        // We can calculate object id using host address in %rdi and put it into %rsi
-        // but actually rsi needs to hold offset to memobj to get &memobj[objid],
-        tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
-        tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT - MEMOBJ_STRUCT_BITS);
-        tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK << MEMOBJ_STRUCT_BITS, 0);
-    } else {
-        tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
-        tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT);
-        tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK, 0);
-    }
-#else
-    tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
-    tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT);
-    tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK, 0);
-#endif
 #ifdef LAZY_LOCK_RELEASE
+    /* With lazy lock release, if object is owned by self, can do direct read. */
     uint8_t *mem_label[2] = { 0, 0 };
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         // mov memobj, %rdx
@@ -1206,6 +1190,12 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 #ifdef PAGE_AS_SHARED_OBJECT
         // shl $4, %esi, objid is 32bit
         tcg_out_shifti(s, SHIFT_SHL, TCG_REG_RSI, MEMOBJ_STRUCT_BITS);
+#else
+        // We can calculate object id using host address in %rdi and put it into %rsi
+        // but actually rsi needs to hold offset to memobj to get &memobj[objid],
+        tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
+        tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT - MEMOBJ_STRUCT_BITS);
+        tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK << MEMOBJ_STRUCT_BITS, 0);
 #endif
         // add %rsi, %rdx, now %rdx = &memobj[objid]
         tgen_arithr(s, ARITH_ADD + P_REXW, TCG_REG_RDX, TCG_REG_RSI);
@@ -1257,9 +1247,18 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         // %rdx contains &memobj[objid], passed as the 3nd argument
         tcg_out_calli(s, (tcg_target_long)cm_crew_read_lazy_func[s_bits]);
     } else {
+        tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
+        tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT);
+        tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK, 0);
+
         tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
     }
-#else
+#else // ! LAZY_LOCK_RELEASE
+    // calculate objid using host address in rdi
+    tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_RSI, TCG_REG_RDI);
+    tcg_out_shifti(s, SHIFT_SHR, TCG_REG_RSI, MEMOBJ_SHIFT);
+    tgen_arithi(s, ARITH_AND, TCG_REG_RSI, OBJID_MASK, 0);
+
     tcg_out_calli(s, (tcg_target_long)cm_crew_read_func[cm_run_mode][s_bits]);
 #endif // LAZY_LOCK_RELEASE
 
