@@ -1628,7 +1628,8 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
                  * next tb. */
                 tcg_out_brcond64(s, TCG_COND_EQ, TCG_REG_RAX, TCG_REG_RBX, 0, exit_label, 1);
             }
-#if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
+//#if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
+#ifdef NO_SUCH
             else { // record
                 // XXX release contending before jumping to next tb memobj to avoid dead lock
                 // may be should first check, then call actual releasing function
