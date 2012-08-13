@@ -238,14 +238,14 @@ void *cm_crew_read_lazy_func[4] = {
 
 #endif // LAZY_LOCK_RELEASE
 
-#include <assert.h>
-#include "cpu.h"
-
 #ifdef ASSERT_REPLAY_TLBFILL
 __thread uint32_t tlb_fill_cnt;
 #endif
 
 #ifdef DEBUG_MEM_ACCESS
+#include <assert.h>
+#include "cpu.h"
+
 __thread uint32_t memacc_cnt;
 __thread int error_print_cnt = 0;
 #define PRINT_ERROR_TIMES 10
