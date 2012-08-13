@@ -4,16 +4,20 @@
 #include <stdlib.h>
 #include <malloc.h>
 
-#define CONFIG_REPLAY
+#define DEBUG_COREMU
 #include "coremu-debug.h"
 
 static const char *cm_log_name[] = {
-    "intr",
+#ifdef COMBINE_LOG
+    "combined",
+#else
     "ipi",
     "in",
     "rdtsc",
     "mmio",
     "dma",
+#endif // COMBINE_LOG
+    "intr",
     "pgflt",
 #ifdef ASSERT_REPLAY_PC
     "pc",

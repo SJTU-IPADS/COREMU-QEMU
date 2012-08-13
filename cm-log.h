@@ -8,13 +8,25 @@
 /* For logs that need to be flushed upon exit, put it in this file because it
  * contains the logic to open and flush. */
 
+#define COMBINE_LOG
+// INTR and PGFLT log can't be combined because they need to read first then
+// inject. So we don't know when should we do the read during replay.
+
 enum {
-    INTR,
+#ifdef COMBINE_LOG
+    IPI = 0,
+    IN = 0,
+    RDTSC = 0,
+    MMIO = 0,
+    DISK_DMA = 0,
+#else
     IPI,
     IN,
     RDTSC,
     MMIO,
     DISK_DMA,
+#endif // COMBINE_LOG
+    INTR,
     PGFLT,
 #ifdef ASSERT_REPLAY_PC
     PC,
