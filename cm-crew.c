@@ -6,9 +6,6 @@
 #include <assert.h>
 #include <pthread.h>
 
-#include "cpu-all.h"
-
-#include "rwlock.h"
 #include "coremu-config.h"
 #include "cm-defs.h"
 #include "cm-crew.h"
@@ -325,21 +322,6 @@ void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type)
     }
 }
 #endif
-
-void cm_assert_not_in_tc(void)
-{
-    if (cm_is_in_tc) {
-        coremu_debug(
-             "cm_coreid = %u, eip = %0lx, "
-             "cm_tb_exec_cnt = %lu, "
-             "memop = %u",
-             cm_coreid,
-             (long)cpu_single_env->ENVPC,
-             cm_tb_cnt,
-             (int)memop);
-        pthread_exit(NULL);
-    }
-}
 
 #define DATA_BITS 8
 #include "cm-crew-template.h"

@@ -6,7 +6,9 @@
 #include "cm-replay.h"
 #include "cm-mapped-log.h"
 
+#ifdef USE_RWLOCK
 #include "rwlock.h"
+#endif
 
 #include <pthread.h>
 #include <stdbool.h>
