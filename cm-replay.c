@@ -658,9 +658,5 @@ void cm_print_replay_info(void)
                  (uint64_t)cpu_single_env->ENVPC,
                  cm_tb_cnt,
                  (int)memop);
-
-#ifdef STAT_RETRY_CNT
-    coremu_debug("retry_cnt = %ld", retry_cnt);
-#endif
 }
 

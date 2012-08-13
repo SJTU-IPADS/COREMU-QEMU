@@ -42,11 +42,6 @@ __thread MappedLog version_log;
 __thread MappedLog acc_version_log;
 #endif
 
-#ifdef STAT_RETRY_CNT
-int stat_retry_cnt;
-__thread long retry_cnt;
-#endif
-
 /* For replay */
 __thread wait_version_t wait_version;
 wait_memop_log_t *wait_memop_log;
