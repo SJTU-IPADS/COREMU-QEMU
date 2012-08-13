@@ -1630,6 +1630,10 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
             }
 //#if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
 #ifdef NO_SUCH
+            // For benchmark with more contention, releasing shared object more
+            // often will increase performance. However, I guess choosing the
+            // right shared object size would have more impact. So I choose to
+            // disable the following code.
             else { // record
                 // XXX release contending before jumping to next tb memobj to avoid dead lock
                 // may be should first check, then call actual releasing function
