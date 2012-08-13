@@ -157,6 +157,9 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
     }
 #endif
     cm_is_in_tc = 1;
+#if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
+    cm_release_contending_memobj();
+#endif
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
 #ifdef CHECK_MEMOP_CNT
     prev_memcnt = memop;

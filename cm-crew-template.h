@@ -101,8 +101,8 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
     /* If lock already hold, just do the write. */
     if (mo->owner == cm_coreid) {
         assert(mo->write_lock);
-        last_memobj[objid].memop = memop;
         mo->version += 2;
+        last_memobj[objid].memop = memop;
         memop++;
         *addr = val;
         return;
