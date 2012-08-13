@@ -3735,7 +3735,6 @@ static void swapendian_del(int io_index)
     }
 }
 
-uint64_t cm_mmio_read_cnt = 0;
 #ifdef CONFIG_REPLAY
 
 #include "closure.h"
@@ -3753,7 +3752,6 @@ static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
         unsigned int val;
         if (cm_run_mode == CM_RUNMODE_REPLAY)
             if (cm_replay_mmio(&val)) {
-                cm_mmio_read_cnt++;
                 /* XXX Since read may change hardware state, still need to call the
                  * original mmio read function. */
                 func(opaque, addr);

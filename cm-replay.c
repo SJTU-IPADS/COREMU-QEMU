@@ -393,13 +393,11 @@ void cm_replay_all_exec_cnt(void)
     }
 }
 
+#ifdef DEBUG_REPLAY
 /* debugging */
 
 /* Check whether the next eip is the same as recorded. This is used for
  * debugging. */
-
-extern uint64_t cm_ioport_read_cnt;
-extern uint64_t cm_mmio_read_cnt;
 
 /*
  *#include "cpu-all.h"
@@ -459,17 +457,13 @@ void cm_replay_assert_pc(uint64_t eip)
             coremu_debug(
                     "cm_coreid = %u, eip = %016lx, recorded eip = %016lx, "
                     "memop_cnt = %ld, recorded_memop = %ld, "
-                    "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, "
-                    "cm_ioport_read_cnt = %lu, "
-                    "cm_mmio_read_cnt = %lu",
+                    "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu",
                     cm_coreid,
                     (long)eip,
                     (long)next_eip,
                     memop, recorded_memop,
                     cm_tb_cnt,
                     cm_inject_intr.exec_cnt,
-                    cm_ioport_read_cnt,
-                    cm_mmio_read_cnt);
             pthread_exit(NULL);
         }
         break;
@@ -495,15 +489,11 @@ void cm_replay_assert_##name(type cur) \
             coremu_debug("diff in "#name); \
             coremu_debug( \
                       #name" = %lx, recorded "#name" = %lx, " \
-                      "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu, " \
-                      "cm_ioport_read_cnt = %lu, " \
-                      "cm_mmio_read_cnt = %lu", \
+                      "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu", \
                       (long)cur, \
                       (long)recorded, \
                       cm_tb_cnt, \
-                      cm_inject_intr.exec_cnt, \
-                      cm_ioport_read_cnt, \
-                      cm_mmio_read_cnt); \
+                      cm_inject_intr.exec_cnt); \
             coremu_debug("ERROR "#name" differs!"); \
         } \
         break; \
@@ -659,4 +649,13 @@ void cm_print_replay_info(void)
                  cm_tb_cnt,
                  (int)memop);
 }
+#else // DEBUG_REPLAY
 
+void cm_print_replay_info(void)
+{
+    coremu_debug("core_id = %u, cm_tb_exec_cnt = %lu, memop = %u",
+                 cm_coreid,
+                 cm_tb_cnt,
+                 (int)memop);
+}
+#endif // DEBUG_REPLAY

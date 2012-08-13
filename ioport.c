@@ -90,13 +90,10 @@ static uint32_t ioport_read(int index, uint32_t address)
     return func(ioport_opaque[address], address);
 }
 
-uint64_t cm_ioport_read_cnt = 0;
 #ifdef CONFIG_REPLAY
 static uint32_t ioport_read(int index, uint32_t address)
 {
     uint32_t value;
-    cm_ioport_read_cnt++;
-    /*printf("ioport read cnt = %d\n", cm_ioport_read_cnt);*/
 
     if (cm_run_mode == CM_RUNMODE_REPLAY && !cm_ignore_address(address))
         if (cm_replay_in(&value)) {

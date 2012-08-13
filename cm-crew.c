@@ -243,7 +243,9 @@ void *cm_crew_read_lazy_func[4] = {
 #include <assert.h>
 #include "cpu.h"
 
+#ifdef ASSERT_REPLAY_TLBFILL
 __thread uint32_t tlb_fill_cnt;
+#endif
 
 #ifdef DEBUG_MEM_ACCESS
 __thread uint32_t memacc_cnt;
