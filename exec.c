@@ -2428,9 +2428,6 @@ void tlb_set_page(CPUState *env, target_ulong vaddr,
     env->iotlb[mmu_idx][index] = iotlb - vaddr;
     te = &env->tlb_table[mmu_idx][index];
     te->addend = addend - vaddr;
-#if defined(CONFIG_MEM_ORDER) && defined(PAGE_AS_SHARED_OBJECT)
-    te->objid = memobj_id((const void *)addend);
-#endif
     if (prot & PAGE_READ) {
         te->addr_read = address;
     } else {

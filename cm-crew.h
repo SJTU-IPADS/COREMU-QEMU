@@ -16,24 +16,23 @@
 //#define DEBUG_MEMCNT
 #define WRITE_RECORDING_AS_FUNC
 #define LAZY_LOCK_RELEASE
-//#define PAGE_AS_SHARED_OBJECT
 
 #ifdef DEBUG_MEMCNT
 extern __thread MappedLog acc_version_log;
 #endif
 
-/* Now we track memory as MEMOBJ_SIZE shared object, each object will have a
- * memobj_t tracking its ownership and seqlock. */
-#ifdef PAGE_AS_SHARED_OBJECT
-#  define MEMOBJ_SHIFT 12
-#else
-#  define MEMOBJ_SHIFT 10
-#endif // PAGE_AS_SHARED_OBJECT
+// 2G memory total
+#define MEMORY_TOTAL_BITS 31
+#define MEMORY_TOTAL (1 << MEMORY_TOTAL_BITS)
 
+/* Now we track memory as MEMOBJ_SIZE shared object, each object will have a
+ * memobj_t tracking its ownership and seqlock. Note it's possible one objid
+ * corresponds to multiple shared object. */
+#define MEMOBJ_SHIFT 10
 #define MEMOBJ_SIZE (1 << MEMOBJ_SHIFT)
 
 // XXX should I increase the object mask bits? thus having more different memobj
-#define OBJID_BITS 20
+#define OBJID_BITS (MEMORY_TOTAL_BITS - MEMOBJ_SHIFT)
 #define OBJID_CNT (1 << OBJID_BITS)
 #define OBJID_MASK (OBJID_CNT - 1)
 
@@ -181,15 +180,15 @@ static __inline__ void check_acc_version(objid_t objid, const char *acc)
 }
 #endif
 
-uint8_t  cm_crew_record_readb(const  uint8_t *addr, objid_t);
-uint16_t cm_crew_record_readw(const uint16_t *addr, objid_t);
-uint32_t cm_crew_record_readl(const uint32_t *addr, objid_t);
-uint64_t cm_crew_record_readq(const uint64_t *addr, objid_t);
+uint8_t  cm_crew_record_readb(const  uint8_t *addr);
+uint16_t cm_crew_record_readw(const uint16_t *addr);
+uint32_t cm_crew_record_readl(const uint32_t *addr);
+uint64_t cm_crew_record_readq(const uint64_t *addr);
 
-void cm_crew_record_writeb(uint8_t  *addr, objid_t,  uint8_t val);
-void cm_crew_record_writew(uint16_t *addr, objid_t, uint16_t val);
-void cm_crew_record_writel(uint32_t *addr, objid_t, uint32_t val);
-void cm_crew_record_writeq(uint64_t *addr, objid_t, uint64_t val);
+void cm_crew_record_writeb(uint8_t  *addr,  uint8_t val);
+void cm_crew_record_writew(uint16_t *addr, uint16_t val);
+void cm_crew_record_writel(uint32_t *addr, uint32_t val);
+void cm_crew_record_writeq(uint64_t *addr, uint64_t val);
 
 extern void *cm_crew_read_func[3][4];
 extern void *cm_crew_write_func[3][4];
@@ -551,15 +550,15 @@ static __inline__ void wait_memop(objid_t objid)
     }
 }
 
-uint8_t  cm_crew_replay_readb(const  uint8_t *addr, objid_t);
-uint16_t cm_crew_replay_readw(const uint16_t *addr, objid_t);
-uint32_t cm_crew_replay_readl(const uint32_t *addr, objid_t);
-uint64_t cm_crew_replay_readq(const uint64_t *addr, objid_t);
+uint8_t  cm_crew_replay_readb(const  uint8_t *addr);
+uint16_t cm_crew_replay_readw(const uint16_t *addr);
+uint32_t cm_crew_replay_readl(const uint32_t *addr);
+uint64_t cm_crew_replay_readq(const uint64_t *addr);
 
-void cm_crew_replay_writeb(uint8_t *addr,  objid_t objid, uint8_t val);
-void cm_crew_replay_writew(uint16_t *addr, objid_t objid, uint16_t val);
-void cm_crew_replay_writel(uint32_t *addr, objid_t objid, uint32_t val);
-void cm_crew_replay_writeq(uint64_t *addr, objid_t objid, uint64_t val);
+void cm_crew_replay_writeb(uint8_t *addr,  uint8_t val);
+void cm_crew_replay_writew(uint16_t *addr, uint16_t val);
+void cm_crew_replay_writel(uint32_t *addr, uint32_t val);
+void cm_crew_replay_writeq(uint64_t *addr, uint64_t val);
 
 extern void *cm_crew_replay_read_func[4];
 extern void *cm_crew_replay_write_func[4];

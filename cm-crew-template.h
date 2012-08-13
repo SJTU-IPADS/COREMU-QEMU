@@ -27,8 +27,9 @@
 
 /* Record read/write functino. */
 
-DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid)
+DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr)
 {
+    objid_t objid = memobj_id(addr);
     DATA_TYPE val;
     version_t version;
     memobj_t *mo = &memobj[objid];
@@ -91,8 +92,9 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     return val;
 }
 
-void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, objid_t objid, DATA_TYPE val)
+void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
+    objid_t objid = memobj_id(addr);
     memobj_t *mo = &memobj[objid];
 
 #ifdef LAZY_LOCK_RELEASE
@@ -159,8 +161,9 @@ DATA_TYPE glue(cm_crew_record_lazy_read, SUFFIX)(const DATA_TYPE *addr, objid_t 
 #endif // LAZY_LOCK_RELEASE
 /* Replay read/write functino. */
 
-DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid)
+DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr)
 {
+    objid_t objid = memobj_id(addr);
     wait_object_version(objid);
 
     DATA_TYPE val = *addr;
@@ -177,9 +180,9 @@ DATA_TYPE glue(cm_crew_replay_read, SUFFIX)(const DATA_TYPE *addr, objid_t objid
     return val;
 }
 
-void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, objid_t objid,
-        DATA_TYPE val)
+void glue(cm_crew_replay_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 {
+    objid_t objid = memobj_id(addr);
     wait_object_version(objid);
     wait_memop(objid);
 

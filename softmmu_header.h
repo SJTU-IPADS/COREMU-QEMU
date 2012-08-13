@@ -98,7 +98,7 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 #ifdef CREW_MMU
-        READ_WITH_ID(res, physaddr, env->tlb_table[mmu_idx][page_index], RES_TYPE);
+        READ_HOST_ADDR(res, physaddr, RES_TYPE);
 #else
         res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)physaddr);
 #endif
@@ -123,7 +123,7 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 #ifdef CREW_MMU
-        READ_WITH_ID(res, physaddr, env->tlb_table[mmu_idx][page_index], DATA_STYPE);
+        READ_HOST_ADDR(res, physaddr, DATA_STYPE);
 #else
         res = glue(glue(lds, SUFFIX), _raw)((uint8_t *)physaddr);
 #endif
@@ -152,7 +152,7 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 #ifdef CREW_MMU
-        WRITE_WITH_ID(physaddr, env->tlb_table[mmu_idx][page_index], v);
+        WRITE_HOST_ADDR(physaddr, v);
 #else
         glue(glue(st, SUFFIX), _raw)((uint8_t *)physaddr, v);
 #endif
