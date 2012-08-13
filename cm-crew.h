@@ -12,6 +12,7 @@
 
 #include <pthread.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #define __inline__ inline __attribute__((always_inline))
 

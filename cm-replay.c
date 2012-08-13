@@ -25,8 +25,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <pthread.h>
-#include "exec-all.h"
 
+#include "exec-all.h" // why do I need this header?
 #include "coremu-config.h"
 #include "coremu-core.h"
 
@@ -39,10 +39,6 @@
 #define VERBOSE_COERMU
 #define DEBUG_COREMU
 #include "coremu-debug.h"
-
-#ifdef DEBUG_REPLAY
-int going_to_fail;
-#endif
 
 extern int smp_cpus;
 
@@ -81,10 +77,6 @@ void cm_record_intr(int intno, long eip)
 #ifdef DEBUG_REPLAY
     fprintf(cm_log[INTR], LOG_INTR_FMT, intno,
             cm_tb_cnt, (void *)(long)eip);
-#elif defined(REPLAY_LOGBUF)
-    IntrLog *log = coremu_logbuf_next_entry(&(cm_log_buf[cm_coreid][INTR]), sizeof(*log));
-    log->intno = intno;
-    log->exec_cnt = cm_tb_cnt;
 #else
     IntrLog log;
     log.intno = intno;
