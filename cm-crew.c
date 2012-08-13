@@ -14,8 +14,6 @@
 #define DEBUG_COREMU
 #include "coremu-debug.h"
 
-extern int smp_cpus;
-
 __thread int cm_is_in_tc;
 
 /* TODO Consider what will happen if there's overflow. */
@@ -109,15 +107,15 @@ void cm_crew_init(void)
         for (i = 0; i < n_memobj; ++i) {
             memobj[i].owner = -1;
         }
-        crew_g.contending.memobj = calloc_check(smp_cpus, sizeof(*crew_g.contending.memobj),
+        crew_g.contending.memobj = calloc_check(cm_ncpus, sizeof(*crew_g.contending.memobj),
                 "Can't allocated contend_memobj");
-        crew_g.contending.core_idx = calloc_check(smp_cpus, sizeof(*crew_g.contending.core_idx),
+        crew_g.contending.core_idx = calloc_check(cm_ncpus, sizeof(*crew_g.contending.core_idx),
                 "Can't allocated contend_idx_arr");
-        crew_g.contending.core = calloc_check(smp_cpus, sizeof(*crew_g.contending.core),
+        crew_g.contending.core = calloc_check(cm_ncpus, sizeof(*crew_g.contending.core),
                 "Can't allocate contend_core_arr");
 #endif
     } else {
-        memop_cnt = calloc_check(smp_cpus, sizeof(*memop_cnt), "Can't allocate memop count\n");
+        memop_cnt = calloc_check(cm_ncpus, sizeof(*memop_cnt), "Can't allocate memop count\n");
         obj_version = calloc_check(n_memobj, sizeof(*obj_version), "Can't allocate obj_version\n");
         load_wait_memop_log();
     }
@@ -140,7 +138,7 @@ void cm_crew_core_init(void)
         }
 #ifdef LAZY_LOCK_RELEASE
         memset(crew.contending.core, -1, sizeof(crew.contending.core));
-        crew.contending.memobj = calloc_check(smp_cpus,
+        crew.contending.memobj = calloc_check(cm_ncpus,
                 sizeof(*crew.contending.memobj), "Can't allocate contending.memobj");
 
         crew.contending.memop = calloc_check(n_memobj,

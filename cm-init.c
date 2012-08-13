@@ -106,7 +106,7 @@ void cm_cpu_exec_init(void)
     map_exec(code_gen_prologue, sizeof(code_gen_prologue));
 
 #ifdef CONFIG_REPLAY
-    cm_replay_init();
+    cm_replay_init(smp_cpus);
 #  ifdef REPLAY_LOGBUF
     coremu_logbuffer_init();
 #  endif

@@ -10,6 +10,7 @@ enum {
     CM_RUNMODE_RECORD,
     CM_RUNMODE_REPLAY,
 };
+extern int cm_ncpus;
 
 #define NINTR 10 // For debug
 
@@ -37,7 +38,7 @@ extern __thread uint64_t cm_tb_cnt;
 typedef int8_t cpuid_t;
 extern __thread cpuid_t cm_coreid;
 
-void cm_replay_init(void);
+void cm_replay_init(int ncpus);
 void cm_replay_core_init(void);
 
 void cm_record_intr(int intno, long eip);

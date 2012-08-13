@@ -67,11 +67,9 @@ void cm_replay_flush_log(int coreid)
     }
 }
 
-extern int smp_cpus;
-
 void cm_log_init(void)
 {
-    cm_log_allpc = calloc(smp_cpus, sizeof(*cm_log_allpc));
+    cm_log_allpc = calloc(cm_ncpus, sizeof(*cm_log_allpc));
     assert(cm_log_allpc);
 }
 

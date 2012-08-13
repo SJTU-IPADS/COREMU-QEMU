@@ -40,8 +40,6 @@
 #define DEBUG_COREMU
 #include "coremu-debug.h"
 
-extern int smp_cpus;
-
 /* Whether the vm is being recorded or replayed. */
 int cm_run_mode;
 
@@ -253,7 +251,7 @@ void cm_record_disk_dma(void)
      * CPU accessing the DMA memory can be recorded through memory ordering. */
     /*
      *int i;
-     *for (i = 0; i < smp_cpus; i++)
+     *for (i = 0; i < cm_ncpus; i++)
      *    fprintf(cm_log[i][DISK_DMA], DMA_LOG_FMT, cm_tb_exec_cnt[i]);
      */
 #ifdef DEBUG_REPLAY
@@ -314,11 +312,14 @@ static void cm_wait_disk_dma(void)
 
 /* init */
 
-void cm_replay_init(void)
+int cm_ncpus;
+
+void cm_replay_init(int ncpus)
 {
+    cm_ncpus = ncpus;
     cm_log_init();
     /* Setup CPU local variable */
-    cm_tb_cnt_arr = calloc(smp_cpus, sizeof(*cm_tb_cnt_arr));
+    cm_tb_cnt_arr = calloc(cm_ncpus, sizeof(*cm_tb_cnt_arr));
 
     /* For hardware thread, set cm_coreid to -1. */
     cm_coreid = -1;
@@ -354,7 +355,7 @@ void cm_record_all_exec_cnt(void)
 {
     cpuid_t i;
 
-    for (i = 0; i < smp_cpus; i++) {
+    for (i = 0; i < cm_ncpus; i++) {
         if (i != cm_coreid) {
             fprintf(cm_log_allpc[cm_coreid], LOG_ALL_EXEC_CNT_FMT, i,
                     *cm_tb_cnt_arr[i]);
@@ -367,7 +368,7 @@ void cm_replay_all_exec_cnt(void)
     cpuid_t i, coreid;
     uint64_t wait_exec_cnt;
 
-    for (i = 0; i < smp_cpus; i++) {
+    for (i = 0; i < cm_ncpus; i++) {
         if (i == cm_coreid)
             continue;
         if (fscanf(cm_log_allpc[cm_coreid], LOG_ALL_EXEC_CNT_FMT, &coreid,
