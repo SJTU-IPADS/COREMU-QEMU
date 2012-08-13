@@ -26,7 +26,6 @@
 #include <stdint.h>
 #include <pthread.h>
 
-#include "exec-all.h" // why do I need this header?
 #include "coremu-config.h"
 #include "coremu-core.h"
 
@@ -97,6 +96,8 @@ static inline void cm_read_intr_log(void)
         cm_inject_intr.exec_cnt = -1;
 #endif
 }
+
+#define TARGET_I386 // XXX For ARM, this is not necessary
 
 #ifdef TARGET_I386
 static void cm_wait_disk_dma(void);
@@ -172,7 +173,7 @@ int cm_replay_##name(type *arg) \
     }\
     return 1; \
 }
-#endif
+#endif // DEBUG_REPLAY
 
 #define GEN_FUNC(name, type, log, fmt) \
     GEN_RECORD_FUNC(name, type, log, fmt) \
