@@ -35,8 +35,8 @@ extern __thread MappedLog acc_version_log;
 #define MEMOBJ_SIZE (1 << MEMOBJ_SHIFT)
 
 // XXX should I increase the object mask bits? thus having more different memobj
-#define OBJID_BITS (MEMORY_TOTAL_BITS - MEMOBJ_SHIFT)
-//#define OBJID_BITS 21
+//#define OBJID_BITS (MEMORY_TOTAL_BITS - MEMOBJ_SHIFT)
+#define OBJID_BITS 21
 #define OBJID_CNT (1 << OBJID_BITS)
 #define OBJID_MASK (OBJID_CNT - 1)
 
