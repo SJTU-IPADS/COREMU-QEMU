@@ -51,7 +51,9 @@ typedef struct {
 #else
     CMSpinLock write_lock;
 #endif
-#ifdef LAZY_LOCK_RELEASE
+#if defined(LAZY_LOCK_RELEASE) || defined(DMA_DETECTOR)
+    // While hardware are doing DMA, owner will be set to #cores to indicate
+    // they are doing DMA.
     cpuid_t owner;
     /* Avoiding adding the same obj to contending array too much times. There
      * may still have duplicates, but it does not harm correctness. */
@@ -269,6 +271,14 @@ static __inline__ void cm_add_contending_memobj(memobj_t *mo)
         return;
     }
 
+#ifdef DMA_DETECTOR
+    if (mo->owner == cm_ncpus) {
+        printf("Guest OS error: core %d adding contending memobj %ld\n",
+                cm_coreid, mo - memobj);
+        exit(1);
+    }
+#endif
+
     /* First check if the previous added memobj is handled. */
     if (crew_g.contending.memobj[owner][cm_coreid]) {
         /* It's possible the previous memobj is released but the slot is not
@@ -346,6 +356,8 @@ static __inline__ void cm_add_locked_memobj(memobj_t *mo)
 
 static __inline__ void cm_handle_contention(memobj_t *mo, objid_t objid)
 {
+    // obj requester update contending memop to avoid holding lock once get the
+    // lock and contend with original owner
     crew.contending.memop[objid] = memop;
     cm_release_contending_memobj();
     /* It's possible the owner changes between successive calls,
@@ -639,5 +651,14 @@ static __inline__ void cm_end_atomic_insn(memobj_t *mo, last_memobj_t *last,
     debug_mem_access(val, objid, "atomic_write");
 #endif
 }
+
+/**********************************************************************
+ * For detecting concurrent access to DMA memory region
+ **********************************************************************/
+
+#ifdef DMA_DETECTOR
+void cm_acquire_write_lock_range(const char *start, int len);
+void cm_acquire_write_unlock_range(const char *start, int len);
+#endif // DMA_DETECTOR
 
 #endif /* _CM_CREW_H */

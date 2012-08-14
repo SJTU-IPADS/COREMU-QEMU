@@ -205,11 +205,23 @@ static ssize_t handle_aiocb_rw_vector(struct qemu_paiocb *aiocb)
     return len;
 }
 
+#ifdef DMA_DETECTOR
+// Set by cm-crew.c so we don't need to link cm-crew.o with block-obj
+void (*dma_lock_range)(const char *start, int len);
+void (*dma_unlock_range)(const char *start, int len);
+#endif
+
 static ssize_t handle_aiocb_rw_linear(struct qemu_paiocb *aiocb, char *buf)
 {
     ssize_t offset = 0;
     ssize_t len;
 
+#ifdef DMA_DETECTOR
+    // Acquire lock and check if being accessed by others.
+    // If yes, this should be a error
+    ssize_t total_len = aiocb->aio_nbytes - offset;
+    dma_lock_range(buf, total_len);
+#endif
     while (offset < aiocb->aio_nbytes) {
          if (aiocb->aio_type & QEMU_AIO_WRITE)
              len = pwrite(aiocb->aio_fildes,
@@ -232,6 +244,9 @@ static ssize_t handle_aiocb_rw_linear(struct qemu_paiocb *aiocb, char *buf)
 
          offset += len;
     }
+#ifdef DMA_DETECTOR
+    dma_unlock_range(buf, total_len);
+#endif
 
     return offset;
 }

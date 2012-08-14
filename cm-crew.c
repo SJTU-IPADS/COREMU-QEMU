@@ -96,17 +96,32 @@ static void load_wait_memop_log(void) {
     }
 }
 
+#ifdef DMA_DETECTOR
+extern void (*dma_lock_range)(const char *start, int len);
+extern void (*dma_unlock_range)(const char *start, int len);
+#endif
+
 void cm_crew_init(void)
 {
     n_memobj = OBJID_CNT;
 
+#ifdef DMA_DETECTOR
+    // hack to avoid linking cm-crew.o with block-obj
+    // qemu-system links with block-obj, but block-obj does not link with
+    // qemu-systme-x86
+    dma_lock_range = cm_acquire_write_lock_range;
+    dma_unlock_range = cm_acquire_write_unlock_range;
+#endif
+
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         memobj = calloc_check(n_memobj, sizeof(*memobj), "Can't allocate memobj");
-#ifdef LAZY_LOCK_RELEASE
+#if defined(LAZY_LOCK_RELEASE) || defined(DMA_DETECTOR)
         int i;
         for (i = 0; i < n_memobj; ++i) {
             memobj[i].owner = -1;
         }
+#endif
+#ifdef LAZY_LOCK_RELEASE
         crew_g.contending.memobj = calloc_check(cm_ncpus, sizeof(*crew_g.contending.memobj),
                 "Can't allocated contend_memobj");
         crew_g.contending.core_idx = calloc_check(cm_ncpus, sizeof(*crew_g.contending.core_idx),
@@ -219,6 +234,10 @@ void __cm_release_contending_memobj(void)
         coremu_assert(mo, "core %d memobj shouldn't be null", cm_coreid);
         cm_release_memobj(mo);
 
+        // obj owner update contending memop to avoid holding the lock
+        // immediately after releasing
+        crew.contending.memop[mo - memobj] = memop;
+
         crew.contending.core[idx] = -1;
         /* Clear the slot after it's actually released. */
         crew.contending.memobj[coreid] = NULL;
@@ -237,6 +256,59 @@ void *cm_crew_read_lazy_func[4] = {
 };
 
 #endif // LAZY_LOCK_RELEASE
+
+#ifdef DMA_DETECTOR
+
+void cm_acquire_write_lock_range(const char *start, int len)
+{
+    /*coremu_debug("dma start %p len %d", start, len);*/
+    if (cm_run_mode != CM_RUNMODE_RECORD)
+        return;
+    const char *p = start;
+    objid_t objid = memobj_id(start);
+    memobj_t *mo = &memobj[objid];
+
+    cm_coreid = cm_ncpus; // This is executed in AIO thread.
+    for (; p < start + len; p += MEMOBJ_SIZE, mo++) {
+#ifdef LAZY_LOCK_RELEASE
+        int printed = 0;
+        while (coremu_spin_trylock(&mo->write_lock) == BUSY) {
+            if (!printed) {
+                coremu_debug("DMA waiting core %d release obj %ld", mo->owner, mo - memobj);
+                printed = 1;
+            }
+            /* The memory maybe hold by other core because of lazy lock
+             * releasing. */
+            cm_add_contending_memobj(mo);
+        }
+#else
+        if (mo->owner != -1 || mo->write_lock == BUSY) {
+            printf("DMA accessing memory owned by other core %d\n", mo->owner);
+            exit(1);
+        }
+        coremu_spin_lock(&mo->write_lock);
+#endif
+        mo->version++;
+        mo->owner = cm_ncpus;
+    }
+}
+
+void cm_acquire_write_unlock_range(const char *start, int len)
+{
+    if (cm_run_mode != CM_RUNMODE_RECORD)
+        return;
+    const char *p = start;
+    objid_t objid = memobj_id(start);
+    memobj_t *mo = &memobj[objid];
+
+    for (; p < start + len; p += MEMOBJ_SIZE, mo++) {
+        mo->owner = -1; // First set it not owned, then allow reader to cut in
+        mo->version--;
+        coremu_spin_unlock(&mo->write_lock);
+    }
+    /*coremu_debug("dma done %p len %d", start, len);*/
+}
+#endif // DMA_DETECTOR
 
 #ifdef ASSERT_REPLAY_TLBFILL
 __thread uint32_t tlb_fill_cnt;
@@ -321,7 +393,7 @@ void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type)
         /*pthread_exit(NULL);*/
     }
 }
-#endif
+#endif // DEBUG_MEM_ACCESS
 
 #define DATA_BITS 8
 #include "cm-crew-template.h"
