@@ -61,7 +61,14 @@ DATA_TYPE glue(cm_crew_record_read, SUFFIX)(const DATA_TYPE *addr)
         version = mo->version;
         while (unlikely(version & 1)) {
 #  ifdef LAZY_LOCK_RELEASE
+            // lazy lock release will detector DMA error in cm_add_contending_memobj.
             cm_handle_contention(mo, objid);
+#  elif defined(DMA_DETECTOR)
+            if (mo->owner == cm_ncpus) {
+                printf("Guest OS error: core %d accessing DMA memobj %d\n",
+                        cm_coreid, objid);
+                exit(1);
+            }
 #  endif
             cpu_relax();
             version = mo->version;

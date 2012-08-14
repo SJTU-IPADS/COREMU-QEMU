@@ -386,7 +386,15 @@ static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo, objid_t o
          * need to add the memobj to the owner's contending array again. */
         cm_handle_contention(mo, objid);
     }
-#  else // LAZY_LOCK_RELEASE
+#  elif defined(DMA_DETECTOR)
+    while (coremu_spin_trylock(&mo->write_lock) == BUSY) {
+        if (mo->owner == cm_ncpus) {
+            printf("Guest OS error: core %d accessing DMA memobj %d\n",
+                    cm_coreid, objid);
+            exit(1);
+        }
+    }
+#  else
     coremu_spin_lock(&mo->write_lock);
 #  endif // LAZY_LOCK_RELEASE
 #endif
