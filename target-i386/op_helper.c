@@ -5769,6 +5769,8 @@ void helper_time_backdoor(void)
             usec = tv[1].tv_usec + 1000000 - tv[0].tv_usec;
         }
         printf("\n==========\nCOREMU HOST TIME: %d.%03d seconds\n==========\n", (int)sec, (int)(usec / 1000));
+    } else {
+        printf("==========COREMU START TIMEING============\n");
     }
 }
 
