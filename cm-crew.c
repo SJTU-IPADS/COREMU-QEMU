@@ -259,17 +259,23 @@ void *cm_crew_read_lazy_func[4] = {
 
 #ifdef DMA_DETECTOR
 
-void cm_acquire_write_lock_range(const char *start, int len)
+void cm_acquire_write_lock_range(const char *p, int len)
 {
     /*coremu_debug("dma start %p len %d", start, len);*/
     if (cm_run_mode != CM_RUNMODE_RECORD)
         return;
-    const char *p = start;
-    objid_t objid = memobj_id(start);
-    memobj_t *mo = &memobj[objid];
+
+    long start = ((long)p + MEMOBJ_SIZE - 1) & ~(MEMOBJ_SIZE - 1);
+    long end = ((long)p + len) & ~(MEMOBJ_SIZE - 1);
+
+    objid_t i;
+    objid_t obj_start = memobj_id((const void *)start);
+    objid_t obj_end = memobj_id((const void *)end);
+
+    memobj_t *mo = &memobj[obj_start];
 
     cm_coreid = cm_ncpus; // This is executed in AIO thread.
-    for (; p < start + len; p += MEMOBJ_SIZE, mo++) {
+    for (i = obj_start; i < obj_end; i++, mo++) {
 #ifdef LAZY_LOCK_RELEASE
         int printed = 0;
         while (coremu_spin_trylock(&mo->write_lock) == BUSY) {
@@ -293,15 +299,22 @@ void cm_acquire_write_lock_range(const char *start, int len)
     }
 }
 
-void cm_acquire_write_unlock_range(const char *start, int len)
+void cm_acquire_write_unlock_range(const char *p, int len)
 {
     if (cm_run_mode != CM_RUNMODE_RECORD)
         return;
-    const char *p = start;
-    objid_t objid = memobj_id(start);
-    memobj_t *mo = &memobj[objid];
 
-    for (; p < start + len; p += MEMOBJ_SIZE, mo++) {
+    long start = ((long)p + MEMOBJ_SIZE - 1) & ~(MEMOBJ_SIZE - 1);
+    long end = ((long)p + len) & ~(MEMOBJ_SIZE - 1);
+
+    objid_t i;
+    objid_t obj_start = memobj_id((const void *)start);
+    objid_t obj_end = memobj_id((const void *)end);
+
+    memobj_t *mo = &memobj[obj_start];
+
+    cm_coreid = cm_ncpus; // This is executed in AIO thread.
+    for (i = obj_start; i < obj_end; i++, mo++) {
         mo->owner = -1; // First set it not owned, then allow reader to cut in
         mo->version--;
         coremu_spin_unlock(&mo->write_lock);

@@ -31,7 +31,7 @@ extern __thread MappedLog acc_version_log;
 /* Now we track memory as MEMOBJ_SIZE shared object, each object will have a
  * memobj_t tracking its ownership and seqlock. Note it's possible one objid
  * corresponds to multiple shared object. */
-#define MEMOBJ_SHIFT 10
+#define MEMOBJ_SHIFT 12
 #define MEMOBJ_SIZE (1 << MEMOBJ_SHIFT)
 
 // XXX should I increase the object mask bits? thus having more different memobj
