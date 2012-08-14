@@ -365,7 +365,7 @@ static __inline__ void cm_handle_contention(memobj_t *mo, objid_t objid)
     cm_add_contending_memobj(mo);
 }
 
-#define LAZY_RELEASE_MEMOP_DIFF 5
+#define LAZY_RELEASE_MEMOP_DIFF 10
 static __inline__ int should_lazy_release(objid_t objid)
 {
     return (memop - crew.contending.memop[objid]) >= LAZY_RELEASE_MEMOP_DIFF;
