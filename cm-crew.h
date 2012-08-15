@@ -421,10 +421,12 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid,
     } else {
         // release lock as usual
         mo->version++;
+        barrier();
         coremu_spin_unlock(&mo->write_lock);
     }
 #  else
     mo->version++;
+    barrier();
     coremu_spin_unlock(&mo->write_lock);
 #  endif // LAZY_LOCK_RELEASE
 #endif

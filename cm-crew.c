@@ -295,6 +295,7 @@ void cm_acquire_write_lock_range(const char *p, int len)
         coremu_spin_lock(&mo->write_lock);
 #endif
         mo->version++;
+        barrier();
         mo->owner = cm_ncpus;
     }
 }
@@ -316,7 +317,9 @@ void cm_acquire_write_unlock_range(const char *p, int len)
     cm_coreid = cm_ncpus; // This is executed in AIO thread.
     for (i = obj_start; i < obj_end; i++, mo++) {
         mo->owner = -1; // First set it not owned, then allow reader to cut in
+        barrier();
         mo->version--;
+        barrier();
         coremu_spin_unlock(&mo->write_lock);
     }
     /*coremu_debug("dma done %p len %d", start, len);*/
