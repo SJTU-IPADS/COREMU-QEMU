@@ -17,7 +17,6 @@
 #define __inline__ inline __attribute__((always_inline))
 
 //#define DEBUG_MEMCNT
-#define WRITE_RECORDING_AS_FUNC
 #define LAZY_LOCK_RELEASE
 
 #ifdef DEBUG_MEMCNT
@@ -373,8 +372,6 @@ static __inline__ int should_lazy_release(objid_t objid)
 }
 #endif // LAZY_LOCK_RELEASE
 
-/* Inline function seems slower than directly putting the code in. */
-#ifdef WRITE_RECORDING_AS_FUNC
 static __inline__ version_t __cm_crew_record_start_write(memobj_t *mo, objid_t objid)
 {
 #ifdef NO_LOCK
@@ -445,57 +442,6 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid,
     print_acc_info(version, objid, "write");
 #endif
 }
-
-#else /* WRITE_RECORDING_AS_FUNC */
-
-#  ifdef LAZY_LOCK_RELEASE
-
-#define cm_crew_record_start_write(mo, objid, version) \
-    while (coremu_spin_trylock(&mo->write_lock) == BUSY) { \
-        cm_handle_contention(mo, objid); \
-    } \
-    version = mo->version; \
-    barrier(); \
-    mo->version++;
-
-#define cm_crew_record_end_write(mo, objid, version) \
-    if (should_lazy_release(objid)) { \
-        cm_release_contending_memobj(); \
-        cm_add_locked_memobj(mo); \
-    } else { \
-        mo->version++; \
-        coremu_spin_unlock(&mo->write_lock); \
-    } \
-    if (last->version != version) { \
-        log_order(objid, version, last); \
-    } \
-    last_memobj_t *last = &last_memobj[objid]; \
-    last->memop = memop; \
-    last->version = version + 2; \
-    memop++;
-
-#  else // LAZY_LOCK_RELEASE
-
-#define cm_crew_record_start_write(mo, version) \
-    coremu_spin_lock(&mo->write_lock); \
-    version = mo->version; \
-    barrier(); \
-    mo->version++;
-
-#define cm_crew_record_end_write(mo, objid, version) \
-    mo->version++; \
-    coremu_spin_unlock(&mo->write_lock); \
-    last_memobj_t *last = &last_memobj[objid]; \
-    if (last->version != version) { \
-        log_order(objid, version, last); \
-    } \
-    last->memop = memop; \
-    last->version = version + 2; \
-    memop++;
-
-#  endif // LAZY_LOCK_RELEASE
-
-#endif // WRITE_RECORDING_AS_FUNC
 
 /**********************************************************************
  * Replay
