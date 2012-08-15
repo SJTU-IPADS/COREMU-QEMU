@@ -273,9 +273,9 @@ static __inline__ void cm_add_contending_memobj(memobj_t *mo)
 
 #ifdef DMA_DETECTOR
     if (mo->owner == cm_ncpus) {
-        printf("Guest OS error: core %d adding contending memobj %ld\n",
+        printf("=============Guest OS error: core %d adding contending memobj %ld================\n",
                 cm_coreid, mo - memobj);
-        exit(1);
+        //exit(1);
     }
 #endif
 
