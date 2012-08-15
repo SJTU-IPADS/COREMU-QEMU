@@ -109,7 +109,7 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
     if (mo->owner == cm_coreid) {
         assert(mo->write_lock);
         mo->version += 2;
-        last_memobj[objid].memop = memop;
+        last_memobj[objid].memop = ~memop; // Mark last access as write by flip operation
         memop++;
         *addr = val;
         return;

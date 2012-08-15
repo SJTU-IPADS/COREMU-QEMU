@@ -148,7 +148,8 @@ static __inline__ void log_order(objid_t objid, version_t ver,
         last_memobj_t *last)
 {
     log_wait_version(ver);
-    log_other_wait_memop(objid, last);
+    if (last->memop >= 0) // record wait memop only if last access is read
+        log_other_wait_memop(objid, last);
 }
 
 #ifdef DEBUG_MEMCNT
@@ -436,7 +437,7 @@ static __inline__ void cm_crew_record_end_write(memobj_t *mo, objid_t objid,
         log_order(objid, version, last);
     }
 
-    last->memop = memop;
+    last->memop = ~memop; // Mark last access as write by flip operation
     last->version = version + 2;
     memop++;
 #ifdef DEBUG_MEMCNT
