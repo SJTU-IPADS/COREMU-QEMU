@@ -90,24 +90,64 @@ void HELPER(clear_exclusive)(void)
     cm_exclusive_addr = -1;
 }
 
+static struct timeval tv[2];
+
+static int cm_time_backdoor_cnt;
+
 void HELPER(swpb)(uint32_t dst, uint32_t src, uint32_t addr)
 {
-    uint8_t old, val;
-    ram_addr_t q_addr;
-    CM_GET_QEMU_ADDR(q_addr,cpu_single_env->regs[addr]);
-    val = (uint8_t)cpu_single_env->regs[src];
-    old = atomic_exchangeb((uint8_t *)q_addr, (uint8_t)val);
-    cpu_single_env->regs[dst] = old;
-    //printf("SWPB\n");
+    /*
+     *uint8_t old, val;
+     *ram_addr_t q_addr;
+     *CM_GET_QEMU_ADDR(q_addr,cpu_single_env->regs[addr]);
+     *val = (uint8_t)cpu_single_env->regs[src];
+     *old = atomic_exchangeb((uint8_t *)q_addr, (uint8_t)val);
+     *cpu_single_env->regs[dst] = old;
+     */
+    int i = cm_time_backdoor_cnt++ & 1;
+    if (gettimeofday(&tv[i], NULL) != 0) {
+        printf("Error in gettimeofday, in time backdoor!\n");
+    }
+    if (i == 1) {
+        time_t sec = tv[1].tv_sec - tv[0].tv_sec;
+        suseconds_t usec = 0;
+        if (tv[1].tv_usec >= tv[0].tv_usec) {
+            usec = tv[1].tv_usec - tv[0].tv_usec;
+        } else {
+            sec--;
+            usec = tv[1].tv_usec + 1000000 - tv[0].tv_usec;
+        }
+        printf("\n==========\nCOREMU HOST TIME: %d.%03d seconds\n==========\n", (int)sec, (int)(usec / 1000));
+    } else {
+        printf("\n==========\nCOREMU TIMING START\n==========\n");
+    }
 }
 
 void HELPER(swp)(uint32_t dst, uint32_t src, uint32_t addr)
 {
-    uint32_t old, val;
-    ram_addr_t q_addr;
-    CM_GET_QEMU_ADDR(q_addr,cpu_single_env->regs[addr]);
-    val = cpu_single_env->regs[src];
-    old = atomic_exchangel((uint32_t *)q_addr, val);
-    cpu_single_env->regs[dst] = old;
-    //printf("SWP\n");
+    /*
+     *uint32_t old, val;
+     *ram_addr_t q_addr;
+     *CM_GET_QEMU_ADDR(q_addr,cpu_single_env->regs[addr]);
+     *val = cpu_single_env->regs[src];
+     *old = atomic_exchangel((uint32_t *)q_addr, val);
+     *cpu_single_env->regs[dst] = old;
+     */
+    int i = cm_time_backdoor_cnt++ & 1;
+    if (gettimeofday(&tv[i], NULL) != 0) {
+        printf("Error in gettimeofday, in time backdoor!\n");
+    }
+    if (i == 1) {
+        time_t sec = tv[1].tv_sec - tv[0].tv_sec;
+        suseconds_t usec = 0;
+        if (tv[1].tv_usec >= tv[0].tv_usec) {
+            usec = tv[1].tv_usec - tv[0].tv_usec;
+        } else {
+            sec--;
+            usec = tv[1].tv_usec + 1000000 - tv[0].tv_usec;
+        }
+        printf("\n==========\nCOREMU HOST TIME: %d.%03d seconds\n==========\n", (int)sec, (int)(usec / 1000));
+    } else {
+        printf("\n==========\nCOREMU TIMING START\n==========\n");
+    }
 }
