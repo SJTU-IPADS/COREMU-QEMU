@@ -368,7 +368,9 @@ void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type)
         l.val = val;
         /*l.tlb_fill_cnt = tlb_fill_cnt;*/
         l.objid = objid;
-        fwrite(&l, sizeof(l), 1, cm_log[MEMACC]);
+        if (fwrite(&l, sizeof(l), 1, cm_log[MEMACC]) != 1) {
+            fprintf(stderr, "core %d write mem_acc log error", cm_coreid);
+        }
         return;
     }
     // For replay
