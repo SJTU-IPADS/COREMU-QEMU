@@ -168,8 +168,9 @@ void cm_run_all_local_timers(void)
 {
 #ifdef DEBUG_REPLAY
     /* Ensure correctness only for debugging code. */
-    if (cm_run_mode == CM_RUNMODE_REPLAY)
+    if (cm_run_mode == CM_RUNMODE_REPLAY) {
         coremu_assert(0, "should not run timer in replay mode");
+    }
 #endif
     cm_local_alarm_timer->pending = 0;
 

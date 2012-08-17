@@ -88,6 +88,8 @@ void cm_crew_init(void);
 void cm_crew_core_init(void);
 void cm_crew_core_finish(void);
 
+void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type);
+
 static __inline__ objid_t memobj_id(const void *addr)
 {
     return ((long)addr >> MEMOBJ_SHIFT) & OBJID_MASK;
@@ -538,8 +540,6 @@ extern void *cm_crew_replay_write_func[4];
 
 extern __thread uint32_t tlb_fill_cnt;
 
-void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type);
-
 void cm_assert_not_in_tc(void);
 
 /**********************************************************************
@@ -605,7 +605,7 @@ static __inline__ void cm_end_atomic_insn(memobj_t *mo, last_memobj_t *last,
         memop++;
     }
 #ifdef DEBUG_MEM_ACCESS
-    debug_mem_access(val, objid, "atomic_write");
+    debug_mem_access(0xdeadbeef, objid, "write");
 #endif
 }
 

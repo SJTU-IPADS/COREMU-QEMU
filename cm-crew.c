@@ -334,7 +334,7 @@ __thread uint32_t tlb_fill_cnt;
 #include <assert.h>
 #include "cpu.h"
 
-__thread uint32_t memacc_cnt;
+__thread memop_t memacc_cnt;
 __thread int error_print_cnt = 0;
 #define PRINT_ERROR_TIMES 10
 
@@ -348,12 +348,15 @@ struct memacc_log_t {
 
 void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type)
 {
+    memacc_cnt++;
+    if (cm_coreid == 0 && memop < 100000000)
+        return;
     if (cm_run_mode == CM_RUNMODE_NORMAL)
         return;
     assert(cm_is_in_tc);
-    memacc_cnt++;
     if (memacc_cnt != memop) {
-        coremu_debug("core %d %s error memacc_cnt = %u", cm_coreid, acc_type, memacc_cnt);
+        coremu_debug("core %d %s error memacc_cnt %ld, memop %ld", cm_coreid,
+                acc_type, memacc_cnt, memop);
         cm_print_replay_info();
         exit(1);
     }

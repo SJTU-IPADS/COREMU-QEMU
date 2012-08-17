@@ -126,7 +126,8 @@ void glue(cm_crew_record_write, SUFFIX)(DATA_TYPE *addr, DATA_TYPE val)
 
     cm_crew_record_end_write(mo, objid, version);
 #ifdef DEBUG_MEM_ACCESS
-    debug_mem_access(val, objid, "write");
+    coremu_assert(cm_is_in_tc, "Must in TC execution");
+    debug_mem_access(0xdeadbeef, objid, "write");
 #endif
 }
 
