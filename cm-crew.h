@@ -17,7 +17,7 @@
 #define __inline__ inline __attribute__((always_inline))
 
 //#define DEBUG_MEMCNT
-//#define LAZY_LOCK_RELEASE
+#define LAZY_LOCK_RELEASE
 
 #ifdef DEBUG_MEMCNT
 extern __thread MappedLog acc_version_log;
