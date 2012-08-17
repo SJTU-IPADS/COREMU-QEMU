@@ -26,6 +26,8 @@
 #include <stdint.h>
 #include <pthread.h>
 
+#include "exec-all.h" // For define TARGET_I386
+
 #include "coremu-config.h"
 #include "coremu-core.h"
 
@@ -96,8 +98,6 @@ static inline void cm_read_intr_log(void)
         cm_inject_intr.exec_cnt = -1;
 #endif
 }
-
-#define TARGET_I386 // XXX For ARM, this is not necessary
 
 #ifdef TARGET_I386
 static void cm_wait_disk_dma(void);
@@ -399,6 +399,7 @@ void cm_replay_all_exec_cnt(void)
  *extern int loglevel;
  */
 
+#include "cm-defs.h"
 #include "cpu.h"
 
 #ifdef ASSERT_REPLAY_PC
@@ -457,14 +458,16 @@ void cm_replay_assert_pc(uint64_t eip)
                     (long)next_eip,
                     memop, recorded_memop,
                     cm_tb_cnt,
-                    cm_inject_intr.exec_cnt,
+                    cm_inject_intr.exec_cnt);
             pthread_exit(NULL);
         }
         break;
     case CM_RUNMODE_RECORD:
         l.eip = eip;
         l.memop = memop;
-        fwrite(&l, sizeof(l), 1, cm_log[PC]);
+        if (fwrite(&l, sizeof(l), 1, cm_log[PC]) != 1) {
+            fprintf(stderr, "core %d write assert_pc log error", cm_coreid);
+        }
         break;
     }
 }
