@@ -340,8 +340,8 @@ __thread int error_print_cnt = 0;
 
 /*#define READ_LOG_FMT "%lx %lx %u\n"*/
 struct memacc_log_t {
-    uint64_t pc;
-    uint64_t val;
+    /*uint64_t pc;*/
+    /*uint64_t val;*/
     /*uint32_t tlb_fill_cnt;*/
     objid_t objid;
 } __attribute__((packed));
@@ -364,8 +364,8 @@ void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type)
          *fprintf(cm_log[READ_ACC], READ_LOG_FMT,
          *        (uint64_t)cpu_single_env->ENVPC, val, tlb_fill_cnt);
          */
-        l.pc = (uint64_t)cpu_single_env->ENVPC;
-        l.val = val;
+        /*l.pc = (uint64_t)cpu_single_env->ENVPC;*/
+        /*l.val = val;*/
         /*l.tlb_fill_cnt = tlb_fill_cnt;*/
         l.objid = objid;
         if (fwrite(&l, sizeof(l), 1, cm_log[MEMACC]) != 1) {
@@ -383,16 +383,20 @@ void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type)
     if (fread(&l, sizeof(l), 1, cm_log[MEMACC]) != 1) {
         return; // No more log.
     }
-    if (l.pc != cpu_single_env->ENVPC && error_print_cnt < PRINT_ERROR_TIMES) {
-        coremu_debug("%s ERROR in eip: core = %d, eip = %lx, recorded_eip = %lx",
-                acc_type, cm_coreid, (uint64_t)cpu_single_env->ENVPC, l.pc);
-        error = 1;
-    }
-    if (val != l.val && error_print_cnt < PRINT_ERROR_TIMES) {
-        coremu_debug("%s ERROR in val: core = %d, val = %lx, recorded_val = %lx",
-                acc_type, cm_coreid, val, l.val);
-        error = 1;
-    }
+    /*
+     *if (l.pc != cpu_single_env->ENVPC && error_print_cnt < PRINT_ERROR_TIMES) {
+     *    coremu_debug("%s ERROR in eip: core = %d, eip = %lx, recorded_eip = %lx",
+     *            acc_type, cm_coreid, (uint64_t)cpu_single_env->ENVPC, l.pc);
+     *    error = 1;
+     *}
+     */
+    /*
+     *if (val != l.val && error_print_cnt < PRINT_ERROR_TIMES) {
+     *    coremu_debug("%s ERROR in val: core = %d, val = %lx, recorded_val = %lx",
+     *            acc_type, cm_coreid, val, l.val);
+     *    error = 1;
+     *}
+     */
     if (objid != l.objid && error_print_cnt < PRINT_ERROR_TIMES) {
         coremu_debug("%s ERROR in objid: core = %d, objid = %i, recorded_objid = %i",
                 acc_type, cm_coreid, objid, l.objid);
