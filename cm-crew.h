@@ -88,8 +88,6 @@ void cm_crew_init(void);
 void cm_crew_core_init(void);
 void cm_crew_core_finish(void);
 
-void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type);
-
 static __inline__ objid_t memobj_id(const void *addr)
 {
     return ((long)addr >> MEMOBJ_SHIFT) & OBJID_MASK;
@@ -186,6 +184,10 @@ static __inline__ void check_acc_version(objid_t objid, const char *acc)
         pthread_exit(NULL);
     }
 }
+#endif
+#ifdef DEBUG_MEM_ACCESS
+void debug_mem_access(uint64_t val, objid_t objid, const char *acc_type);
+extern __thread long guest_virtual_addr;
 #endif
 
 uint8_t  cm_crew_record_readb(const  uint8_t *addr);

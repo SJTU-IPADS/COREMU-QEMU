@@ -1012,6 +1012,11 @@ static inline void tcg_out_tlb_load(TCGContext *s, int addrlo_idx,
         rexw = P_REXW;
     }
 
+#ifdef DEBUG_MEM_ACCESS
+    // Store guest virtual address into thread local variable
+    tcg_out_movi(s, TCG_TYPE_I64, r1, (tcg_target_long)&guest_virtual_addr);
+    tcg_out_modrm_offset(s, OPC_MOVL_EvGv + P_REXW, addrlo, r1, 0);
+#endif // DEBUG_MEM_ACCESS
     tcg_out_mov(s, type, r1, addrlo);
     tcg_out_mov(s, type, r0, addrlo);
 

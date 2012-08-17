@@ -413,13 +413,13 @@ void cm_replay_all_exec_cnt(void)
 
 typedef struct {
     uint64_t eip;
-    memop_t memop;
+    /*memop_t memop;*/
 } pc_log_t;
 
 void cm_replay_assert_pc(uint64_t eip)
 {
-    uint64_t next_eip;
-    memop_t recorded_memop;
+    if (cm_coreid == 0 && memop < 250000000)
+        return;
     pc_log_t l;
 
     assert(cm_is_in_tc);
@@ -438,25 +438,25 @@ void cm_replay_assert_pc(uint64_t eip)
             cm_print_replay_info();
             pthread_exit(NULL);
         }
-        recorded_memop = l.memop;
-        next_eip = l.eip;
-        if (eip != next_eip) {
+        if (eip != l.eip) {
             coremu_debug("core %d ERROR in execution path!", cm_coreid);
             error = 1;
         }
-        if (memop != recorded_memop) {
-            coremu_debug("core %d ERROR in memop cnt", cm_coreid);
-            error = 1;
-        }
+        /*
+         *if (memop != l.memop) {
+         *    coremu_debug("core %d ERROR in memop cnt", cm_coreid);
+         *    error = 1;
+         *}
+         */
         if (error) {
             coremu_debug(
                     "cm_coreid = %u, eip = %016lx, recorded eip = %016lx, "
-                    "memop_cnt = %ld, recorded_memop = %ld, "
+                    /*"memop_cnt = %ld, recorded_memop = %ld, "*/
                     "cm_tb_exec_cnt = %lu, cm_inject_exec_cnt = %lu",
                     cm_coreid,
                     (long)eip,
-                    (long)next_eip,
-                    memop, recorded_memop,
+                    (long)l.eip,
+                    /*memop, l.memop,*/
                     cm_tb_cnt,
                     cm_inject_intr.exec_cnt);
             pthread_exit(NULL);
@@ -464,7 +464,7 @@ void cm_replay_assert_pc(uint64_t eip)
         break;
     case CM_RUNMODE_RECORD:
         l.eip = eip;
-        l.memop = memop;
+        /*l.memop = memop;*/
         if (fwrite(&l, sizeof(l), 1, cm_log[PC]) != 1) {
             fprintf(stderr, "core %d write assert_pc log error", cm_coreid);
         }
