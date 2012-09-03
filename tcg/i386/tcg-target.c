@@ -1352,7 +1352,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 
     /* label2: */
     *label_ptr[2] = s->code_ptr - label_ptr[2] - 1;
-#  ifdef LAZY_LOCK_RELEASE
+#  if defined(CONFIG_MEM_ORDER) && defined(LAZY_LOCK_RELEASE)
     if (cm_run_mode == CM_RUNMODE_RECORD) {
         // label: after record func
         *mem_label[1] = s->code_ptr - mem_label[1] - 1;
