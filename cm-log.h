@@ -8,7 +8,7 @@
 /* For logs that need to be flushed upon exit, put it in this file because it
  * contains the logic to open and flush. */
 
-#define COMBINE_LOG
+//#define COMBINE_LOG
 // INTR and PGFLT log can't be combined because they need to read first then
 // inject. So we don't know when should we do the read during replay.
 

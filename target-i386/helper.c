@@ -536,7 +536,7 @@ int cpu_x86_handle_mmu_fault(CPUX86State *env, target_ulong addr,
 # define PHYS_ADDR_MASK 0xffffff000LL
 # endif
 
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
 static inline int should_inject_pgflt(target_ulong addr)
 {
     return memop == next_pgflt.memop && addr == next_pgflt.addr;
@@ -565,7 +565,7 @@ int cpu_x86_handle_mmu_fault(CPUX86State *env, target_ulong addr,
 #endif
     is_write = is_write1 & 1;
 
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
     int retrying = 0;
     static __thread char no_more_pgflt = 0;
     // Inject page fault at the correct place.
@@ -574,9 +574,9 @@ int cpu_x86_handle_mmu_fault(CPUX86State *env, target_ulong addr,
         error_code = 0;
         goto do_fault;
     }
+retry:
 #endif
 
-retry:
     if (!(env->cr[0] & CR0_PG_MASK)) {
         pte = addr;
         virt_addr = addr & TARGET_PAGE_MASK;
@@ -844,7 +844,7 @@ retry:
                  addr);
     } else {
         env->cr[2] = addr;
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
         if (no_more_pgflt) {
             printf("core %d no more pgflt log\n", cm_coreid);
             fflush(stdout);

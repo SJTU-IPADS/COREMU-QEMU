@@ -4881,7 +4881,7 @@ static float approx_rcp(float a)
 /* XXX: fix it to restore all registers */
 void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
 #ifdef ASSERT_REPLAY_TLBFILL
     if (cm_is_in_tc) {
         tlb_fill_cnt++;
@@ -4917,7 +4917,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
         raise_exception_err(env->exception_index, env->error_code);
     }
     env = saved_env;
-#ifdef CONFIG_REPLAY
+#ifdef CONFIG_MEM_ORDER
     cm_is_in_tc = saved_in_tc;
 #endif
 }
