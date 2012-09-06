@@ -475,24 +475,24 @@ static void dma_init2(struct dma_cont *d, int base, int dshift,
     d->cpu_request_exit = cpu_request_exit;
     for (i = 0; i < 8; i++) {
         register_ioport_write (base + (i << dshift), 1, 1, write_chan, d);
-        register_ioport_read (base + (i << dshift), 1, 1, read_chan, d);
+        register_ioport_read_disk (base + (i << dshift), 1, 1, read_chan, d);
     }
     for (i = 0; i < ARRAY_SIZE (page_port_list); i++) {
         register_ioport_write (page_base + page_port_list[i], 1, 1,
                                write_page, d);
-        register_ioport_read (page_base + page_port_list[i], 1, 1,
+        register_ioport_read_disk (page_base + page_port_list[i], 1, 1,
                               read_page, d);
         if (pageh_base >= 0) {
             register_ioport_write (pageh_base + page_port_list[i], 1, 1,
                                    write_pageh, d);
-            register_ioport_read (pageh_base + page_port_list[i], 1, 1,
+            register_ioport_read_disk (pageh_base + page_port_list[i], 1, 1,
                                   read_pageh, d);
         }
     }
     for (i = 0; i < 8; i++) {
         register_ioport_write (base + ((i + 8) << dshift), 1, 1,
                                write_cont, d);
-        register_ioport_read (base + ((i + 8) << dshift), 1, 1,
+        register_ioport_read_disk (base + ((i + 8) << dshift), 1, 1,
                               read_cont, d);
     }
     qemu_register_reset(dma_reset, d);

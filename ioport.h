@@ -40,6 +40,8 @@ typedef uint32_t (IOPortReadFunc)(void *opaque, uint32_t address);
 void ioport_register(IORange *iorange);
 int register_ioport_read(pio_addr_t start, int length, int size,
                          IOPortReadFunc *func, void *opaque);
+int register_ioport_read_disk(pio_addr_t start, int length, int size,
+                         IOPortReadFunc *func, void *opaque);
 int register_ioport_write(pio_addr_t start, int length, int size,
                           IOPortWriteFunc *func, void *opaque);
 void isa_unassign_ioport(pio_addr_t start, int length);

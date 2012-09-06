@@ -73,11 +73,7 @@ static inline int cm_ignore_address(uint32_t address) {
 }
 #endif
 
-#ifdef CONFIG_REPLAY
-static uint32_t __ioport_read(int index, uint32_t address)
-#else
 static uint32_t ioport_read(int index, uint32_t address)
-#endif
 {
     static IOPortReadFunc * const default_func[3] = {
         default_ioport_readb,
@@ -89,27 +85,6 @@ static uint32_t ioport_read(int index, uint32_t address)
         func = default_func[index];
     return func(ioport_opaque[address], address);
 }
-
-#ifdef CONFIG_REPLAY
-static uint32_t ioport_read(int index, uint32_t address)
-{
-    uint32_t value;
-
-    if (cm_run_mode == CM_RUNMODE_REPLAY && !cm_ignore_address(address))
-        if (cm_replay_in(&value)) {
-            /* XXX Since read may change hardware state, still need to call the
-             * original ioport read function. */
-            __ioport_read(index, address);
-            return value;
-        }
-
-    value = __ioport_read(index, address);
-    if (cm_run_mode == CM_RUNMODE_RECORD)
-        cm_record_in(value);
-
-    return value;
-}
-#endif
 
 static void ioport_write(int index, uint32_t address, uint32_t data)
 {
@@ -178,10 +153,44 @@ static int ioport_bsize(int size, int *bsize)
     }
     return 0;
 }
+#ifdef CONFIG_REPLAY
+
+#include "closure.h"
+
+static IOPortReadFunc *cm_wrap_ioport_read_func(IOPortReadFunc *func)
+{
+    auto uint32_t io_read_wrap(void *opaque, uint32_t addr);
+    uint32_t io_read_wrap(void *opaque, uint32_t addr)
+    {
+        unsigned int val;
+        if (cm_run_mode == CM_RUNMODE_REPLAY)
+            if (cm_replay_in(&val)) {
+                /* XXX Since read may change hardware state, still need to call the
+                 * original mmio read function. */
+                func(opaque, addr);
+                return val;
+            }
+
+        val = func(opaque, addr);
+        if (cm_run_mode == CM_RUNMODE_RECORD) {
+            cm_record_in(val);
+        }
+        
+        return val;
+    }
+
+    return create_closure(io_read_wrap);
+}
+#endif
 
 /* size is the word size in byte */
+#ifdef CONFIG_REPLAY
+static int __register_ioport_read(pio_addr_t start, int length, int size,
+                         IOPortReadFunc *func, void *opaque, int disk_flag)
+#else
 int register_ioport_read(pio_addr_t start, int length, int size,
                          IOPortReadFunc *func, void *opaque)
+#endif
 {
     int i, bsize;
 
@@ -190,13 +199,32 @@ int register_ioport_read(pio_addr_t start, int length, int size,
         return -1;
     }
     for(i = start; i < start + length; i += size) {
+#ifdef CONFIG_REPLAY
+        ioport_read_table[bsize][i] = (disk_flag ?
+                    cm_wrap_ioport_read_func(func) :
+                                            func);
+#else
         ioport_read_table[bsize][i] = func;
+#endif
         if (ioport_opaque[i] != NULL && ioport_opaque[i] != opaque)
             hw_error("register_ioport_read: invalid opaque");
         ioport_opaque[i] = opaque;
     }
     return 0;
 }
+
+#ifdef CONFIG_REPLAY
+int register_ioport_read(pio_addr_t start, int length, int size,
+                         IOPortReadFunc *func, void *opaque)
+{
+    return __register_ioport_read(start, length, size, func, opaque, 0);
+}
+int register_ioport_read_disk(pio_addr_t start, int length, int size,
+                         IOPortReadFunc *func, void *opaque)
+{
+    return __register_ioport_read(start, length, size, func, opaque, 1);
+}
+#endif
 
 /* size is the word size in byte */
 int register_ioport_write(pio_addr_t start, int length, int size,
