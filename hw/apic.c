@@ -1042,7 +1042,7 @@ static int apic_init1(SysBusDevice *dev)
     if (last_apic_idx >= MAX_APICS) {
         return -1;
     }
-    apic_io_memory = cpu_register_io_memory(apic_mem_read,
+    apic_io_memory = cpu_register_io_memory_apic(apic_mem_read,
                                             apic_mem_write, NULL,
                                             DEVICE_NATIVE_ENDIAN);
     sysbus_init_mmio(dev, MSI_ADDR_SIZE, apic_io_memory);
