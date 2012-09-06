@@ -24,6 +24,13 @@
 #include "hw.h"
 #include "isa.h"
 
+#include "coremu-config.h"
+#include "coremu-atomic.h"
+#include "cm-replay.h"
+
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 /* #define DEBUG_DMA */
 
 #define dolog(...) fprintf (stderr, "dma: " __VA_ARGS__)
@@ -475,25 +482,44 @@ static void dma_init2(struct dma_cont *d, int base, int dshift,
     d->cpu_request_exit = cpu_request_exit;
     for (i = 0; i < 8; i++) {
         register_ioport_write (base + (i << dshift), 1, 1, write_chan, d);
+#ifdef CONFIG_REPLAY
         register_ioport_read_disk (base + (i << dshift), 1, 1, read_chan, d);
+#else
+        register_ioport_read (base + (i << dshift), 1, 1, read_chan, d);
+#endif
     }
     for (i = 0; i < ARRAY_SIZE (page_port_list); i++) {
         register_ioport_write (page_base + page_port_list[i], 1, 1,
                                write_page, d);
+#ifdef CONFIG_REPLAY
         register_ioport_read_disk (page_base + page_port_list[i], 1, 1,
                               read_page, d);
+#else
+        register_ioport_read (page_base + page_port_list[i], 1, 1,
+                              read_page, d);
+#endif
         if (pageh_base >= 0) {
             register_ioport_write (pageh_base + page_port_list[i], 1, 1,
                                    write_pageh, d);
+#ifdef CONFIG_REPLAY
             register_ioport_read_disk (pageh_base + page_port_list[i], 1, 1,
                                   read_pageh, d);
+#else
+            register_ioport_read (pageh_base + page_port_list[i], 1, 1,
+                                  read_pageh, d);
+#endif
         }
     }
     for (i = 0; i < 8; i++) {
         register_ioport_write (base + ((i + 8) << dshift), 1, 1,
                                write_cont, d);
+#ifdef CONFIG_REPLAY
         register_ioport_read_disk (base + ((i + 8) << dshift), 1, 1,
                               read_cont, d);
+#else
+        register_ioport_read (base + ((i + 8) << dshift), 1, 1,
+                              read_cont, d);
+#endif
     }
     qemu_register_reset(dma_reset, d);
     dma_reset(d);

@@ -2753,17 +2753,33 @@ void ide_init2_with_non_qdev_drives(IDEBus *bus, DriveInfo *hd0,
 void ide_init_ioport(IDEBus *bus, int iobase, int iobase2)
 {
     register_ioport_write(iobase, 8, 1, ide_ioport_write, bus);
+#ifdef CONFIG_REPLAY
     register_ioport_read_disk(iobase, 8, 1, ide_ioport_read, bus);
+#else
+    register_ioport_read(iobase, 8, 1, ide_ioport_read, bus);
+#endif    
     if (iobase2) {
+#ifdef CONFIG_REPLAY
         register_ioport_read_disk(iobase2, 1, 1, ide_status_read, bus);
+#else
+        register_ioport_read(iobase2, 1, 1, ide_status_read, bus);
+#endif
         register_ioport_write(iobase2, 1, 1, ide_cmd_write, bus);
     }
 
     /* data ports */
     register_ioport_write(iobase, 2, 2, ide_data_writew, bus);
+#ifdef CONFIG_REPLAY
     register_ioport_read_disk(iobase, 2, 2, ide_data_readw, bus);
+#else
+    register_ioport_read(iobase, 2, 2, ide_data_readw, bus);
+#endif
     register_ioport_write(iobase, 4, 4, ide_data_writel, bus);
+#ifdef CONFIG_REPLAY
     register_ioport_read_disk(iobase, 4, 4, ide_data_readl, bus);
+#else
+    register_ioport_read(iobase, 4, 4, ide_data_readl, bus);
+#endif
 }
 
 static bool is_identify_set(void *opaque, int version_id)
