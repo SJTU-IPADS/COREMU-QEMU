@@ -201,8 +201,8 @@ int register_ioport_read(pio_addr_t start, int length, int size,
     for(i = start; i < start + length; i += size) {
 #ifdef CONFIG_REPLAY
         ioport_read_table[bsize][i] = (disk_flag ?
-                    cm_wrap_ioport_read_func(func) :
-                                            func);
+                                            func :
+                    cm_wrap_ioport_read_func(func);
 #else
         ioport_read_table[bsize][i] = func;
 #endif
