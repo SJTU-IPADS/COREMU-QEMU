@@ -31,6 +31,9 @@
 #include "coremu-config.h"
 #include "cm-replay.h"
 
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 /***********************************************************/
 /* IO Port */
 
@@ -167,8 +170,36 @@ static IOPortReadFunc *cm_wrap_ioport_read_func(IOPortReadFunc *func)
             if (cm_replay_in(&val)) {
                 /* XXX Since read may change hardware state, still need to call the
                  * original mmio read function. */
-                func(opaque, addr);
+                //func(opaque, addr);
                 return val;
+            }
+
+        val = func(opaque, addr);
+        if (cm_run_mode == CM_RUNMODE_RECORD) {
+            cm_record_in(val);
+        }
+        
+        return val;
+    }
+
+    return create_closure(io_read_wrap);
+}
+
+static IOPortReadFunc *cm_wrap_ioport_read_disk_func(IOPortReadFunc *func)
+{
+    auto uint32_t io_read_wrap(void *opaque, uint32_t addr);
+    uint32_t io_read_wrap(void *opaque, uint32_t addr)
+    {
+        unsigned int val;
+        if (cm_run_mode == CM_RUNMODE_REPLAY)
+            if (cm_replay_in(&val)) {
+                /* XXX Since read may change hardware state, still need to call the
+                 * original mmio read function. */
+                unsigned int result;
+                result = func(opaque, addr);
+                if (result != val) 
+                    coremu_debug("cm_wrap_ioport_read_disk_func: log doesn't match.");                    
+                return result;
             }
 
         val = func(opaque, addr);
@@ -201,7 +232,7 @@ int register_ioport_read(pio_addr_t start, int length, int size,
     for(i = start; i < start + length; i += size) {
 #ifdef CONFIG_REPLAY
         ioport_read_table[bsize][i] = (disk_flag ?
-                                            func :
+                cm_wrap_ioport_read_disk_func(func) :
                     cm_wrap_ioport_read_func(func));
 #else
         ioport_read_table[bsize][i] = func;
