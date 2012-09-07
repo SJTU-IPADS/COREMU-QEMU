@@ -156,6 +156,7 @@ static int ioport_bsize(int size, int *bsize)
     }
     return 0;
 }
+
 #ifdef CONFIG_REPLAY
 
 #include "closure.h"
@@ -166,13 +167,9 @@ static IOPortReadFunc *cm_wrap_ioport_read_func(IOPortReadFunc *func)
     uint32_t io_read_wrap(void *opaque, uint32_t addr)
     {
         unsigned int val;
-        if (cm_run_mode == CM_RUNMODE_REPLAY)
-            if (cm_replay_in(&val)) {
-                /* XXX Since read may change hardware state, still need to call the
-                 * original mmio read function. */
-                //func(opaque, addr);
-                return val;
-            }
+        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_replay_in(&val)) {
+            return val;
+        }
 
         val = func(opaque, addr);
         if (cm_run_mode == CM_RUNMODE_RECORD) {
@@ -191,22 +188,21 @@ static IOPortReadFunc *cm_wrap_ioport_read_disk_func(IOPortReadFunc *func)
     uint32_t io_read_wrap(void *opaque, uint32_t addr)
     {
         unsigned int val;
-        if (cm_run_mode == CM_RUNMODE_REPLAY)
-            if (cm_replay_in(&val)) {
-                /* XXX Since read may change hardware state, still need to call the
-                 * original mmio read function. */
-                unsigned int result;
-                result = func(opaque, addr);
-                if (result != val) 
-                    coremu_debug("cm_wrap_ioport_read_disk_func: log doesn't match.");                    
-                return result;
-            }
+        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_replay_in(&val)) {
+            /* XXX Since read may change hardware state, still need to call the
+             * original mmio read function. */
+            unsigned int result;
+            result = func(opaque, addr);
+            if (result != val) 
+                coremu_debug("cm_wrap_ioport_read_disk_func: log doesn't match.");
+            return result;
+        }
 
         val = func(opaque, addr);
         if (cm_run_mode == CM_RUNMODE_RECORD) {
             cm_record_in(val);
         }
-        
+
         return val;
     }
 

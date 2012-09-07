@@ -3741,22 +3741,13 @@ static void swapendian_del(int io_index)
 
 static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
 {
-    /* Do we need to record cirrus_vga_mem_readl? Seems not affecting JOS. */
-    /*
-     *if (func == cirrus_vga_mem_readl)
-     *    return func;
-     */
-    auto uint32_t io_read_wrap(void *opaque, target_phys_addr_t addr);
-    uint32_t io_read_wrap(void *opaque, target_phys_addr_t addr)
+    auto uint32_t mem_read_wrap(void *opaque, target_phys_addr_t addr);
+    uint32_t mem_read_wrap(void *opaque, target_phys_addr_t addr)
     {
         unsigned int val;
-        if (cm_run_mode == CM_RUNMODE_REPLAY)
-            if (cm_replay_mmio(&val)) {
-                /* XXX Since read may change hardware state, still need to call the
-                 * original mmio read function. */
-                //func(opaque, addr);
-                return val;
-            }
+        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_replay_mmio(&val)) {
+            return val;
+        }
 
         val = func(opaque, addr);
         if (cm_run_mode == CM_RUNMODE_RECORD) {
@@ -3766,25 +3757,23 @@ static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
         return val;
     }
 
-    return create_closure(io_read_wrap);
+    return create_closure(mem_read_wrap);
 }
 
 static CPUReadMemoryFunc *cm_wrap_read_mem_apic_func(CPUReadMemoryFunc *func)
 {
-    auto uint32_t io_read_wrap(void *opaque, target_phys_addr_t addr);
-    uint32_t io_read_wrap(void *opaque, target_phys_addr_t addr)
+    auto uint32_t mem_read_wrap(void *opaque, target_phys_addr_t addr);
+    uint32_t mem_read_wrap(void *opaque, target_phys_addr_t addr)
     {
         unsigned int val;
-        if (cm_run_mode == CM_RUNMODE_REPLAY)
-            if (cm_replay_mmio(&val)) {
-                /* XXX Since read may change hardware state, still need to call the
-                 * original mmio read function. */
-                unsigned int result;
-                result = func(opaque, addr);
-                if (result != val)
-                    coremu_debug("cm_wrap_read_mem_apic_func: log doesn't match.");
-                return result;
-            }
+        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_replay_mmio(&val)) {
+            /* XXX Since read may change hardware state, still need to call the
+             * original mmio read function. */
+            unsigned int result = func(opaque, addr);
+            if (result != val)
+                coremu_debug("cm_wrap_read_mem_apic_func: log doesn't match.");
+            return val;
+        }
 
         val = func(opaque, addr);
         if (cm_run_mode == CM_RUNMODE_RECORD) {
@@ -3794,7 +3783,7 @@ static CPUReadMemoryFunc *cm_wrap_read_mem_apic_func(CPUReadMemoryFunc *func)
         return val;
     }
 
-    return create_closure(io_read_wrap);
+    return create_closure(mem_read_wrap);
 }
 #endif
 
@@ -3833,11 +3822,11 @@ static int cpu_register_io_memory_fixed(int io_index,
     for (i = 0; i < 3; ++i) {
 #ifdef CONFIG_REPLAY
         if (apic_flag) {
-            io_mem_read[io_index][i] = (mem_read[i] ?  
-                cm_wrap_read_mem_apic_func(mem_read[i]) : 
+            io_mem_read[io_index][i] = (mem_read[i] ?
+                cm_wrap_read_mem_apic_func(mem_read[i]) :
                     unassigned_mem_read[i]);
 
-        }else {
+        } else {
             io_mem_read[io_index][i] = (mem_read[i] ?
                    cm_wrap_read_mem_func(mem_read[i]) :
                    unassigned_mem_read[i]);
