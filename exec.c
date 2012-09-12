@@ -3771,7 +3771,7 @@ static CPUReadMemoryFunc *cm_wrap_read_mem_apic_func(CPUReadMemoryFunc *func)
              * original mmio read function. */
             unsigned int result = func(opaque, addr);
             if (result != val)
-                coremu_debug("cm_wrap_read_mem_apic_func: log doesn't match.");
+                coremu_debug("cm_wrap_read_mem_apic_func: log doesn't match, addr %lx", addr);
             return val;
         }
 

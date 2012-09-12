@@ -80,7 +80,11 @@ static void bmdma_map(PCIDevice *pci_dev, int region_num,
         register_ioport_write(addr, 1, 1, bmdma_cmd_writeb, bm);
 
         register_ioport_write(addr + 1, 3, 1, bmdma_writeb, bm);
+#ifdef CONFIG_REPLAY
+        register_ioport_read_norecord(addr, 4, 1, bmdma_readb, bm);
+#else
         register_ioport_read(addr, 4, 1, bmdma_readb, bm);
+#endif
 
         iorange_init(&bm->addr_ioport, &bmdma_addr_ioport_ops, addr + 4, 4);
         ioport_register(&bm->addr_ioport);

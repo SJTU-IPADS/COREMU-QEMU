@@ -61,21 +61,6 @@ static IOPortWriteFunc *ioport_write_table[3][MAX_IOPORTS];
 static IOPortReadFunc default_ioport_readb, default_ioport_readw, default_ioport_readl;
 static IOPortWriteFunc default_ioport_writeb, default_ioport_writew, default_ioport_writel;
 
-#ifdef CONFIG_REPLAY
-static inline int cm_ignore_address(uint32_t address) {
-    /*
-     *switch (address) {
-     *case 0x1f0: // primary ide master
-     *case 0x3f6: //             slave
-     *case 0x170: // secondary ide master
-     *case 0x376: //             slave
-     *    return 1;
-     *}
-     */
-    return 0;
-}
-#endif
-
 static uint32_t ioport_read(int index, uint32_t address)
 {
     static IOPortReadFunc * const default_func[3] = {
@@ -159,8 +144,15 @@ static int ioport_bsize(int size, int *bsize)
 
 #ifdef CONFIG_REPLAY
 
+enum {
+    DONT_RECORD = 0,
+    NEED_RECORD = 1,
+};
+
 #include "closure.h"
 
+/* During record, call the original function, record return value.
+ * During replay, simply return the record value. */
 static IOPortReadFunc *cm_wrap_ioport_read_func(IOPortReadFunc *func)
 {
     auto uint32_t io_read_wrap(void *opaque, uint32_t addr);
@@ -182,19 +174,24 @@ static IOPortReadFunc *cm_wrap_ioport_read_func(IOPortReadFunc *func)
     return create_closure(io_read_wrap);
 }
 
-static IOPortReadFunc *cm_wrap_ioport_read_disk_func(IOPortReadFunc *func)
+#ifdef DEBUG_RECORD_IOPORT
+
+/* Some hardware is deterministic (e.g. hard disk), so we don't need to record
+ * the read value for those ones. This function is for determining which hardware
+ * is deterministic. */
+static IOPortReadFunc *cm_wrap_ioport_read_debug(IOPortReadFunc *func)
 {
     auto uint32_t io_read_wrap(void *opaque, uint32_t addr);
     uint32_t io_read_wrap(void *opaque, uint32_t addr)
     {
         unsigned int val;
         if (cm_run_mode == CM_RUNMODE_REPLAY && cm_replay_in(&val)) {
-            /* XXX Since read may change hardware state, still need to call the
-             * original mmio read function. */
+            // Call the original function and check if value is the same with
+            // recorded one.
             unsigned int result;
             result = func(opaque, addr);
             if (result != val) 
-                coremu_debug("cm_wrap_ioport_read_disk_func: log doesn't match.");
+                coremu_debug("func %p log doesn't match", func);
             return result;
         }
 
@@ -208,12 +205,13 @@ static IOPortReadFunc *cm_wrap_ioport_read_disk_func(IOPortReadFunc *func)
 
     return create_closure(io_read_wrap);
 }
-#endif
+#endif // DEBUG_RECORD_IOPORT
+#endif // CONFIG_REPLAY
 
 /* size is the word size in byte */
 #ifdef CONFIG_REPLAY
 static int __register_ioport_read(pio_addr_t start, int length, int size,
-                         IOPortReadFunc *func, void *opaque, int disk_flag)
+                         IOPortReadFunc *func, void *opaque, int need_record)
 #else
 int register_ioport_read(pio_addr_t start, int length, int size,
                          IOPortReadFunc *func, void *opaque)
@@ -227,9 +225,12 @@ int register_ioport_read(pio_addr_t start, int length, int size,
     }
     for(i = start; i < start + length; i += size) {
 #ifdef CONFIG_REPLAY
-        ioport_read_table[bsize][i] = (disk_flag ?
-                cm_wrap_ioport_read_disk_func(func) :
-                    cm_wrap_ioport_read_func(func));
+        ioport_read_table[bsize][i] = need_record ?
+#  ifdef DEBUG_RECORD_IOPORT
+                cm_wrap_ioport_read_func(func) : cm_wrap_ioport_read_debug(func);
+#  else
+                cm_wrap_ioport_read_func(func) : func;
+#  endif // DEBUG_RECORD_IOPORT
 #else
         ioport_read_table[bsize][i] = func;
 #endif
@@ -244,14 +245,15 @@ int register_ioport_read(pio_addr_t start, int length, int size,
 int register_ioport_read(pio_addr_t start, int length, int size,
                          IOPortReadFunc *func, void *opaque)
 {
-    return __register_ioport_read(start, length, size, func, opaque, 0);
+    return __register_ioport_read(start, length, size, func, opaque, NEED_RECORD);
 }
-int register_ioport_read_disk(pio_addr_t start, int length, int size,
+
+int register_ioport_read_norecord(pio_addr_t start, int length, int size,
                          IOPortReadFunc *func, void *opaque)
 {
-    return __register_ioport_read(start, length, size, func, opaque, 1);
+    return __register_ioport_read(start, length, size, func, opaque, DONT_RECORD);
 }
-#endif
+#endif // CONFIG_REPLAY
 
 /* size is the word size in byte */
 int register_ioport_write(pio_addr_t start, int length, int size,

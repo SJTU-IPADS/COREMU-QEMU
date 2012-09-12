@@ -547,10 +547,7 @@ void apic_init_reset(DeviceState *d)
 
 static void apic_startup(APICState *s, int vector_num)
 {
-    /*
-     *coremu_debug("setting core %u sipi_vector = %d", cm_coreid,
-     *             vector_num);
-     */
+    /*coremu_debug("setting core %u sipi_vector = %d", cm_coreid, vector_num);*/
     s->sipi_vector = vector_num;
     cpu_interrupt(s->cpu_env, CPU_INTERRUPT_SIPI);
 }
@@ -558,10 +555,7 @@ static void apic_startup(APICState *s, int vector_num)
 void apic_sipi(DeviceState *d)
 {
     APICState *s = DO_UPCAST(APICState, busdev.qdev, d);
-    /*
-     *coremu_debug("core %u vector_num = %d", cm_coreid,
-     *             s->sipi_vector);
-     */
+    /*coremu_debug("core %u vector_num = %d", cm_coreid, s->sipi_vector);*/
 
     cpu_reset_interrupt(s->cpu_env, CPU_INTERRUPT_SIPI);
 

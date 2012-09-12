@@ -483,7 +483,7 @@ static void dma_init2(struct dma_cont *d, int base, int dshift,
     for (i = 0; i < 8; i++) {
         register_ioport_write (base + (i << dshift), 1, 1, write_chan, d);
 #ifdef CONFIG_REPLAY
-        register_ioport_read_disk (base + (i << dshift), 1, 1, read_chan, d);
+        register_ioport_read_norecord (base + (i << dshift), 1, 1, read_chan, d);
 #else
         register_ioport_read (base + (i << dshift), 1, 1, read_chan, d);
 #endif
@@ -492,7 +492,7 @@ static void dma_init2(struct dma_cont *d, int base, int dshift,
         register_ioport_write (page_base + page_port_list[i], 1, 1,
                                write_page, d);
 #ifdef CONFIG_REPLAY
-        register_ioport_read_disk (page_base + page_port_list[i], 1, 1,
+        register_ioport_read_norecord (page_base + page_port_list[i], 1, 1,
                               read_page, d);
 #else
         register_ioport_read (page_base + page_port_list[i], 1, 1,
@@ -502,7 +502,7 @@ static void dma_init2(struct dma_cont *d, int base, int dshift,
             register_ioport_write (pageh_base + page_port_list[i], 1, 1,
                                    write_pageh, d);
 #ifdef CONFIG_REPLAY
-            register_ioport_read_disk (pageh_base + page_port_list[i], 1, 1,
+            register_ioport_read_norecord (pageh_base + page_port_list[i], 1, 1,
                                   read_pageh, d);
 #else
             register_ioport_read (pageh_base + page_port_list[i], 1, 1,
@@ -514,7 +514,7 @@ static void dma_init2(struct dma_cont *d, int base, int dshift,
         register_ioport_write (base + ((i + 8) << dshift), 1, 1,
                                write_cont, d);
 #ifdef CONFIG_REPLAY
-        register_ioport_read_disk (base + ((i + 8) << dshift), 1, 1,
+        register_ioport_read_norecord (base + ((i + 8) << dshift), 1, 1,
                               read_cont, d);
 #else
         register_ioport_read (base + ((i + 8) << dshift), 1, 1,

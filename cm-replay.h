@@ -12,7 +12,9 @@ enum {
 };
 extern int cm_ncpus;
 
-#define NINTR 10 // For debug
+// put config options in replay.h to avoid recompiling everything each time
+// there's a single change
+#define DEBUG_RECORD_IOPORT
 
 typedef struct {
     uint64_t exec_cnt;
