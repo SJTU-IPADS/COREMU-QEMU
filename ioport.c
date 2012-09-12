@@ -144,12 +144,14 @@ static int ioport_bsize(int size, int *bsize)
 
 #ifdef CONFIG_REPLAY
 
+#include "closure.h"
+
 enum {
     DONT_RECORD = 0,
     NEED_RECORD = 1,
+    NO_PASS = 0,
+    CAN_PASS = 1,
 };
-
-#include "closure.h"
 
 /* During record, call the original function, record return value.
  * During replay, simply return the record value. */
@@ -173,6 +175,10 @@ static IOPortReadFunc *cm_wrap_ioport_read_func(IOPortReadFunc *func)
 
     return create_closure(io_read_wrap);
 }
+
+/* Some hardware can be ignore during replay. Register an empty function for
+ * those hardware. */
+static void cm_ioport_write_pass(void *opaque, uint32_t address, uint32_t data) { }
 
 #ifdef DEBUG_RECORD_IOPORT
 
@@ -256,8 +262,13 @@ int register_ioport_read_norecord(pio_addr_t start, int length, int size,
 #endif // CONFIG_REPLAY
 
 /* size is the word size in byte */
+#ifdef CONFIG_REPLAY
+static int __register_ioport_write(pio_addr_t start, int length, int size,
+                          IOPortWriteFunc *func, void *opaque, int can_pass)
+#else
 int register_ioport_write(pio_addr_t start, int length, int size,
                           IOPortWriteFunc *func, void *opaque)
+#endif
 {
     int i, bsize;
 
@@ -266,13 +277,34 @@ int register_ioport_write(pio_addr_t start, int length, int size,
         return -1;
     }
     for(i = start; i < start + length; i += size) {
+#ifdef CONFIG_REPLAY
+        if (cm_run_mode == CM_RUNMODE_REPLAY)
+            ioport_write_table[bsize][i] = can_pass ? cm_ioport_write_pass : func;
+        else
+            ioport_write_table[bsize][i] = func;
+#else
         ioport_write_table[bsize][i] = func;
+#endif
         if (ioport_opaque[i] != NULL && ioport_opaque[i] != opaque)
             hw_error("register_ioport_write: invalid opaque");
         ioport_opaque[i] = opaque;
     }
     return 0;
 }
+
+#ifdef CONFIG_REPLAY
+int register_ioport_write(pio_addr_t start, int length, int size,
+                          IOPortWriteFunc *func, void *opaque)
+{
+    return __register_ioport_write(start, length, size, func, opaque, NO_PASS);
+}
+
+int register_ioport_write_pass_replay(pio_addr_t start, int length, int size,
+                          IOPortWriteFunc *func, void *opaque)
+{
+    return __register_ioport_write(start, length, size, func, opaque, CAN_PASS);
+}
+#endif
 
 static uint32_t ioport_readb_thunk(void *opaque, uint32_t addr)
 {

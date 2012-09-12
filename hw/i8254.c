@@ -510,7 +510,11 @@ PITState *pit_init(int base, qemu_irq irq)
 
     vmstate_register(NULL, base, &vmstate_pit, pit);
     qemu_register_reset(pit_reset, pit);
+#ifdef CONFIG_REPLAY
+    register_ioport_write_pass_replay(base, 4, 1, pit_ioport_write, pit);
+#else
     register_ioport_write(base, 4, 1, pit_ioport_write, pit);
+#endif
     register_ioport_read(base, 3, 1, pit_ioport_read, pit);
 
     return pit;

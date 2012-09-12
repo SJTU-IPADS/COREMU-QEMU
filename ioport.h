@@ -40,14 +40,16 @@ typedef uint32_t (IOPortReadFunc)(void *opaque, uint32_t address);
 void ioport_register(IORange *iorange);
 int register_ioport_read(pio_addr_t start, int length, int size,
                          IOPortReadFunc *func, void *opaque);
-#ifdef CONFIG_REPLAY
-int register_ioport_read_norecord(pio_addr_t start, int length, int size,
-                         IOPortReadFunc *func, void *opaque);
-#endif
 int register_ioport_write(pio_addr_t start, int length, int size,
                           IOPortWriteFunc *func, void *opaque);
 void isa_unassign_ioport(pio_addr_t start, int length);
 
+#ifdef CONFIG_REPLAY
+int register_ioport_read_norecord(pio_addr_t start, int length, int size,
+                         IOPortReadFunc *func, void *opaque);
+int register_ioport_write_pass_replay(pio_addr_t start, int length, int size,
+                          IOPortWriteFunc *func, void *opaque);
+#endif
 
 void cpu_outb(pio_addr_t addr, uint8_t val);
 void cpu_outw(pio_addr_t addr, uint16_t val);
