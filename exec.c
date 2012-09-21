@@ -3737,6 +3737,11 @@ static void swapendian_del(int io_index)
 
 #ifdef CONFIG_REPLAY
 
+enum {
+    DONT_RECORD = 0,
+    NEED_RECORD = 1,
+};
+
 #include "closure.h"
 
 static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
@@ -3760,18 +3765,20 @@ static CPUReadMemoryFunc *cm_wrap_read_mem_func(CPUReadMemoryFunc *func)
     return create_closure(mem_read_wrap);
 }
 
-static CPUReadMemoryFunc *cm_wrap_read_mem_apic_func(CPUReadMemoryFunc *func)
+#ifdef DEBUG_RECORD_MEMREAD
+
+/* Refer to comment in ioport.c */
+static CPUReadMemoryFunc *cm_wrap_read_mem_func_debug(CPUReadMemoryFunc *func)
 {
     auto uint32_t mem_read_wrap(void *opaque, target_phys_addr_t addr);
     uint32_t mem_read_wrap(void *opaque, target_phys_addr_t addr)
     {
         unsigned int val;
         if (cm_run_mode == CM_RUNMODE_REPLAY && cm_replay_mmio(&val)) {
-            /* XXX Since read may change hardware state, still need to call the
-             * original mmio read function. */
             unsigned int result = func(opaque, addr);
             if (result != val)
-                coremu_debug("cm_wrap_read_mem_apic_func: log doesn't match, addr %lx", addr);
+                coremu_debug("cm_wrap_read_mem_func_debug: log doesn't match, addr %lx, %p",
+                        addr, func);
             return val;
         }
 
@@ -3785,6 +3792,13 @@ static CPUReadMemoryFunc *cm_wrap_read_mem_apic_func(CPUReadMemoryFunc *func)
 
     return create_closure(mem_read_wrap);
 }
+
+#else
+
+#define cm_wrap_read_mem_func_debug(func) func
+
+#endif // DEBUG_RECORD_MEMREAD
+
 #endif
 
 /* mem_read and mem_write are arrays of functions containing the
@@ -3799,7 +3813,7 @@ static int __cpu_register_io_memory_fixed(int io_index,
                                         CPUReadMemoryFunc * const *mem_read,
                                         CPUWriteMemoryFunc * const *mem_write,
                                         void *opaque, enum device_endian endian,
-                                        int apic_flag)
+                                        int need_record)
 #else
 static int cpu_register_io_memory_fixed(int io_index,
                                         CPUReadMemoryFunc * const *mem_read,
@@ -3821,16 +3835,12 @@ static int cpu_register_io_memory_fixed(int io_index,
 
     for (i = 0; i < 3; ++i) {
 #ifdef CONFIG_REPLAY
-        if (apic_flag) {
-            io_mem_read[io_index][i] = (mem_read[i] ?
-                cm_wrap_read_mem_apic_func(mem_read[i]) :
-                    unassigned_mem_read[i]);
-
-        } else {
-            io_mem_read[io_index][i] = (mem_read[i] ?
-                   cm_wrap_read_mem_func(mem_read[i]) :
-                   unassigned_mem_read[i]);
-        }
+        io_mem_read[io_index][i] =
+            mem_read[i] ?
+            (need_record ?
+             cm_wrap_read_mem_func(mem_read[i]) :
+             cm_wrap_read_mem_func_debug(mem_read[i])) :
+            unassigned_mem_read[i];
 #else
         io_mem_read[io_index][i]
             = (mem_read[i] ? mem_read[i] : unassigned_mem_read[i]);
@@ -3865,30 +3875,36 @@ static int cpu_register_io_memory_fixed(int io_index,
 static int cpu_register_io_memory_fixed(int io_index,
                                         CPUReadMemoryFunc * const *mem_read,
                                         CPUWriteMemoryFunc * const *mem_write,
-                                        void *opaque, enum device_endian endian){
-    return __cpu_register_io_memory_fixed(io_index, mem_read, mem_write, opaque, endian, 0);
+                                        void *opaque, enum device_endian endian)
+{
+    return __cpu_register_io_memory_fixed(io_index, mem_read, mem_write, opaque,
+            endian, NEED_RECORD);
 }
-#endif
 
 int cpu_register_io_memory(CPUReadMemoryFunc * const *mem_read,
                            CPUWriteMemoryFunc * const *mem_write,
                            void *opaque, enum device_endian endian)
 {
-#ifdef CONFIG_REPLAY
-    return __cpu_register_io_memory_fixed(0, mem_read, mem_write, opaque, endian, 0);
-#else 
-    return cpu_register_io_memory_fixed(0, mem_read, mem_write, opaque, endian);
-#endif
+    return __cpu_register_io_memory_fixed(0, mem_read, mem_write, opaque, endian, NEED_RECORD);
 }
 
-#ifdef CONFIG_REPLAY
-int cpu_register_io_memory_apic(CPUReadMemoryFunc * const *mem_read,
+int cpu_register_io_memory_norecord(CPUReadMemoryFunc * const *mem_read,
                            CPUWriteMemoryFunc * const *mem_write,
                            void *opaque, enum device_endian endian)
 {
-    return __cpu_register_io_memory_fixed(0, mem_read, mem_write, opaque, endian, 1);
+    return __cpu_register_io_memory_fixed(0, mem_read, mem_write, opaque, endian, DONT_RECORD);
 }
-#endif
+
+#else // CONFIG_REPLAY
+
+int cpu_register_io_memory(CPUReadMemoryFunc * const *mem_read,
+                           CPUWriteMemoryFunc * const *mem_write,
+                           void *opaque, enum device_endian endian)
+{
+    return cpu_register_io_memory_fixed(0, mem_read, mem_write, opaque, endian);
+}
+
+#endif // CONFIG_REPLAY
 
 void cpu_unregister_io_memory(int io_table_address)
 {

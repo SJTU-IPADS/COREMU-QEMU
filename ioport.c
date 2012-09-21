@@ -211,7 +211,13 @@ static IOPortReadFunc *cm_wrap_ioport_read_debug(IOPortReadFunc *func)
 
     return create_closure(io_read_wrap);
 }
+
+#else // DEBUG_RECORD_IOPORT
+
+#define cm_wrap_ioport_read_debug(func) func
+
 #endif // DEBUG_RECORD_IOPORT
+
 #endif // CONFIG_REPLAY
 
 /* size is the word size in byte */
@@ -232,11 +238,7 @@ int register_ioport_read(pio_addr_t start, int length, int size,
     for(i = start; i < start + length; i += size) {
 #ifdef CONFIG_REPLAY
         ioport_read_table[bsize][i] = need_record ?
-#  ifdef DEBUG_RECORD_IOPORT
                 cm_wrap_ioport_read_func(func) : cm_wrap_ioport_read_debug(func);
-#  else
-                cm_wrap_ioport_read_func(func) : func;
-#  endif // DEBUG_RECORD_IOPORT
 #else
         ioport_read_table[bsize][i] = func;
 #endif

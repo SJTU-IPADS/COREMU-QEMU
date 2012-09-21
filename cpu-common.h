@@ -63,9 +63,11 @@ int cpu_register_io_memory(CPUReadMemoryFunc * const *mem_read,
                            CPUWriteMemoryFunc * const *mem_write,
                            void *opaque, enum device_endian endian);
 
-int cpu_register_io_memory_apic(CPUReadMemoryFunc * const *mem_read,
+#ifdef CONFIG_REPLAY
+int cpu_register_io_memory_norecord(CPUReadMemoryFunc * const *mem_read,
                            CPUWriteMemoryFunc * const *mem_write,
                            void *opaque, enum device_endian endian);
+#endif
 
 void cpu_unregister_io_memory(int table_address);
 

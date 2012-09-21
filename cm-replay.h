@@ -15,6 +15,7 @@ extern int cm_ncpus;
 // put config options in replay.h to avoid recompiling everything each time
 // there's a single change
 #define DEBUG_RECORD_IOPORT
+#define DEBUG_RECORD_MEMREAD
 
 typedef struct {
     uint64_t exec_cnt;
