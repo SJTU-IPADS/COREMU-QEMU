@@ -24,6 +24,13 @@
 #include "hw.h"
 #include "isa.h"
 
+#include "coremu-config.h"
+#include "coremu-atomic.h"
+#include "cm-replay.h"
+
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 /* #define DEBUG_DMA */
 
 #define dolog(...) fprintf (stderr, "dma: " __VA_ARGS__)
@@ -462,6 +469,10 @@ static int dma_phony_handler (void *opaque, int nchan, int dma_pos, int dma_len)
            nchan, dma_pos, dma_len);
     return dma_pos;
 }
+
+#ifdef CONFIG_REPLAY
+#define register_ioport_read register_ioport_read_norecord
+#endif
 
 /* dshift = 0: 8 bit DMA, 1 = 16 bit DMA */
 static void dma_init2(struct dma_cont *d, int base, int dshift,

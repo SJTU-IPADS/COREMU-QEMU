@@ -31,6 +31,9 @@
 #include "coremu-config.h"
 #include "cm-replay.h"
 
+#define DEBUG_COREMU
+#include "coremu-debug.h"
+
 /***********************************************************/
 /* IO Port */
 
@@ -58,26 +61,7 @@ static IOPortWriteFunc *ioport_write_table[3][MAX_IOPORTS];
 static IOPortReadFunc default_ioport_readb, default_ioport_readw, default_ioport_readl;
 static IOPortWriteFunc default_ioport_writeb, default_ioport_writew, default_ioport_writel;
 
-#ifdef CONFIG_REPLAY
-static inline int cm_ignore_address(uint32_t address) {
-    /*
-     *switch (address) {
-     *case 0x1f0: // primary ide master
-     *case 0x3f6: //             slave
-     *case 0x170: // secondary ide master
-     *case 0x376: //             slave
-     *    return 1;
-     *}
-     */
-    return 0;
-}
-#endif
-
-#ifdef CONFIG_REPLAY
-static uint32_t __ioport_read(int index, uint32_t address)
-#else
 static uint32_t ioport_read(int index, uint32_t address)
-#endif
 {
     static IOPortReadFunc * const default_func[3] = {
         default_ioport_readb,
@@ -89,27 +73,6 @@ static uint32_t ioport_read(int index, uint32_t address)
         func = default_func[index];
     return func(ioport_opaque[address], address);
 }
-
-#ifdef CONFIG_REPLAY
-static uint32_t ioport_read(int index, uint32_t address)
-{
-    uint32_t value;
-
-    if (cm_run_mode == CM_RUNMODE_REPLAY && !cm_ignore_address(address))
-        if (cm_replay_in(&value)) {
-            /* XXX Since read may change hardware state, still need to call the
-             * original ioport read function. */
-            __ioport_read(index, address);
-            return value;
-        }
-
-    value = __ioport_read(index, address);
-    if (cm_run_mode == CM_RUNMODE_RECORD)
-        cm_record_in(value);
-
-    return value;
-}
-#endif
 
 static void ioport_write(int index, uint32_t address, uint32_t data)
 {
@@ -179,9 +142,92 @@ static int ioport_bsize(int size, int *bsize)
     return 0;
 }
 
+#ifdef CONFIG_REPLAY
+
+#include "closure.h"
+
+enum {
+    DONT_RECORD = 0,
+    NEED_RECORD = 1,
+    NO_PASS = 0,
+    CAN_PASS = 1,
+};
+
+/* During record, call the original function, record return value.
+ * During replay, simply return the record value. */
+static IOPortReadFunc *cm_wrap_ioport_read_func(IOPortReadFunc *func)
+{
+    auto uint32_t io_read_wrap(void *opaque, uint32_t addr);
+    uint32_t io_read_wrap(void *opaque, uint32_t addr)
+    {
+        unsigned int val;
+        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_replay_in(&val)) {
+            return val;
+        }
+
+        val = func(opaque, addr);
+        if (cm_run_mode == CM_RUNMODE_RECORD) {
+            cm_record_in(val);
+        }
+        
+        return val;
+    }
+
+    return create_closure(io_read_wrap);
+}
+
+/* Some hardware can be ignore during replay. Register an empty function for
+ * those hardware. */
+static void cm_ioport_write_pass(void *opaque, uint32_t address, uint32_t data) { }
+
+#ifdef DEBUG_RECORD_IOPORT
+
+/* Some hardware is deterministic (e.g. hard disk), so we don't need to record
+ * the read value for those ones. This function is for determining which hardware
+ * is deterministic. */
+static IOPortReadFunc *cm_wrap_ioport_read_debug(IOPortReadFunc *func)
+{
+    auto uint32_t io_read_wrap(void *opaque, uint32_t addr);
+    uint32_t io_read_wrap(void *opaque, uint32_t addr)
+    {
+        unsigned int val;
+        if (cm_run_mode == CM_RUNMODE_REPLAY && cm_replay_in(&val)) {
+            // Call the original function and check if value is the same with
+            // recorded one.
+            unsigned int result;
+            result = func(opaque, addr);
+            if (result != val) 
+                coremu_debug("func %p log doesn't match", func);
+            return result;
+        }
+
+        val = func(opaque, addr);
+        if (cm_run_mode == CM_RUNMODE_RECORD) {
+            cm_record_in(val);
+        }
+
+        return val;
+    }
+
+    return create_closure(io_read_wrap);
+}
+
+#else // DEBUG_RECORD_IOPORT
+
+#define cm_wrap_ioport_read_debug(func) func
+
+#endif // DEBUG_RECORD_IOPORT
+
+#endif // CONFIG_REPLAY
+
 /* size is the word size in byte */
+#ifdef CONFIG_REPLAY
+static int __register_ioport_read(pio_addr_t start, int length, int size,
+                         IOPortReadFunc *func, void *opaque, int need_record)
+#else
 int register_ioport_read(pio_addr_t start, int length, int size,
                          IOPortReadFunc *func, void *opaque)
+#endif
 {
     int i, bsize;
 
@@ -190,7 +236,12 @@ int register_ioport_read(pio_addr_t start, int length, int size,
         return -1;
     }
     for(i = start; i < start + length; i += size) {
+#ifdef CONFIG_REPLAY
+        ioport_read_table[bsize][i] = need_record ?
+                cm_wrap_ioport_read_func(func) : cm_wrap_ioport_read_debug(func);
+#else
         ioport_read_table[bsize][i] = func;
+#endif
         if (ioport_opaque[i] != NULL && ioport_opaque[i] != opaque)
             hw_error("register_ioport_read: invalid opaque");
         ioport_opaque[i] = opaque;
@@ -198,9 +249,28 @@ int register_ioport_read(pio_addr_t start, int length, int size,
     return 0;
 }
 
+#ifdef CONFIG_REPLAY
+int register_ioport_read(pio_addr_t start, int length, int size,
+                         IOPortReadFunc *func, void *opaque)
+{
+    return __register_ioport_read(start, length, size, func, opaque, NEED_RECORD);
+}
+
+int register_ioport_read_norecord(pio_addr_t start, int length, int size,
+                         IOPortReadFunc *func, void *opaque)
+{
+    return __register_ioport_read(start, length, size, func, opaque, DONT_RECORD);
+}
+#endif // CONFIG_REPLAY
+
 /* size is the word size in byte */
+#ifdef CONFIG_REPLAY
+static int __register_ioport_write(pio_addr_t start, int length, int size,
+                          IOPortWriteFunc *func, void *opaque, int can_pass)
+#else
 int register_ioport_write(pio_addr_t start, int length, int size,
                           IOPortWriteFunc *func, void *opaque)
+#endif
 {
     int i, bsize;
 
@@ -209,13 +279,34 @@ int register_ioport_write(pio_addr_t start, int length, int size,
         return -1;
     }
     for(i = start; i < start + length; i += size) {
+#ifdef CONFIG_REPLAY
+        if (cm_run_mode == CM_RUNMODE_REPLAY)
+            ioport_write_table[bsize][i] = can_pass ? cm_ioport_write_pass : func;
+        else
+            ioport_write_table[bsize][i] = func;
+#else
         ioport_write_table[bsize][i] = func;
+#endif
         if (ioport_opaque[i] != NULL && ioport_opaque[i] != opaque)
             hw_error("register_ioport_write: invalid opaque");
         ioport_opaque[i] = opaque;
     }
     return 0;
 }
+
+#ifdef CONFIG_REPLAY
+int register_ioport_write(pio_addr_t start, int length, int size,
+                          IOPortWriteFunc *func, void *opaque)
+{
+    return __register_ioport_write(start, length, size, func, opaque, NO_PASS);
+}
+
+int register_ioport_write_pass_replay(pio_addr_t start, int length, int size,
+                          IOPortWriteFunc *func, void *opaque)
+{
+    return __register_ioport_write(start, length, size, func, opaque, CAN_PASS);
+}
+#endif
 
 static uint32_t ioport_readb_thunk(void *opaque, uint32_t addr)
 {

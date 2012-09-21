@@ -68,6 +68,10 @@ static void bmdma_writeb(void *opaque, uint32_t addr, uint32_t val)
     }
 }
 
+#ifdef CONFIG_REPLAY
+#define register_ioport_read register_ioport_read_norecord
+#endif
+
 static void bmdma_map(PCIDevice *pci_dev, int region_num,
                     pcibus_t addr, pcibus_t size, int type)
 {

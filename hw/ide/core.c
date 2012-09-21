@@ -2750,6 +2750,10 @@ void ide_init2_with_non_qdev_drives(IDEBus *bus, DriveInfo *hd0,
     bus->dma = &ide_dma_nop;
 }
 
+#ifdef CONFIG_REPLAY
+#define register_ioport_read register_ioport_read_norecord
+#endif
+
 void ide_init_ioport(IDEBus *bus, int iobase, int iobase2)
 {
     register_ioport_write(iobase, 8, 1, ide_ioport_write, bus);
