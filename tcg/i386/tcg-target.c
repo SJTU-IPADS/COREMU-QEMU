@@ -1617,7 +1617,7 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
     case INDEX_op_goto_tb:
         if (s->tb_jmp_offset) {
 #ifdef CONFIG_REPLAY
-            int exit_label;
+            int exit_label = 0;
             if (cm_run_mode == CM_RUNMODE_REPLAY) {
                 exit_label = gen_new_label();
                 /* Check if we need to exit by comparing recorded and current TB exec count. */

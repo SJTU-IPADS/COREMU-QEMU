@@ -7,7 +7,6 @@
 #include <pthread.h>
 
 #include "coremu-config.h"
-#include "cm-defs.h"
 #include "cm-crew.h"
 #include "cm-replay.h"
 

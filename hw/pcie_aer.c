@@ -694,6 +694,7 @@ int pcie_aer_inject_error(PCIDevice *dev, const PCIEAERErr *err)
             .flags = PCIE_AER_ERR_IS_CORRECTABLE,
         };
         int ret = pcie_aer_inject_error(dev, &header_log_overflow);
+        (void) ret;
         assert(!ret);
     }
     return 0;

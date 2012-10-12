@@ -53,6 +53,7 @@ int event_notifier_test(EventNotifier *e)
     if (r == sizeof(value)) {
         /* restore previous value. */
         int s = write(e->fd, &value, sizeof(value));
+        (void) s;
         /* never blocks because we use EFD_SEMAPHORE.
          * If we didn't we'd get EAGAIN on overflow
          * and we'd have to write code to ignore it. */

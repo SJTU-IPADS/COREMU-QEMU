@@ -852,6 +852,7 @@ static void qemu_opts_from_qdict_1(const char *key, QObject *obj, void *opaque)
     char buf[32];
     const char *value;
     int n;
+    (void) n;
 
     if (!strcmp(key, "id")) {
         return;

@@ -58,6 +58,7 @@ static int xio3130_upstream_initfn(PCIDevice *d)
     PCIEPort *p = DO_UPCAST(PCIEPort, br, br);
     int rc;
     int tmp;
+    (void) tmp;
 
     rc = pci_bridge_initfn(d);
     if (rc < 0) {

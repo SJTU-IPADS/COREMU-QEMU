@@ -49,9 +49,6 @@ static bool cm_tcg_cpu_exec(void)
 {
     int ret = 0;
     CPUState *env = cpu_single_env;
-    struct timespec halt_interval;
-    halt_interval.tv_sec = 0;
-    halt_interval.tv_nsec = 10000;
 
     for (;;) {
         if (cm_local_alarm_pending())
@@ -83,8 +80,6 @@ static bool cm_tcg_cpu_exec(void)
 
 void *cm_cpu_loop(void *args)
 {
-    int ret;
-
     /* Must initialize cpu_single_env before initializing core thread. */
     assert(args);
     cpu_single_env = (CPUState *)args;
@@ -93,7 +88,7 @@ void *cm_cpu_loop(void *args)
     cm_cpu_exec_init_core();
 
     for (;;) {
-        ret = cm_tcg_cpu_exec();
+        cm_tcg_cpu_exec();
         if (cm_test_reset_request()) {
             coremu_pause_core();
             continue;

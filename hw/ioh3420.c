@@ -150,6 +150,7 @@ err_msi:
     msi_uninit(d);
 err_bridge:
     tmp = pci_bridge_exitfn(d);
+    (void) tmp;
     assert(!tmp);
     return rc;
 }

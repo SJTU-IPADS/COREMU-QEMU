@@ -307,6 +307,7 @@ int cpu_exec(CPUState *env1)
     int ret, interrupt_request;
     TranslationBlock *tb;
     uint8_t *tc_ptr;
+    (void) tc_ptr;
     unsigned long next_tb;
 
     if (cpu_halted(env1) == EXCP_HALTED)

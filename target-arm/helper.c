@@ -879,7 +879,7 @@ void do_interrupt(CPUARMState *env)
     }
 #ifdef CONFIG_REPLAY
     if (IS_INTERRUPT(env->exception_index) && cm_run_mode == CM_RUNMODE_RECORD) {
-        cm_record_intr(env->exception_index, env->ENVPC);
+        cm_record_intr(env->exception_index, env->regs[15]); // regs[15] is pc
         irq_cnt++;
     }
 #endif

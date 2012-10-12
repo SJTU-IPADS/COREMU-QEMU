@@ -560,7 +560,7 @@ void cm_assert_not_in_tc(void);
 static __inline__ version_t cm_start_atomic_insn(memobj_t *mo, last_memobj_t *last,
         objid_t objid)
 {
-    version_t version;
+    version_t version = -1;
 
     switch (cm_run_mode) {
     case CM_RUNMODE_RECORD:

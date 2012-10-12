@@ -1646,6 +1646,7 @@ static int pci_qdev_init(DeviceState *qdev, DeviceInfo *base)
                           PCI_COLDPLUG_ENABLED);
         if (rc != 0) {
             int r = pci_unregister_device(&pci_dev->qdev);
+            (void) r;
             assert(!r);
             return rc;
         }
