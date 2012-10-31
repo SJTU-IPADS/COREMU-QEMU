@@ -65,10 +65,13 @@ typedef struct {
 extern int memobj_t_wrong_size[sizeof(memobj_t) == (1 << MEMOBJ_STRUCT_BITS) ? 1 : -1];
 
 typedef struct {
-    /* field order is important */
+    /* field order is important, log processing program assumes this ordering. */
     version_t version;
     memop_t memop;
 } last_memobj_t;
+/* last_memobj_t must be of the same size with memobj_t, because in TCG, we add
+ * the same offset to memobj and last_memobj array to get the item corresponding
+ * to a specific id. */
 extern int last_memobj_t_wrong_size[sizeof(last_memobj_t) ==
     (1 << MEMOBJ_STRUCT_BITS) ? 1 : -1];
 
