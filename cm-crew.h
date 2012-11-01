@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <time.h>
 
 #define __inline__ inline __attribute__((always_inline))
 
@@ -471,11 +472,18 @@ static __inline__ void read_next_version_log(void)
     version_log.buf = (char *)(wv + 1);
 }
 
+extern struct timespec mem_wait_interval;
+
 static __inline__ void wait_object_version(objid_t objid)
 {
     if (memop == wait_version.memop) {
+        int cnt = 0;
         while (obj_version[objid] < wait_version.version) {
-            cpu_relax();
+            if (cnt < 50) {
+                cpu_relax();
+                cnt++;
+            } else
+                nanosleep(&mem_wait_interval, NULL);
         }
 
         if (obj_version[objid] != wait_version.version) {
@@ -524,8 +532,14 @@ static __inline__ void wait_memop(objid_t objid)
 {
     wait_memop_t *log;
     while ((log = next_wait_memop(objid)) != NULL) {
+        int cnt = 0;
         while (*memop_cnt[log->coreid] <= log->memop) {
-            cpu_relax();
+            if (cnt < 50) {
+                cpu_relax();
+                cnt++;
+            } else {
+                nanosleep(&mem_wait_interval, NULL);
+            }
         }
     }
 }
