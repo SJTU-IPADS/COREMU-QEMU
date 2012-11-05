@@ -374,8 +374,9 @@ void cm_replay_all_exec_cnt(void)
             continue;
         if (fscanf(cm_log_allpc[cm_coreid], LOG_ALL_EXEC_CNT_FMT, &coreid,
                    &wait_exec_cnt) != EOF) {
-            while (*cm_tb_cnt_arr[coreid] < wait_exec_cnt)
-                sched_yield();
+            while (*cm_tb_cnt_arr[coreid] < wait_exec_cnt) {
+                usleep(5000);
+            }
             /*
              *coremu_debug("waited for %hu reach tb_exec_cnt %lu", coreid,
              *             wait_exec_cnt);

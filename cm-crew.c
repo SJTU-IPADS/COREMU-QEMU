@@ -24,6 +24,9 @@ memobj_t *memobj; /* Used during recording. */
 __thread last_memobj_t *last_memobj;
 version_t *obj_version; /* Used during replay. */
 
+
+struct timespec mem_wait_interval = { 0, 1000 };
+
 #ifdef LAZY_LOCK_RELEASE
 __thread struct crew_state_t crew;
 struct crew_gstate_t crew_g;
