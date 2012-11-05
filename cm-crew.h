@@ -59,16 +59,18 @@ typedef struct {
      * may still have duplicates, but it does not harm correctness. */
     /* TODO do this optimization later */
     //bool contending_added;
+    char __pad[64 - 16];
 #endif
 } memobj_t;
 
-#define MEMOBJ_STRUCT_BITS 4
+#define MEMOBJ_STRUCT_BITS 6
 extern int memobj_t_wrong_size[sizeof(memobj_t) == (1 << MEMOBJ_STRUCT_BITS) ? 1 : -1];
 
 typedef struct {
     /* field order is important, log processing program assumes this ordering. */
     version_t version;
     memop_t memop;
+    char __pad[64 - 16];
 } last_memobj_t;
 /* last_memobj_t must be of the same size with memobj_t, because in TCG, we add
  * the same offset to memobj and last_memobj array to get the item corresponding
