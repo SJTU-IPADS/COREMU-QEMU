@@ -1549,8 +1549,9 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
     case INDEX_op_goto_tb:
         if (s->tb_jmp_offset) {
 #ifdef CONFIG_REPLAY
-            int exit_label = gen_new_label();
+            int exit_label;
             if (cm_run_mode == CM_RUNMODE_REPLAY) {
+                exit_label = gen_new_label();
                 /* Check if we need to exit by comparing recorded and current TB exec count. */
                 tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RAX,
                              (tcg_target_long)&cm_tb_exec_cnt[cm_coreid]);
@@ -1571,7 +1572,8 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
             s->tb_jmp_offset[args[0]] = s->code_ptr - s->code_buf;
             tcg_out32(s, 0);
 #ifdef CONFIG_REPLAY
-            tcg_out_label(s, exit_label, (long)s->code_ptr);
+	    if (cm_run_mode == CM_RUNMODE_REPLAY)
+		tcg_out_label(s, exit_label, (long)s->code_ptr);
             /*tcg_out_calli(s, (tcg_target_long)cm_tb_break_link);*/
 #endif
         } else {
